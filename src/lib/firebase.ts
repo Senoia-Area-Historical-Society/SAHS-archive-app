@@ -18,7 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore, Storage, and Auth
-export const db = getFirestore(app);
+export const db = getFirestore(app, 'sahs-archives');
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

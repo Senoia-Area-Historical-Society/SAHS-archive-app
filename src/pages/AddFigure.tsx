@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { UserPlus, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export function AddFigure() {
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,15 +28,7 @@ export function AddFigure() {
                 created_at: new Date().toISOString()
             };
 
-            // Implement a timeout to prevent silent freezing
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error("Database connection timed out. Please check your Firestore security rules (Database -> Rules) to ensure writes are allowed.")), 8000);
-            });
-
-            await Promise.race([
-                addDoc(collection(db, 'historic_figures'), figureData),
-                timeoutPromise
-            ]);
+            await addDoc(collection(db, 'historic_figures'), figureData);
 
             setSuccess(true);
         } catch (err: any) {
@@ -112,12 +106,29 @@ export function AddFigure() {
                     <div className="space-y-6">
                         <div>
                             <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Portrait/Photo</label>
-                            <div className="border border-dashed border-tan-light bg-cream/50 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors h-48">
+                            <div
+                                onClick={() => fileInputRef.current?.click()}
+                                className="border border-dashed border-tan-light bg-cream/50 rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors h-48"
+                            >
+                                <input
+                                    type="file"
+                                    name="portraitFile"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/png, image/jpeg"
+                                    onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || null)}
+                                />
                                 <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-tan shadow-sm mb-3">
                                     <ImageIcon size={20} />
                                 </div>
-                                <p className="font-medium text-sm text-charcoal mb-1"><span className="text-tan hover:underline">Click to upload</span></p>
-                                <p className="text-xs text-charcoal/50">PNG, JPG up to 10MB</p>
+                                {selectedFileName ? (
+                                    <p className="font-medium text-sm text-charcoal mb-1"><span className="text-tan">{selectedFileName}</span></p>
+                                ) : (
+                                    <>
+                                        <p className="font-medium text-sm text-charcoal mb-1"><span className="text-tan hover:underline">Click to upload</span></p>
+                                        <p className="text-xs text-charcoal/50">PNG, JPG up to 10MB</p>
+                                    </>
+                                )}
                             </div>
                         </div>
 

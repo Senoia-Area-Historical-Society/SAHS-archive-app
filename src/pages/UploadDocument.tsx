@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
 export function UploadDocument() {
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,14 +27,7 @@ export function UploadDocument() {
                 created_at: new Date().toISOString()
             };
 
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error("Database connection timed out. Please check your Firestore security rules (Database -> Rules) to ensure writes are allowed.")), 8000);
-            });
-
-            await Promise.race([
-                addDoc(collection(db, 'documents'), docData),
-                timeoutPromise
-            ]);
+            await addDoc(collection(db, 'documents'), docData);
 
             setSuccess(true);
         } catch (err: any) {
@@ -83,12 +78,29 @@ export function UploadDocument() {
                 {/* File Upload Area */}
                 <div>
                     <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3">High-Resolution Scans *</label>
-                    <div className="border-2 border-dashed border-tan-light bg-cream/50 rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors">
+                    <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-tan-light bg-cream/50 rounded-xl p-10 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors"
+                    >
+                        <input
+                            type="file"
+                            name="documentFile"
+                            ref={fileInputRef}
+                            className="hidden"
+                            accept="image/png, image/jpeg, application/pdf"
+                            onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || null)}
+                        />
                         <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-tan shadow-sm mb-4">
                             <ImageIcon size={24} />
                         </div>
-                        <p className="font-medium text-charcoal mb-1"><span className="text-tan hover:underline">Click to upload</span> or drag and drop</p>
-                        <p className="text-xs text-charcoal/50">PNG, JPG, or PDF up to 50MB per file</p>
+                        {selectedFileName ? (
+                            <p className="font-medium text-charcoal mb-1"><span className="text-tan">{selectedFileName}</span></p>
+                        ) : (
+                            <>
+                                <p className="font-medium text-charcoal mb-1"><span className="text-tan hover:underline">Click to upload</span> or drag and drop</p>
+                                <p className="text-xs text-charcoal/50">PNG, JPG, or PDF up to 50MB per file</p>
+                            </>
+                        )}
                     </div>
                 </div>
 
