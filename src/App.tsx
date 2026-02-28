@@ -6,6 +6,8 @@ import { HistoricFigures } from './pages/HistoricFigures';
 import { HistoricFigureDetail } from './pages/HistoricFigureDetail';
 import { UploadDocument } from './pages/UploadDocument';
 import { AddFigure } from './pages/AddFigure';
+import { EditFigure } from './pages/EditFigure';
+import { EditDocument } from './pages/EditDocument';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -58,6 +60,8 @@ function App() {
             {/* Protected Curator Routes */}
             <Route path="upload-document" element={<ProtectedRoute><UploadDocument /></ProtectedRoute>} />
             <Route path="add-figure" element={<ProtectedRoute><AddFigure /></ProtectedRoute>} />
+            <Route path="edit-figure/:id" element={<ProtectedRoute><EditFigure /></ProtectedRoute>} />
+            <Route path="edit-document/:id" element={<ProtectedRoute><EditDocument /></ProtectedRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

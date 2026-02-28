@@ -1,16 +1,21 @@
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, BookOpen, Edit2, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, limit, getDocs, deleteDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 import type { HistoricFigure, DocumentRecord } from '../types/database';
 
 export function HistoricFigureDetail() {
     const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const { isSAHSUser } = useAuth();
+
     const [figure, setFigure] = useState<HistoricFigure | null>(null);
     const [relatedDocs, setRelatedDocs] = useState<DocumentRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         const fetchFigureAndDocs = async () => {
@@ -38,8 +43,22 @@ export function HistoricFigureDetail() {
         fetchFigureAndDocs();
     }, [id]);
 
-    if (loading) {
-        return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">Loading figure...</div>;
+    const handleDelete = async () => {
+        if (!id || !window.confirm('Are you sure you want to delete this figure?')) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteDoc(doc(db, 'historic_figures', id));
+            navigate('/figures');
+        } catch (error) {
+            console.error("Error deleting figure:", error);
+            alert("Failed to delete figure.");
+            setIsDeleting(false);
+        }
+    };
+
+    if (loading || isDeleting) {
+        return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">{isDeleting ? 'Deleting...' : 'Loading figure...'}</div>;
     }
 
     if (!figure) {
@@ -53,11 +72,28 @@ export function HistoricFigureDetail() {
 
     return (
         <div className="flex flex-col h-full max-w-5xl mx-auto animate-in fade-in duration-500 pb-12">
-            <div className="mb-8">
+            <div className="mb-8 flex justify-between items-center">
                 <Link to="/figures" className="flex items-center gap-2 text-charcoal/60 hover:text-charcoal transition-colors font-medium">
                     <ArrowLeft size={18} />
                     Back to Figures
                 </Link>
+
+                {isSAHSUser && (
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => navigate(`/edit-figure/${id}`)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
+                        >
+                            <Edit2 size={16} /> Edit
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 transition-colors shadow-sm"
+                        >
+                            <Trash2 size={16} /> Delete
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-col md:flex-row gap-10">

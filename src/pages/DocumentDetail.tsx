@@ -1,14 +1,19 @@
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Tag, Download, Maximize } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Calendar, MapPin, Tag, Download, Maximize, Edit2, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 import type { DocumentRecord } from '../types/database';
 
 export function DocumentDetail() {
     const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const { isSAHSUser } = useAuth();
+
     const [document, setDocument] = useState<DocumentRecord | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     useEffect(() => {
@@ -30,8 +35,22 @@ export function DocumentDetail() {
         fetchDocument();
     }, [id]);
 
-    if (loading) {
-        return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">Loading document...</div>;
+    const handleDelete = async () => {
+        if (!id || !window.confirm('Are you sure you want to delete this document?')) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteDoc(doc(db, 'documents', id));
+            navigate('/documents');
+        } catch (error) {
+            console.error("Error deleting document:", error);
+            alert("Failed to delete document.");
+            setIsDeleting(false);
+        }
+    };
+
+    if (loading || isDeleting) {
+        return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">{isDeleting ? 'Deleting...' : 'Loading document...'}</div>;
     }
 
     const docData = document;
@@ -54,6 +73,22 @@ export function DocumentDetail() {
                     Back to Archive
                 </Link>
                 <div className="flex gap-3">
+                    {isSAHSUser && (
+                        <>
+                            <button
+                                onClick={() => navigate(`/edit-document/${id}`)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
+                            >
+                                <Edit2 size={16} /> Edit
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 transition-colors shadow-sm"
+                            >
+                                <Trash2 size={16} /> Delete
+                            </button>
+                        </>
+                    )}
                     <button className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm">
                         <Download size={16} /> Download Copy
                     </button>
