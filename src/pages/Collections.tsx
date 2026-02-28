@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FolderOpen, Plus } from 'lucide-react';
+import { FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
@@ -33,6 +33,22 @@ export function Collections() {
 
         fetchCollections();
     }, []);
+
+    const handleDelete = async (e: React.MouseEvent, id: string, title: string) => {
+        e.preventDefault(); // Stop Link navigation
+
+        const isConfirmed = window.confirm(`Are you sure you want to delete the "${title}" collection?\n\nThe items in this collection will NOT be deleted, but they will no longer belong to this collection. This action cannot be undone.`);
+
+        if (!isConfirmed) return;
+
+        try {
+            await deleteDoc(doc(db, 'collections', id));
+            setCollections(prev => prev.filter(c => c.id !== id));
+        } catch (error) {
+            console.error("Error deleting collection:", error);
+            alert("Failed to delete the collection. Please try again.");
+        }
+    };
 
     return (
         <div className="flex flex-col h-full animate-in fade-in duration-500">
@@ -88,6 +104,17 @@ export function Collections() {
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+
+                                {isSAHSUser && (
+                                    <button
+                                        onClick={(e) => handleDelete(e, col.id, col.title)}
+                                        className="absolute top-3 right-3 p-2 bg-red-600/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 shadow-sm z-10"
+                                        title="Delete Collection"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
+
                                 <div className="absolute bottom-4 left-4 right-4">
                                     <h2 className="text-xl font-serif font-bold text-white mb-1 line-clamp-2 leading-tight">
                                         {col.title}
