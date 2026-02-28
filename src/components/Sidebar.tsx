@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, FileText, Users, Search, Upload, UserPlus, LogOut, LogIn } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Sidebar() {
@@ -35,14 +35,8 @@ export function Sidebar() {
                         <NavLink to="/" className={navLinkClass}>
                             <Home size={18} /> Home
                         </NavLink>
-                        <NavLink to="/documents" className={navLinkClass}>
-                            <FileText size={18} /> Documents
-                        </NavLink>
-                        <NavLink to="/figures" className={navLinkClass}>
-                            <Users size={18} /> Historic Figures
-                        </NavLink>
-                        <NavLink to="/search" className={navLinkClass}>
-                            <Search size={18} /> Search
+                        <NavLink to="/archive" className={navLinkClass}>
+                            <Search size={18} /> Browse Archive
                         </NavLink>
                     </nav>
                 </div>
@@ -51,11 +45,11 @@ export function Sidebar() {
                     <div>
                         <h2 className="text-xs font-bold text-charcoal/50 tracking-wider uppercase mb-3 px-4">Manage</h2>
                         <nav className="flex flex-col gap-1">
-                            <NavLink to="/upload-document" className={navLinkClass}>
-                                <Upload size={18} /> Upload Document
+                            <NavLink to="/add-item" className={navLinkClass}>
+                                <Upload size={18} /> Add Archive Item
                             </NavLink>
-                            <NavLink to="/add-figure" className={navLinkClass}>
-                                <UserPlus size={18} /> Add Figure
+                            <NavLink to="/collections" className={navLinkClass}>
+                                <FolderOpen size={18} /> Collections
                             </NavLink>
                         </nav>
                     </div>

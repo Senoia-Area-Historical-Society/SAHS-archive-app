@@ -1,13 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
-import { Documents } from './pages/Documents';
-import { DocumentDetail } from './pages/DocumentDetail';
-import { HistoricFigures } from './pages/HistoricFigures';
-import { HistoricFigureDetail } from './pages/HistoricFigureDetail';
-import { UploadDocument } from './pages/UploadDocument';
-import { AddFigure } from './pages/AddFigure';
-import { EditFigure } from './pages/EditFigure';
-import { EditDocument } from './pages/EditDocument';
+import { BrowseArchive } from './pages/BrowseArchive';
+import { ItemDetail } from './pages/ItemDetail';
+import { AddItem } from './pages/AddItem';
+import { EditItem } from './pages/EditItem';
+import { Collections } from './pages/Collections';
+import { AddCollection } from './pages/AddCollection';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -41,27 +39,26 @@ function App() {
                   photographs, and curated profiles of historic figures.
                 </p>
                 <div className="flex gap-4 pt-4">
-                  <a href="/documents" className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors">
-                    Browse Documents
+                  <a href="/archive" className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors">
+                    Browse Archive
                   </a>
-                  <a href="/search" className="bg-white border border-tan-light text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/30 transition-colors">
-                    Search Archive
+                  <a href="/archive" className="bg-white border border-tan-light text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/30 transition-colors">
+                    Search Collections
                   </a>
                 </div>
               </div>
             } />
-            <Route path="documents" element={<Documents />} />
-            <Route path="documents/:id" element={<DocumentDetail />} />
-            <Route path="figures" element={<HistoricFigures />} />
-            <Route path="figures/:id" element={<HistoricFigureDetail />} />
+            <Route path="archive" element={<BrowseArchive />} />
+            <Route path="collections" element={<Collections />} />
+            <Route path="items/:id" element={<ItemDetail />} />
+            <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
             <Route path="search" element={<div className="font-serif text-3xl font-bold">Search Archive</div>} />
             <Route path="login" element={<Login />} />
 
             {/* Protected Curator Routes */}
-            <Route path="upload-document" element={<ProtectedRoute><UploadDocument /></ProtectedRoute>} />
-            <Route path="add-figure" element={<ProtectedRoute><AddFigure /></ProtectedRoute>} />
-            <Route path="edit-figure/:id" element={<ProtectedRoute><EditFigure /></ProtectedRoute>} />
-            <Route path="edit-document/:id" element={<ProtectedRoute><EditDocument /></ProtectedRoute>} />
+            <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+            <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
+            <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

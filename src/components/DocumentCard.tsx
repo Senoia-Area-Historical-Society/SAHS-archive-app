@@ -1,22 +1,26 @@
 import { Link } from 'react-router-dom';
-import type { DocumentRecord } from '../types/database';
+import type { ArchiveItem } from '../types/database';
 
-export function DocumentCard({ doc }: { doc: DocumentRecord }) {
-    const imageUrl = doc.image_urls[0];
-    const totalImages = doc.image_urls.length;
+export function DocumentCard({ item }: { item: ArchiveItem }) {
+    const imageUrl = item.file_urls && item.file_urls.length > 0 ? item.file_urls[0] : null;
+    const totalImages = item.file_urls ? item.file_urls.length : 0;
 
     return (
         <Link
-            to={`/documents/${doc.id}`}
+            to={`/items/${item.id}`}
             className="bg-white border border-tan-light/50 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col group cursor-pointer"
         >
             <div className="aspect-[4/3] bg-tan-light/20 flex flex-col p-4 relative overflow-hidden">
-                {imageUrl && (
+                {imageUrl ? (
                     <img
                         src={imageUrl}
-                        alt={doc.title}
+                        alt={item.title}
                         className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
                     />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-tan-light bg-charcoal/5">
+                        <span className="font-serif text-4xl opacity-20">{item.title.charAt(0)}</span>
+                    </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 {totalImages > 1 && (
@@ -26,12 +30,12 @@ export function DocumentCard({ doc }: { doc: DocumentRecord }) {
                 )}
             </div>
             <div className="p-5 flex-1 flex flex-col bg-white z-10 relative">
-                <h3 className="font-bold text-lg leading-tight mb-2 font-serif">{doc.title}</h3>
-                <p className="text-sm text-charcoal/70 line-clamp-2 mb-4 font-sans leading-relaxed">{doc.description}</p>
+                <h3 className="font-bold text-lg leading-tight mb-2 font-serif">{item.title}</h3>
+                <p className="text-sm text-charcoal/70 line-clamp-2 mb-4 font-sans leading-relaxed">{item.description}</p>
                 <div className="flex items-center justify-between mt-auto pt-2">
-                    <span className="text-xs text-charcoal/60 flex items-center gap-1 font-medium">{doc.date_approx}</span>
+                    <span className="text-xs text-charcoal/60 flex items-center gap-1 font-medium">{item.date}</span>
                     <span className="text-[10px] sm:text-xs bg-tan-light text-charcoal px-2.5 py-1 rounded-full font-medium uppercase tracking-wider">
-                        {doc.category}
+                        {item.type || item.item_type}
                     </span>
                 </div>
             </div>
