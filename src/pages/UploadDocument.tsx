@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, storage } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function UploadDocument() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -18,12 +19,22 @@ export function UploadDocument() {
         try {
             const formData = new FormData(e.target as HTMLFormElement);
 
+            const documentFile = formData.get('documentFile') as File | null;
+            let fileUrls: string[] = [];
+
+            if (documentFile && documentFile.size > 0) {
+                const storageRef = ref(storage, `documents/${Date.now()}_${documentFile.name}`);
+                const snapshot = await uploadBytes(storageRef, documentFile);
+                const downloadUrl = await getDownloadURL(snapshot.ref);
+                fileUrls.push(downloadUrl);
+            }
+
             const docData = {
                 title: formData.get('title') as string,
                 category: formData.get('category') as string,
                 date_approx: formData.get('date') as string || "",
                 description: formData.get('description') as string || "",
-                image_urls: [],
+                image_urls: fileUrls,
                 created_at: new Date().toISOString()
             };
 

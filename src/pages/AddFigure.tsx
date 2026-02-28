@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { UserPlus, Image as ImageIcon, CheckCircle, AlertCircle } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, storage } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export function AddFigure() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -18,13 +19,22 @@ export function AddFigure() {
         try {
             const formData = new FormData(e.target as HTMLFormElement);
 
+            const portraitFile = formData.get('portraitFile') as File | null;
+            let portraitUrl = "";
+
+            if (portraitFile && portraitFile.size > 0) {
+                const storageRef = ref(storage, `portraits/${Date.now()}_${portraitFile.name}`);
+                const snapshot = await uploadBytes(storageRef, portraitFile);
+                portraitUrl = await getDownloadURL(snapshot.ref);
+            }
+
             const figureData = {
                 type: formData.get('type') as string,
                 full_name: formData.get('fullName') as string,
                 also_known_as: formData.get('knownAs') as string || "",
                 life_dates: formData.get('dates') as string || "",
                 biography: formData.get('biography') as string || "",
-                portrait_url: "",
+                portrait_url: portraitUrl,
                 created_at: new Date().toISOString()
             };
 
