@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, X, MapPin, Info, Users } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
@@ -14,8 +14,11 @@ export function ItemDetail() {
 
     const [item, setItem] = useState<ArchiveItem | null>(null);
     const [relatedItems, setRelatedItems] = useState<ArchiveItem[]>([]);
+    const [relatedFigureItems, setRelatedFigureItems] = useState<ArchiveItem[]>([]);
+    const [relatedDocumentItems, setRelatedDocumentItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchItemAndRelated = async () => {
@@ -42,6 +45,20 @@ export function ItemDetail() {
                         const docsSnap = await getDocs(docsQuery);
                         const rDocs = docsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                         setRelatedItems(rDocs.filter(d => d.id !== data.id));
+                    }
+
+                    // Fetch explicit related figures if they exist
+                    if (data.related_figures && data.related_figures.length > 0) {
+                        const figuresQuery = query(collection(db, 'archive_items'), where('id', 'in', data.related_figures));
+                        const figuresSnap = await getDocs(figuresQuery);
+                        setRelatedFigureItems(figuresSnap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[]);
+                    }
+
+                    // Fetch explicit related documents (if this is a figure)
+                    if (data.related_documents && data.related_documents.length > 0) {
+                        const docsQuery = query(collection(db, 'archive_items'), where('id', 'in', data.related_documents));
+                        const docsSnap = await getDocs(docsQuery);
+                        setRelatedDocumentItems(docsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[]);
                     }
                 }
 
@@ -86,6 +103,27 @@ export function ItemDetail() {
 
     return (
         <div className="flex flex-col h-full max-w-5xl mx-auto animate-in fade-in duration-500 pb-12">
+            {zoomedImage && (
+                <div
+                    className="fixed inset-0 z-[100] bg-charcoal/95 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
+                    onClick={() => setZoomedImage(null)}
+                >
+                    <div className="relative max-w-full max-h-full overflow-auto">
+                        <img
+                            src={zoomedImage}
+                            alt="Zoomed Review"
+                            className="max-w-none w-auto h-auto min-w-full rounded-sm shadow-2xl"
+                        />
+                    </div>
+                    <button className="absolute top-8 right-8 text-white hover:text-tan transition-colors">
+                        <X size={32} />
+                    </button>
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 text-sm bg-charcoal/50 px-6 py-2 rounded-full backdrop-blur-md border border-white/10">
+                        Click anywhere to exit • Use mouse to pan & zoom
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8 flex justify-between items-center">
                 <Link to="/archive" className="flex items-center gap-2 text-charcoal/60 hover:text-charcoal transition-colors font-medium">
                     <ArrowLeft size={18} />
@@ -113,13 +151,18 @@ export function ItemDetail() {
             <div className="flex flex-col md:flex-row gap-10">
                 {/* Left Side: Portrait & Facts */}
                 <div className="w-full md:w-80 shrink-0 flex flex-col gap-6">
-                    <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-sm">
+                    <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group cursor-zoom-in" onClick={() => coverImage && setZoomedImage(coverImage)}>
                         {coverImage ? (
-                            <img
-                                src={coverImage}
-                                alt={item.title}
-                                className="w-full h-full object-cover"
-                            />
+                            <>
+                                <img
+                                    src={coverImage}
+                                    alt={item.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                />
+                                <div className="absolute inset-0 bg-charcoal/20 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                    <ZoomIn size={32} />
+                                </div>
+                            </>
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center text-tan-light bg-charcoal/5">
                                 <span className="font-serif text-6xl opacity-20">{item.title.charAt(0)}</span>
@@ -160,18 +203,124 @@ export function ItemDetail() {
                                     <p className="font-medium text-charcoal">{item.subject}</p>
                                 </div>
                             )}
+
+                            {/* Figure Specific Facts */}
+                            {item.item_type === 'Historic Figure' && (
+                                <div className="pt-4 border-t border-tan-light/50 mt-4 space-y-4">
+                                    <h3 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4">Timeline & Origins</h3>
+                                    {item.full_name && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
+                                            <p className="font-medium text-charcoal">{item.full_name}</p>
+                                        </div>
+                                    )}
+                                    {item.also_known_as && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Also Known As</p>
+                                            <p className="font-medium text-charcoal italic">"{item.also_known_as}"</p>
+                                        </div>
+                                    )}
+                                    {item.birth_date && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Birth Date</p>
+                                            <p className="font-medium text-charcoal">{item.birth_date}</p>
+                                        </div>
+                                    )}
+                                    {item.death_date && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Death Date</p>
+                                            <p className="font-medium text-charcoal">{item.death_date}</p>
+                                        </div>
+                                    )}
+                                    {item.birthplace && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Birthplace</p>
+                                            <p className="font-medium text-charcoal">{item.birthplace}</p>
+                                        </div>
+                                    )}
+                                    {item.occupation && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Occupation</p>
+                                            <p className="font-medium text-charcoal">{item.occupation}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Organization Specific Facts */}
+                            {item.item_type === 'Historic Organization' && (
+                                <div className="pt-4 border-t border-tan-light/50 mt-4 space-y-4">
+                                    <h3 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4">Organization History</h3>
+                                    {item.org_name && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
+                                            <p className="font-medium text-charcoal">{item.org_name}</p>
+                                        </div>
+                                    )}
+                                    {item.alternative_names && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Alternative Names</p>
+                                            <p className="font-medium text-charcoal italic">{item.alternative_names}</p>
+                                        </div>
+                                    )}
+                                    {item.founding_date && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Founding Date</p>
+                                            <p className="font-medium text-charcoal">{item.founding_date}</p>
+                                        </div>
+                                    )}
+                                    {item.dissolved_date && (
+                                        <div>
+                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Closed / Dissolved</p>
+                                            <p className="font-medium text-charcoal">{item.dissolved_date}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {item.category && (
+                                <div className="mb-4">
+                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-1">Archive Category</p>
+                                    <span className="inline-block bg-tan/10 text-tan px-3 py-1 rounded-full text-xs font-bold border border-tan/20">
+                                        {item.category}
+                                    </span>
+                                </div>
+                            )}
+
                             {item.tags && item.tags.length > 0 && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Tags</p>
-                                    <div className="flex flex-wrap gap-2 mt-2">
+                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-2">Subject Tags</p>
+                                    <div className="flex flex-wrap gap-2">
                                         {item.tags.map(tag => (
-                                            <span key={tag} className="text-[10px] bg-tan-light/50 text-charcoal px-2.5 py-1 rounded-full font-medium uppercase tracking-wider">
+                                            <span key={tag} className="text-[10px] bg-beige text-charcoal px-2.5 py-1.5 rounded-md font-bold uppercase tracking-widest border border-tan-light/30">
                                                 {tag}
                                             </span>
                                         ))}
                                     </div>
                                 </div>
                             )}
+
+                            <h3 className="text-xs font-bold text-charcoal/40 uppercase tracking-widest border-b border-tan-light/50 pb-2 mb-4 pt-4">Archival Tracking</h3>
+                            <div className="space-y-4">
+                                {item.condition && (
+                                    <div>
+                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={12} /> Condition</p>
+                                        <p className="font-medium text-charcoal">{item.condition}</p>
+                                    </div>
+                                )}
+                                {item.physical_location && (
+                                    <div>
+                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><MapPin size={12} /> Location</p>
+                                        <p className="font-medium text-charcoal">{item.physical_location}</p>
+                                    </div>
+                                )}
+                                {item.coverage && (
+                                    <div>
+                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Coverage / Place</p>
+                                        <p className="font-medium text-charcoal">{item.coverage}</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -187,6 +336,21 @@ export function ItemDetail() {
                         </div>
                     </div>
 
+                    {/* Linked Documents for Figures */}
+                    {relatedDocumentItems.length > 0 && (
+                        <div className="mb-10 bg-cream/30 border border-tan-light/50 rounded-xl p-6 md:p-8 shadow-sm">
+                            <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-3 mb-6">
+                                <BookOpen className="text-tan" size={20} />
+                                Primary Linked Documents
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {relatedDocumentItems.map(doc => (
+                                    <DocumentCard key={doc.id} item={doc} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Transcription Block */}
                     {item.transcription && (
                         <div className="mb-10 bg-tan-light/10 border border-tan-light/50 rounded-xl p-6 md:p-8 shadow-sm">
@@ -200,15 +364,46 @@ export function ItemDetail() {
                         </div>
                     )}
 
+                    {/* Related Figures */}
+                    {relatedFigureItems.length > 0 && (
+                        <div className="mb-10 pt-8 border-t border-tan-light/50">
+                            <h3 className="text-xl font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
+                                <Users className="text-tan" size={24} />
+                                Associated Historic Figures
+                            </h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                                {relatedFigureItems.map(fig => (
+                                    <Link key={fig.id} to={`/items/${fig.id}`} className="group block text-center">
+                                        <div className="aspect-square bg-cream rounded-full overflow-hidden border-2 border-tan-light/50 mb-3 group-hover:border-tan transition-colors shadow-sm">
+                                            {fig.file_urls?.[0] ? (
+                                                <img src={fig.file_urls[0]} alt={fig.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-tan/20 font-serif text-3xl">{fig.title.charAt(0)}</div>
+                                            )}
+                                        </div>
+                                        <p className="font-serif font-bold text-charcoal group-hover:text-tan transition-colors">{fig.title}</p>
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Secondary Media */}
                     {file_urls && file_urls.length > 1 && (
                         <div className="pt-8 border-t border-tan-light/50 mb-10">
-                            <h2 className="text-xl font-serif font-bold text-charcoal mb-4">Additional Media</h2>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                            <h2 className="text-xl font-serif font-bold text-charcoal mb-4">Additional Media / Scans</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                                 {file_urls.slice(1).map((url, idx) => (
-                                    <a key={idx} href={url} target="_blank" rel="noreferrer" className="block aspect-square bg-tan-light/20 rounded-xl overflow-hidden border border-tan-light/50 hover:opacity-80 transition-opacity">
-                                        <img src={url} alt={`${item.title} media ${idx + 2}`} className="w-full h-full object-cover" />
-                                    </a>
+                                    <button
+                                        key={idx}
+                                        onClick={() => setZoomedImage(url)}
+                                        className="group relative aspect-square bg-tan-light/20 rounded-xl overflow-hidden border border-tan-light/50 hover:shadow-md transition-all"
+                                    >
+                                        <img src={url} alt={`${item.title} media ${idx + 2}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                        <div className="absolute inset-0 bg-charcoal/20 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                            <ZoomIn size={20} />
+                                        </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Edit2, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { doc, getDoc, updateDoc, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import { extractMetadataFromFile } from '../lib/gemini';
@@ -20,6 +20,18 @@ export function EditItem() {
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
+
+
+    // Networking / Linking
+    const [allFigures, setAllFigures] = useState<{ id: string, title: string }[]>([]);
+    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<{ id: string, title: string }[]>([]);
+    const [figureSearch, setFigureSearch] = useState('');
+    const [showFigureResults, setShowFigureResults] = useState(false);
+
+    const [allDocs, setAllDocs] = useState<{ id: string, title: string }[]>([]);
+    const [selectedRelatedDocs, setSelectedRelatedDocs] = useState<{ id: string, title: string }[]>([]);
+    const [docSearch, setDocSearch] = useState('');
+    const [showDocResults, setShowDocResults] = useState(false);
 
     // Collections
     const [collections, setCollections] = useState<Collection[]>([]);
@@ -48,19 +60,47 @@ export function EditItem() {
 
         const fetchCollections = async () => {
             try {
-                const q = query(collection(db, 'collections'), orderBy('title', 'asc'));
+                const q = query(collection(db, 'collections'));
                 const querySnapshot = await getDocs(q);
                 const collectionsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 })) as Collection[];
-                setCollections(collectionsData);
+                setCollections(collectionsData.sort((a, b) => a.title.localeCompare(b.title)));
+
+                // Fetch all archive items once and filter in memory to avoid index requirements
+                const qItemsAll = query(collection(db, 'archive_items'));
+                const itemsSnapAll = await getDocs(qItemsAll);
+                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+                const figsList = allItemsData
+                    .filter(i => i.item_type === 'Historic Figure')
+                    .map(i => ({ id: i.id, title: i.title || i.full_name || "Unnamed Figure" }));
+                setAllFigures(figsList.sort((a, b) => a.title.localeCompare(b.title)));
+
+                const docsList = allItemsData
+                    .filter(i => i.item_type === 'Document')
+                    .map(i => ({ id: i.id, title: i.title || "Untitled Document" }));
+                setAllDocs(docsList.sort((a, b) => a.title.localeCompare(b.title)));
+
             } catch (error) {
-                console.error("Error fetching collections:", error);
+                console.error("Error fetching collections/linked data:", error);
             }
         };
         fetchCollections();
     }, [id]);
+
+    // Update selected linked items when item is loaded
+    useEffect(() => {
+        if (item && allFigures.length > 0) {
+            const linkedFigs = allFigures.filter(f => item.related_figures?.includes(f.id));
+            setSelectedRelatedFigures(linkedFigs);
+        }
+        if (item && allDocs.length > 0) {
+            const linkedDocs = allDocs.filter(d => item.related_documents?.includes(d.id));
+            setSelectedRelatedDocs(linkedDocs);
+        }
+    }, [item, allFigures, allDocs]);
 
     const handleAutoExtract = async () => {
         const input = fileInputRef.current;
@@ -175,6 +215,29 @@ export function EditItem() {
                 identifier: formData.get('identifier') as string || "",
                 source: formData.get('source') as string || "",
                 coverage: formData.get('coverage') as string || "",
+
+                // SAHS Archival Tracking
+                condition: formData.get('condition') as any,
+                physical_location: formData.get('physical_location') as any,
+                category: formData.get('category') as string || "",
+
+                // Linking
+                related_figures: selectedRelatedFigures.map(f => f.id),
+                related_documents: selectedRelatedDocs.map(d => d.id),
+
+                // Figure Specific Biographics
+                full_name: formData.get('full_name') as string || "",
+                also_known_as: formData.get('also_known_as') as string || "",
+                birth_date: formData.get('birth_date') as string || "",
+                death_date: formData.get('death_date') as string || "",
+                birthplace: formData.get('birthplace') as string || "",
+                occupation: formData.get('occupation') as string || "",
+
+                // Organization Specific Biographics
+                org_name: formData.get('org_name') as string || "",
+                alternative_names: formData.get('alternative_names') as string || "",
+                founding_date: formData.get('founding_date') as string || "",
+                dissolved_date: formData.get('dissolved_date') as string || "",
             };
 
             await updateDoc(doc(db, 'archive_items', id), updateData);
@@ -186,6 +249,16 @@ export function EditItem() {
             setIsSubmitting(false);
         }
     };
+
+    const filteredFigures = allFigures.filter(f =>
+        f.title.toLowerCase().includes(figureSearch.toLowerCase()) &&
+        !selectedRelatedFigures.find(sf => sf.id === f.id)
+    );
+
+    const filteredDocs = allDocs.filter(d =>
+        d.title.toLowerCase().includes(docSearch.toLowerCase()) &&
+        !selectedRelatedDocs.find(sd => sd.id === d.id)
+    );
 
     if (isLoading) {
         return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">Loading archive details...</div>;
@@ -247,7 +320,7 @@ export function EditItem() {
                         <div>
                             <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Item Type *</label>
                             <div className="flex bg-white rounded-lg border border-tan-light/50 p-1 mb-6">
-                                {(["Document", "Historic Figure"] as const).map(type => (
+                                {(["Document", "Historic Figure", "Historic Organization"] as const).map(type => (
                                     <button
                                         key={type}
                                         type="button"
@@ -307,22 +380,117 @@ export function EditItem() {
 
                         <div className="space-y-6">
                             <div>
-                                <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Title *</label>
-                                <input required type="text" name="title" id="title" defaultValue={item.title} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
+                                <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Title / Name *</label>
+                                <input required type="text" name="title" id="title" defaultValue={item.title} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
                             </div>
 
-                            <div>
-                                <label htmlFor="collection_id" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                <select name="collection_id" id="collection_id" defaultValue={item.collection_id || ""} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans appearance-none">
-                                    <option value="">-- No Collection --</option>
-                                    {collections.map(c => (
-                                        <option key={c.id} value={c.id}>{c.title}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {itemType === 'Historic Organization' ? (
+                                <>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label htmlFor="org_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Organization Name</label>
+                                            <input type="text" name="org_name" id="org_name" defaultValue={item.org_name} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label htmlFor="alternative_names" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Alternative Names / Former Names</label>
+                                            <input type="text" name="alternative_names" id="alternative_names" defaultValue={item.alternative_names} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="founding_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Founding Date</label>
+                                            <input type="text" name="founding_date" id="founding_date" defaultValue={item.founding_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="dissolved_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Closed / Dissolved Date</label>
+                                            <input type="text" name="dissolved_date" id="dissolved_date" defaultValue={item.dissolved_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : itemType === 'Historic Figure' ? (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="full_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Given Name</label>
+                                            <input type="text" name="full_name" id="full_name" defaultValue={item.full_name} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="also_known_as" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Also Known As / Alias</label>
+                                            <input type="text" name="also_known_as" id="also_known_as" defaultValue={item.also_known_as} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="birth_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birth Date</label>
+                                            <input type="text" name="birth_date" id="birth_date" defaultValue={item.birth_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="death_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Death Date</label>
+                                            <input type="text" name="death_date" id="death_date" defaultValue={item.death_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="birthplace" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birthplace</label>
+                                            <input type="text" name="birthplace" id="birthplace" defaultValue={item.birthplace} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="occupation" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Occupation / Title</label>
+                                            <input type="text" name="occupation" id="occupation" defaultValue={item.occupation} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
+                                            <div className="relative">
+                                                <select name="category" id="category" defaultValue={item.category} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    {["Manuscript", "Photograph", "Map", "Artifact", "Letter", "Newspaper", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="collection_id" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
+                                            <select name="collection_id" id="collection_id" defaultValue={item.collection_id || ""} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans appearance-none">
+                                                <option value="">-- No Collection --</option>
+                                                {collections.map(c => (
+                                                    <option key={c.id} value={c.id}>{c.title}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
+                                            <div className="relative">
+                                                <select name="condition" id="condition" defaultValue={item.condition} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    {["Excellent", "Good", "Fair", "Poor", "Fragile", "Needs To Be Rescanned"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
+                                            <div className="relative">
+                                                <select name="physical_location" id="physical_location" defaultValue={item.physical_location} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <option value="Digital Archive">Digital Archive</option>
+                                                    <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             <div>
-                                <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Description / Biography *</label>
+                                <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">{itemType === 'Historic Figure' ? 'Biography *' : 'Description / History *'}</label>
                                 <textarea required id="description" name="description" defaultValue={item.description} placeholder={itemType === 'Document' ? "Historical context, transcriptions..." : "Life history, achievements..."} className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
                             </div>
 
@@ -359,7 +527,7 @@ export function EditItem() {
                             <input type="text" name="subject" id="subject" defaultValue={item.subject} placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
-                            <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Tags (Comma Separated)</label>
+                            <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Tags (Comma Separated)</label>
                             <input type="text" name="tags" id="tags" defaultValue={item.tags?.join(', ')} placeholder="e.g. Civil War, Main Street, Architecture" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                     </div>
@@ -420,6 +588,117 @@ export function EditItem() {
                             </div>
                         )}
                     </div>
+                </div>
+                <div className="mb-8 p-6 bg-cream/10 border border-tan-light/50 rounded-xl space-y-6">
+                    {itemType !== 'Historic Figure' ? (
+                        <div>
+                            <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-3">Connect Historic Figures</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search people..."
+                                    className="w-full bg-white border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
+                                    value={figureSearch}
+                                    onChange={(e) => {
+                                        setFigureSearch(e.target.value);
+                                        setShowFigureResults(true);
+                                    }}
+                                    onFocus={() => setShowFigureResults(true)}
+                                />
+
+                                {showFigureResults && (
+                                    <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto">
+                                        {filteredFigures.length > 0 ? (
+                                            filteredFigures.map(fig => (
+                                                <button
+                                                    key={fig.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedRelatedFigures([...selectedRelatedFigures, fig]);
+                                                        setFigureSearch('');
+                                                        setShowFigureResults(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-cream border-b border-tan-light/20 last:border-0 flex items-center justify-between group text-sm"
+                                                >
+                                                    <span className="font-medium text-charcoal">{fig.title}</span>
+                                                    <Edit2 size={12} className="text-tan opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No figures found.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedRelatedFigures.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-4">
+                                    {selectedRelatedFigures.map(fig => (
+                                        <div key={fig.id} className="flex items-center gap-2 bg-tan text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider animate-in zoom-in duration-200">
+                                            {fig.title}
+                                            <button type="button" onClick={() => setSelectedRelatedFigures(selectedRelatedFigures.filter(f => f.id !== fig.id))} className="hover:text-charcoal transition-colors">
+                                                <ChevronUp size={12} className="rotate-45" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-3">Link To Documents</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search documents..."
+                                    className="w-full bg-white border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
+                                    value={docSearch}
+                                    onChange={(e) => {
+                                        setDocSearch(e.target.value);
+                                        setShowDocResults(true);
+                                    }}
+                                    onFocus={() => setShowDocResults(true)}
+                                />
+
+                                {showDocResults && (
+                                    <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto">
+                                        {filteredDocs.length > 0 ? (
+                                            filteredDocs.map(doc => (
+                                                <button
+                                                    key={doc.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedRelatedDocs([...selectedRelatedDocs, doc]);
+                                                        setDocSearch('');
+                                                        setShowDocResults(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-cream border-b border-tan-light/20 last:border-0 flex items-center justify-between group text-sm"
+                                                >
+                                                    <span className="font-medium text-charcoal">{doc.title}</span>
+                                                    <Edit2 size={12} className="text-tan opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No documents found.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedRelatedDocs.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-4">
+                                    {selectedRelatedDocs.map(doc => (
+                                        <div key={doc.id} className="flex items-center gap-2 bg-charcoal text-cream px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider animate-in zoom-in duration-200">
+                                            {doc.title}
+                                            <button type="button" onClick={() => setSelectedRelatedDocs(selectedRelatedDocs.filter(d => d.id !== doc.id))} className="hover:text-tan transition-colors">
+                                                <ChevronUp size={12} className="rotate-45" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-8 bg-cream/30 border-t border-tan-light/50 flex justify-end">

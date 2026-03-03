@@ -6,7 +6,7 @@ export interface Collection {
     created_at: string;
 }
 
-export type ItemType = 'Document' | 'Historic Figure';
+export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization';
 
 // Dublin Core Metadata Element Set (v1.1)
 export interface ArchiveItem {
@@ -16,10 +16,25 @@ export interface ArchiveItem {
     item_type: ItemType;
     collection_id?: string;
     tags: string[];
+    category?: string;
     file_urls: string[]; // For documents, scans, or portraits
     created_at: string;
 
-    // Dublin Core Elements
+    // Figure specific
+    full_name?: string;
+    also_known_as?: string;
+    birth_date?: string;
+    death_date?: string;
+    birthplace?: string;
+    occupation?: string;
+
+    // Organization specific
+    org_name?: string;
+    alternative_names?: string;
+    founding_date?: string;
+    dissolved_date?: string;
+
+    // DC Core Elements
     title: string;          // Name given to the resource
     subject?: string;       // Topic of the resource (keywords/phrases)
     description: string;    // An account of the resource
@@ -36,5 +51,11 @@ export interface ArchiveItem {
     language?: string;      // A language of the resource
     type?: string;          // The nature or genre of the resource (Dublin Core 'Type' is distinct from our 'item_type')
     identifier?: string;    // An unambiguous reference to the resource within a given context (Archive Ref)
-    coverage?: string;      // The spatial or temporal topic of the resource, the spatial applicability of the resource, or the jurisdiction under which the resource is relevant
+    coverage?: string;      // The spatial or temporal topic of the resource
+
+    // SAHS Specific
+    condition?: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | 'Needs to be rescanned';
+    physical_location?: string;
+    related_figures?: string[]; // IDs of Historic Figures
+    related_documents?: string[]; // IDs of Documents/Photos for Figures
 }

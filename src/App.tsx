@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
 import Layout from './components/Layout';
 import { BrowseArchive } from './pages/BrowseArchive';
 import { ItemDetail } from './pages/ItemDetail';
@@ -8,6 +8,16 @@ import { Collections } from './pages/Collections';
 import { AddCollection } from './pages/AddCollection';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { Home } from './pages/Home';
+import { SearchArchive } from './pages/SearchArchive';
+
+function PageWrapper() {
+  return (
+    <div className="flex-1 p-8 md:p-12 max-w-7xl mx-auto w-full">
+      <Outlet />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isSAHSUser, loading } = useAuth();
@@ -31,34 +41,21 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />}>
-            <Route index element={
-              <div className="space-y-6">
-                <h1 className="text-5xl font-serif font-bold tracking-tight">Digital Archive</h1>
-                <p className="text-xl text-charcoal/80 max-w-2xl leading-relaxed">
-                  Explore the rich history of the Senoia area through our collection of historical documents,
-                  photographs, and curated profiles of historic figures.
-                </p>
-                <div className="flex gap-4 pt-4">
-                  <a href="/archive" className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors">
-                    Browse Archive
-                  </a>
-                  <a href="/archive" className="bg-white border border-tan-light text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/30 transition-colors">
-                    Search Collections
-                  </a>
-                </div>
-              </div>
-            } />
-            <Route path="archive" element={<BrowseArchive />} />
-            <Route path="collections" element={<Collections />} />
-            <Route path="items/:id" element={<ItemDetail />} />
-            <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
-            <Route path="search" element={<div className="font-serif text-3xl font-bold">Search Archive</div>} />
-            <Route path="login" element={<Login />} />
+            <Route index element={<Home />} />
 
-            {/* Protected Curator Routes */}
-            <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-            <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
-            <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+            <Route element={<PageWrapper />}>
+              <Route path="archive" element={<BrowseArchive />} />
+              <Route path="collections" element={<Collections />} />
+              <Route path="items/:id" element={<ItemDetail />} />
+              <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
+              <Route path="search" element={<SearchArchive />} />
+              <Route path="login" element={<Login />} />
+
+              {/* Protected Curator Routes */}
+              <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+              <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
+              <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+            </Route>
           </Route>
         </Routes>
       </BrowserRouter>

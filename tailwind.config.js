@@ -7,12 +7,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        cream: '#F4F4F4',
+        cream: '#fcfaf6',
+        beige: '#f1ede4',
         tan: {
-          light: '#EFEFEF',
-          DEFAULT: '#555555',
+          light: '#e1d7c6',
+          DEFAULT: '#8b7355',
+          dark: '#68543f'
         },
-        charcoal: '#111111',
+        charcoal: {
+          DEFAULT: '#3a2d1d',
+          light: '#746048'
+        }
       },
       fontFamily: {
         serif: ['"Playfair Display"', 'Georgia', 'serif'],

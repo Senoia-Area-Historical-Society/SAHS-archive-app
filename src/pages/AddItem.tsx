@@ -1,49 +1,85 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, ZoomIn, FileText, Tag } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { collection, addDoc, getDocs, orderBy, query } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { collection, addDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { extractMetadataFromFile } from '../lib/gemini';
-import type { ItemType, Collection } from '../types/database';
+import type { ItemType, Collection, ArchiveItem } from '../types/database';
 
 export function AddItem() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
 
-    // Collections
+    // New Fields & Data State
     const [collections, setCollections] = useState<Collection[]>([]);
+    const [allFigures, setAllFigures] = useState<{ id: string, title: string }[]>([]);
+    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<{ id: string, title: string }[]>([]);
+    const [figureSearch, setFigureSearch] = useState('');
+    const [showFigureResults, setShowFigureResults] = useState(false);
+    const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
+    const [tagInput, setTagInput] = useState('');
+    const [currentTags, setCurrentTags] = useState<string[]>([]);
+    const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+    const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
+    // Document linking for Figures
+    const [allDocs, setAllDocs] = useState<{ id: string, title: string }[]>([]);
+    const [selectedRelatedDocs, setSelectedRelatedDocs] = useState<{ id: string, title: string }[]>([]);
+    const [docSearch, setDocSearch] = useState('');
+    const [showDocResults, setShowDocResults] = useState(false);
 
     useEffect(() => {
-        const fetchCollections = async () => {
+        const fetchInitialData = async () => {
             try {
-                const q = query(collection(db, 'collections'), orderBy('title', 'asc'));
-                const querySnapshot = await getDocs(q);
-                const collectionsData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Collection[];
-                setCollections(collectionsData);
+                // Fetch Collections
+                const qColl = query(collection(db, 'collections'));
+                const collSnap = await getDocs(qColl);
+                const collectionsData = collSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Collection[];
+                setCollections(collectionsData.sort((a, b) => a.title.localeCompare(b.title)));
+
+                // Fetch all archive items once and filter in memory to avoid index requirements
+                const qItemsAll = query(collection(db, 'archive_items'));
+                const itemsSnapAll = await getDocs(qItemsAll);
+                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+                const figures = allItemsData
+                    .filter(i => i.item_type === 'Historic Figure')
+                    .map(i => ({ id: i.id, title: i.title || i.full_name || "Unnamed Figure" }));
+                setAllFigures(figures.sort((a, b) => a.title.localeCompare(b.title)));
+
+                const docs = allItemsData
+                    .filter(i => i.item_type === 'Document')
+                    .map(i => ({ id: i.id, title: i.title || "Untitled Document" }));
+                setAllDocs(docs.sort((a, b) => a.title.localeCompare(b.title)));
+
+                // Fetch All Tags for suggestions
+                const tags = new Set<string>();
+                allItemsData.forEach(item => {
+                    if (item.tags) item.tags.forEach((t: string) => tags.add(t));
+                });
+                setAllExistingTags(Array.from(tags).sort());
+
             } catch (error) {
-                console.error("Error fetching collections:", error);
+                console.error("Error fetching initial form data:", error);
             }
         };
-        fetchCollections();
+        fetchInitialData();
     }, []);
 
     const handleAutoExtract = async () => {
-        const input = fileInputRef.current;
-        if (!input || !input.files || input.files.length === 0) {
+        if (selectedFiles.length === 0) {
             setError("Please select a file first before extracting metadata.");
             return;
         }
 
-        const file = input.files[0];
+        const file = selectedFiles[0];
         setIsExtracting(true);
         setError(null);
 
@@ -51,7 +87,6 @@ export function AddItem() {
             const metadata = await extractMetadataFromFile(file);
             console.log("Extracted Metadata:", metadata);
 
-            // Auto-fill the form fields. We cast elements to HTMLInputElement/HTMLTextAreaElement
             const form = document.getElementById('add-item-form') as HTMLFormElement;
             if (!form) return;
 
@@ -60,11 +95,12 @@ export function AddItem() {
                 if (el) (el as HTMLInputElement).value = val || '';
             }
 
-            // If the model gave us a hint what type it is, we can set it
             if (metadata.dc_type?.toLowerCase().includes('text') || metadata.dc_type?.toLowerCase().includes('document')) {
                 setItemType('Document');
             } else if (metadata.dc_type?.toLowerCase().includes('person') || metadata.dc_type?.toLowerCase().includes('figure')) {
                 setItemType('Historic Figure');
+            } else if (metadata.dc_type?.toLowerCase().includes('organization') || metadata.dc_type?.toLowerCase().includes('business') || metadata.dc_type?.toLowerCase().includes('church')) {
+                setItemType('Historic Organization');
             }
 
             setVal('title', metadata.title);
@@ -73,25 +109,24 @@ export function AddItem() {
             setVal('date', metadata.date);
             setVal('creator', metadata.creator);
             setVal('subject', metadata.subject);
-            setVal('tags', metadata.tags?.join(', '));
-            setVal('publisher', metadata.publisher);
-            setVal('contributor', metadata.contributor);
-            setVal('rights', metadata.rights);
-            setVal('relation', metadata.relation);
-            setVal('format', metadata.format);
-            setVal('language', metadata.language);
-            setVal('dc_type', metadata.dc_type);
             setVal('archive_reference', metadata.archive_reference);
+            setVal('location', metadata.coverage);
+
+            if (metadata.tags) {
+                setCurrentTags(prev => Array.from(new Set([...prev, ...(metadata.tags || [])])));
+            }
+
+            // Extended fields
+            setVal('publisher', metadata.publisher);
+            setVal('language', metadata.language);
+            setVal('format', metadata.format);
             setVal('identifier', metadata.identifier);
             setVal('source', metadata.source);
-            setVal('coverage', metadata.coverage);
 
-            // Automatically open advanced elements if the AI filled any out
-            if (metadata.publisher || metadata.language || metadata.format || metadata.identifier || metadata.coverage) {
+            if (metadata.publisher || metadata.language || metadata.format || metadata.identifier) {
                 setShowAdvancedDC(true);
             }
 
-            // Focus the title to show it worked
             (form.elements.namedItem('title') as HTMLInputElement)?.focus();
 
         } catch (err: any) {
@@ -108,29 +143,53 @@ export function AddItem() {
 
         try {
             const formData = new FormData(e.target as HTMLFormElement);
-
-            const file = formData.get('fileUpload') as File | null;
             let fileUrls: string[] = [];
 
-            if (file && file.size > 0) {
-                const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
-                const snapshot = await uploadBytes(storageRef, file);
-                const downloadUrl = await getDownloadURL(snapshot.ref);
-                fileUrls.push(downloadUrl);
+            if (selectedFiles.length > 0) {
+                const totalFiles = selectedFiles.length;
+                let completedFiles = 0;
+                setUploadProgress(0);
+
+                for (const file of selectedFiles) {
+                    const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+
+                    await new Promise<void>((resolve, reject) => {
+                        uploadTask.on('state_changed',
+                            (snapshot) => {
+                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                const overallProgress = ((completedFiles * 100) + progress) / totalFiles;
+                                setUploadProgress(Math.round(overallProgress));
+                            },
+                            (error) => reject(error),
+                            async () => {
+                                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                                fileUrls.push(downloadUrl);
+                                completedFiles++;
+                                resolve();
+                            }
+                        );
+                    });
+                }
             }
 
-            // Parse tags
-            const tagsString = formData.get('tags') as string;
-            const tags = tagsString ? tagsString.split(',').map(t => t.trim()).filter(Boolean) : [];
+            /*
+             - [x] Enhance manual upload form with professional archival fields:
+        - [x] Condition, Location, Category dropdowns
+        - [x] Historic Figure relationship linking
+        - [x] Date, Transcription, and Archive Ref fields
+    - [x] Implement high-resolution zoom and scroll functionality for document images
+    - [x] Update Item Detail view to display all new metadata fields and associated figures
+    - [x] Verify UI/UX matches reference site aesthetics (Premium layout)
+            */
 
-            const itemData = {
+            const itemData: Omit<ArchiveItem, 'id'> = {
                 item_type: itemType,
                 file_urls: fileUrls,
-                tags: tags,
+                tags: currentTags,
                 collection_id: formData.get('collection_id') as string,
                 created_at: new Date().toISOString(),
 
-                // Core DC Elements
                 title: formData.get('title') as string,
                 description: formData.get('description') as string || "",
                 transcription: formData.get('transcription') as string || "",
@@ -138,6 +197,29 @@ export function AddItem() {
                 date: formData.get('date') as string || "",
                 creator: formData.get('creator') as string || "",
                 subject: formData.get('subject') as string || "",
+                coverage: formData.get('location') as string || "",
+
+                category: formData.get('category') as string || "",
+
+                // SAHS Specific
+                condition: formData.get('condition') as any,
+                physical_location: formData.get('physical_location') as any,
+                related_figures: selectedRelatedFigures.map(f => f.id),
+                related_documents: selectedRelatedDocs.map(d => d.id),
+
+                // Figure Specific Biographics
+                full_name: formData.get('full_name') as string || "",
+                also_known_as: formData.get('also_known_as') as string || "",
+                birth_date: formData.get('birth_date') as string || "",
+                death_date: formData.get('death_date') as string || "",
+                birthplace: formData.get('birthplace') as string || "",
+                occupation: formData.get('occupation') as string || "",
+
+                // Organization Specific Biographics
+                org_name: formData.get('org_name') as string || "",
+                alternative_names: formData.get('alternative_names') as string || "",
+                founding_date: formData.get('founding_date') as string || "",
+                dissolved_date: formData.get('dissolved_date') as string || "",
 
                 // Advanced DC Elements
                 publisher: formData.get('publisher') as string || "",
@@ -149,7 +231,6 @@ export function AddItem() {
                 type: formData.get('dc_type') as string || "",
                 identifier: formData.get('identifier') as string || "",
                 source: formData.get('source') as string || "",
-                coverage: formData.get('coverage') as string || "",
             };
 
             await addDoc(collection(db, 'archive_items'), itemData);
@@ -159,8 +240,36 @@ export function AddItem() {
             setError(err.message || "Failed to add item. Please check your Firebase configuration.");
         } finally {
             setIsSubmitting(false);
+            setUploadProgress(null);
         }
     };
+
+    const addTag = (tag: string) => {
+        const normalized = tag.trim();
+        if (normalized && !currentTags.includes(normalized)) {
+            setCurrentTags([...currentTags, normalized]);
+        }
+        setTagInput('');
+        setShowTagSuggestions(false);
+    };
+
+    const removeTag = (tag: string) => {
+        setCurrentTags(currentTags.filter(t => t !== tag));
+    };
+
+    const filteredSuggestions = allExistingTags.filter(t =>
+        t.toLowerCase().includes(tagInput.toLowerCase()) && !currentTags.includes(t)
+    );
+
+    const filteredFigures = allFigures.filter(f =>
+        f.title.toLowerCase().includes(figureSearch.toLowerCase()) &&
+        !selectedRelatedFigures.find(sf => sf.id === f.id)
+    );
+
+    const filteredDocs = allDocs.filter(d =>
+        d.title.toLowerCase().includes(docSearch.toLowerCase()) &&
+        !selectedRelatedDocs.find(sd => sd.id === d.id)
+    );
 
     if (success) {
         return (
@@ -173,7 +282,11 @@ export function AddItem() {
                 <button
                     onClick={() => {
                         setSuccess(false);
-                        setSelectedFileName(null);
+                        setSelectedFiles([]);
+                        setCurrentTags([]);
+                        setSelectedRelatedFigures([]);
+                        setSelectedRelatedDocs([]);
+                        setUploadProgress(null);
                         (document.getElementById('add-item-form') as HTMLFormElement)?.reset();
                     }}
                     className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors"
@@ -185,13 +298,35 @@ export function AddItem() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col pb-12">
+        <div className="max-w-4xl mx-auto h-full flex flex-col pb-12 relative">
+            {/* Zoom Overlay */}
+            {zoomedImage && (
+                <div
+                    className="fixed inset-0 z-[100] bg-charcoal/90 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
+                    onClick={() => setZoomedImage(null)}
+                >
+                    <div className="relative max-w-full max-h-full overflow-auto">
+                        <img
+                            src={zoomedImage}
+                            alt="Zoomed Preview"
+                            className="max-w-none w-auto h-auto min-w-full rounded shadow-2xl"
+                        />
+                    </div>
+                    <button className="absolute top-8 right-8 text-white hover:text-tan transition-colors">
+                        <X size={32} />
+                    </button>
+                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-charcoal/50 px-4 py-2 rounded-full backdrop-blur-sm">
+                        Use mouse/scroll to move around
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8 border-b border-tan-light/50 pb-6">
                 <h1 className="text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">
                     <Upload className="text-tan" size={32} />
                     Ingest Archive Item
                 </h1>
-                <p className="text-charcoal/70 text-lg">Add a new document, photograph, or historic figure profile to the database.</p>
+                <p className="text-charcoal/70 text-lg">Preserve a new document, photograph, or historic figure in the digital vault.</p>
             </div>
 
             {error && (
@@ -201,48 +336,90 @@ export function AddItem() {
                 </div>
             )}
 
-            <form id="add-item-form" onSubmit={handleSubmit} className="bg-white rounded-xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
+            <form id="add-item-form" onSubmit={handleSubmit} className="bg-white rounded-2xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
 
-                {/* Top Section: Item Type & Primary File */}
-                <div className="p-8 border-b border-tan-light/50 bg-cream/30">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Section 1: Files & Type */}
+                <div className="p-8 border-b border-tan-light/50 bg-cream/20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div>
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Item Type *</label>
-                            <div className="flex bg-white rounded-lg border border-tan-light/50 p-1 mb-6">
-                                {(["Document", "Historic Figure"] as const).map(type => (
+                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3">Item Classification *</label>
+                            <div className="flex bg-white rounded-xl border border-tan-light/50 p-1.5 mb-8 gap-1">
+                                {(["Document", "Historic Figure", "Historic Organization"] as const).map(type => (
                                     <button
                                         key={type}
                                         type="button"
                                         onClick={() => setItemType(type)}
-                                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${itemType === type ? 'bg-tan text-white shadow-sm' : 'text-charcoal/60 hover:text-charcoal hover:bg-cream'}`}
+                                        className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${itemType === type ? 'bg-tan text-white shadow-md' : 'text-charcoal/50 hover:text-charcoal hover:bg-cream'}`}
                                     >
                                         {type}
                                     </button>
                                 ))}
                             </div>
 
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Primary Upload</label>
+                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">
+                                {itemType === 'Document' ? 'Document Scans / Photos' : 'Representative Media / Portraits'}
+                            </label>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-tan-light bg-white rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors h-48"
+                                className="border-2 border-dashed border-tan-light/70 bg-white rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-all hover:border-tan min-h-[14rem] group"
                             >
                                 <input
                                     type="file"
                                     name="fileUpload"
                                     ref={fileInputRef}
                                     className="hidden"
-                                    accept="image/png, image/jpeg, application/pdf"
-                                    onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || null)}
+                                    multiple
+                                    accept="image/png, image/jpeg, image/webp, application/pdf"
+                                    onChange={(e) => {
+                                        const files = e.target.files;
+                                        if (files) setSelectedFiles(Array.from(files));
+                                    }}
                                 />
-                                <div className="w-12 h-12 bg-cream rounded-full flex items-center justify-center text-tan shadow-sm mb-3">
-                                    <ImageIcon size={24} />
-                                </div>
-                                {selectedFileName ? (
-                                    <p className="font-medium text-sm text-charcoal mb-1"><span className="text-tan">{selectedFileName}</span></p>
+                                {selectedFiles.length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-2 w-full">
+                                        {selectedFiles.slice(0, 6).map((file, i) => {
+                                            const isImage = file.type.startsWith('image/');
+                                            return (
+                                                <div key={i} className="relative aspect-square bg-cream rounded-lg overflow-hidden border border-tan-light/50 group/thumb">
+                                                    {isImage ? (
+                                                        <img
+                                                            src={URL.createObjectURL(file)}
+                                                            className="w-full h-full object-cover"
+                                                            alt="preview"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-tan/40">
+                                                            <FileText size={24} />
+                                                        </div>
+                                                    )}
+                                                    {isImage && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setZoomedImage(URL.createObjectURL(file));
+                                                            }}
+                                                            className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center text-white transition-opacity"
+                                                        >
+                                                            <ZoomIn size={20} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {selectedFiles.length > 6 && (
+                                            <div className="aspect-square bg-tan/20 flex items-center justify-center text-tan font-bold rounded-lg border border-tan-light/50">
+                                                +{selectedFiles.length - 6}
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
                                     <>
-                                        <p className="font-medium text-sm text-charcoal mb-1"><span className="text-tan hover:underline">Click to upload</span> or drag</p>
-                                        <p className="text-xs text-charcoal/50">PNG, JPG, PDF (Max 50MB)</p>
+                                        <div className="w-16 h-16 bg-cream rounded-2xl flex items-center justify-center text-tan shadow-sm mb-4 group-hover:scale-110 transition-transform">
+                                            <ImageIcon size={32} />
+                                        </div>
+                                        <p className="font-bold text-charcoal mb-1">Click to upload scans</p>
+                                        <p className="text-xs text-charcoal/50">Multiple PNG, JPG, or PDF allowed</p>
                                     </>
                                 )}
                             </div>
@@ -250,143 +427,392 @@ export function AddItem() {
                             <button
                                 type="button"
                                 onClick={handleAutoExtract}
-                                disabled={isExtracting || !selectedFileName}
-                                className={`mt-4 w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all border ${isExtracting
-                                    ? 'bg-tan-light/20 text-tan border-tan-light/50 cursor-not-allowed'
-                                    : !selectedFileName
-                                        ? 'bg-cream/50 text-charcoal/30 border-tan-light/30 cursor-not-allowed'
-                                        : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:shadow-sm'
+                                disabled={isExtracting || selectedFiles.length === 0}
+                                className={`mt-6 w-full flex items-center justify-center gap-3 py-4 px-4 rounded-xl font-bold text-sm transition-all border-2 ${isExtracting
+                                    ? 'bg-tan-light/10 text-tan border-tan-light/30 cursor-not-allowed'
+                                    : selectedFiles.length === 0
+                                        ? 'bg-cream/50 text-charcoal/20 border-tan-light/20 cursor-not-allowed'
+                                        : 'bg-indigo-50/50 text-indigo-700 border-indigo-100 hover:bg-indigo-100 hover:shadow-md'
                                     }`}
                             >
-                                <Sparkles size={16} className={isExtracting ? 'animate-pulse' : ''} />
-                                {isExtracting ? 'Analyzing Document with AI...' : 'Auto-Extract Metadata with AI'}
+                                <Sparkles size={18} className={isExtracting ? 'animate-pulse' : ''} />
+                                {isExtracting ? 'Analyzing Document Content...' : 'Auto-Fill using AI Intelligence'}
                             </button>
                         </div>
 
                         <div className="space-y-6">
                             <div>
-                                <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Title *</label>
-                                <input required type="text" name="title" id="title" placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
+                                <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Display Title / Name *</label>
+                                <input required type="text" name="title" id="title" placeholder={itemType === 'Historic Figure' ? "e.g. John Doe" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : "Descriptive title for the archive"} className="w-full bg-white border border-tan-light/50 px-4 py-4 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-lg font-medium" />
                             </div>
 
-                            <div>
-                                <label htmlFor="collection_id" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                <select name="collection_id" id="collection_id" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans appearance-none">
-                                    <option value="">-- No Collection --</option>
-                                    {collections.map(c => (
-                                        <option key={c.id} value={c.id}>{c.title}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            {itemType === 'Historic Organization' ? (
+                                <>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label htmlFor="org_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Organization Name</label>
+                                            <input type="text" name="org_name" id="org_name" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label htmlFor="alternative_names" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Alternative Names / Former Names</label>
+                                            <input type="text" name="alternative_names" id="alternative_names" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="founding_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Founding Date</label>
+                                            <input type="text" name="founding_date" id="founding_date" placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="dissolved_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Closed / Dissolved Date</label>
+                                            <input type="text" name="dissolved_date" id="dissolved_date" placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : itemType === 'Historic Figure' ? (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="full_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Given Name</label>
+                                            <input type="text" name="full_name" id="full_name" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="also_known_as" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Also Known As / Alias</label>
+                                            <input type="text" name="also_known_as" id="also_known_as" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="birth_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birth Date</label>
+                                            <input type="text" name="birth_date" id="birth_date" placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="death_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Death Date</label>
+                                            <input type="text" name="death_date" id="death_date" placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="birthplace" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birthplace</label>
+                                            <input type="text" name="birthplace" id="birthplace" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="occupation" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Occupation / Title</label>
+                                            <input type="text" name="occupation" id="occupation" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="collection_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
+                                            <div className="relative">
+                                                <select name="collection_id" id="collection_id" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <option value="">No Collection</option>
+                                                    {collections.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
+                                            <div className="relative">
+                                                <select name="category" id="category" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    {["Manuscript", "Photograph", "Map", "Artifact", "Letter", "Newspaper", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
+                                            <div className="relative">
+                                                <select name="condition" id="condition" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    {["Excellent", "Good", "Fair", "Poor", "Fragile", "Needs To Be Rescanned"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
+                                            <div className="relative">
+                                                <select name="physical_location" id="physical_location" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <option value="Digital Archive">Digital Archive</option>
+                                                    <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             <div>
-                                <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Description / Biography *</label>
-                                <textarea required id="description" name="description" placeholder={itemType === 'Document' ? "Historical context, transcriptions..." : "Life history, achievements..."} className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
-                            </div>
-
-                            <div>
-                                <label htmlFor="transcription" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Transcription</label>
-                                <textarea id="transcription" name="transcription" placeholder="Exact word-for-word OCR transcription (if applicable)..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
+                                <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">
+                                    {itemType === 'Historic Figure' ? 'Biography *' : itemType === 'Historic Organization' ? 'History & Description *' : 'History & Description *'}
+                                </label>
+                                <textarea required id="description" name="description" placeholder={itemType === 'Historic Figure' ? "Biographical details, family history, and significance..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : "Provide background, provenance, or biographical details..."} className="w-full min-h-[140px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans resize-none leading-relaxed"></textarea>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Core Dublin Core Section */}
-                <div className="p-8">
-                    <h3 className="text-lg font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
-                        <BookOpen size={20} className="text-tan" />
-                        Core Archival Metadata
-                    </h3>
+                {/* Section 2: Extended Details & Relationships */}
+                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-6">
+                        <h3 className="text-lg font-serif font-bold text-charcoal flex flex-col border-b border-tan-light/50 pb-3 mb-2">
+                            <div className="flex items-center gap-2 mb-1">
+                                <BookOpen size={22} className="text-tan" />
+                                {itemType === 'Document' ? 'Provenance & Sourcing' : 'Media Provenance & Sourcing'}
+                            </div>
+                            {(itemType === 'Historic Figure' || itemType === 'Historic Organization') && (
+                                <span className="text-[10px] font-bold text-tan-light uppercase tracking-wider">Provenance information applies to the specific photo/file uploaded to this profile</span>
+                            )}
+                        </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div>
-                            <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Reference</label>
-                            <input type="text" name="archive_reference" id="archive_reference" placeholder="e.g. LTR_Jun. 14, 1945_ Hollberg's" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                        <div className="grid grid-cols-1 gap-4">
+                            <div>
+                                <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Ref #</label>
+                                <input type="text" name="archive_reference" id="archive_reference" placeholder="e.g. SAHS-2024-001" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                            </div>
+                            <div>
+                                <label htmlFor="location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Origin Location</label>
+                                <input type="text" name="location" id="location" placeholder="e.g. Senoia, Main St." className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                            </div>
+                            <div>
+                                <label htmlFor="creator" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Creator</label>
+                                <input type="text" name="creator" id="creator" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                            </div>
                         </div>
-                        <div>
-                            <label htmlFor="date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Date (DC:Date)</label>
-                            <input type="text" name="date" id="date" placeholder="e.g. c. 1905, 1850-1920" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="creator" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Creator (DC:Creator)</label>
-                            <input type="text" name="creator" id="creator" placeholder="Author, photographer, or originating body" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="subject" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Subject (DC:Subject)</label>
-                            <input type="text" name="subject" id="subject" placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
-                        <div>
-                            <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Tags (Comma Separated)</label>
-                            <input type="text" name="tags" id="tags" placeholder="e.g. Civil War, Main Street, Architecture" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
+
+                        {itemType !== 'Historic Figure' ? (
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Connect Historic Figures</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-3 text-charcoal/30" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search people in the archive..."
+                                        className="w-full bg-white border border-tan-light/50 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
+                                        value={figureSearch}
+                                        onChange={(e) => {
+                                            setFigureSearch(e.target.value);
+                                            setShowFigureResults(true);
+                                        }}
+                                        onFocus={() => setShowFigureResults(true)}
+                                    />
+
+                                    {showFigureResults && (
+                                        <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {filteredFigures.length > 0 ? (
+                                                filteredFigures.map(fig => (
+                                                    <button
+                                                        key={fig.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedRelatedFigures([...selectedRelatedFigures, fig]);
+                                                            setFigureSearch('');
+                                                            setShowFigureResults(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 hover:bg-cream border-b border-tan-light/20 last:border-0 flex items-center justify-between group"
+                                                    >
+                                                        <span className="font-medium text-charcoal">{fig.title}</span>
+                                                        <Plus size={14} className="text-tan opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-4 py-3 text-xs text-charcoal/40 italic">No figures found.</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {selectedRelatedFigures.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {selectedRelatedFigures.map(fig => (
+                                            <div key={fig.id} className="flex items-center gap-2 bg-tan text-white px-3 py-1.5 rounded-full text-xs font-bold animate-in zoom-in duration-200">
+                                                {fig.title}
+                                                <button type="button" onClick={() => setSelectedRelatedFigures(selectedRelatedFigures.filter(f => f.id !== fig.id))} className="hover:text-charcoal transition-colors">
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Link To Documents</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-3 text-charcoal/30" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search documents to link..."
+                                        className="w-full bg-white border border-tan-light/50 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
+                                        value={docSearch}
+                                        onChange={(e) => {
+                                            setDocSearch(e.target.value);
+                                            setShowDocResults(true);
+                                        }}
+                                        onFocus={() => setShowDocResults(true)}
+                                    />
+
+                                    {showDocResults && (
+                                        <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto">
+                                            {filteredDocs.length > 0 ? (
+                                                filteredDocs.map(doc => (
+                                                    <button
+                                                        key={doc.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedRelatedDocs([...selectedRelatedDocs, doc]);
+                                                            setDocSearch('');
+                                                            setShowDocResults(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 hover:bg-cream border-b border-tan-light/20 last:border-0 flex items-center justify-between group"
+                                                    >
+                                                        <span className="font-medium text-charcoal">{doc.title}</span>
+                                                        <Plus size={14} className="text-tan opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-4 py-3 text-xs text-charcoal/40 italic">No documents found.</div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {selectedRelatedDocs.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {selectedRelatedDocs.map(doc => (
+                                            <div key={doc.id} className="flex items-center gap-2 bg-charcoal text-cream px-3 py-1.5 rounded-full text-xs font-bold animate-in zoom-in duration-200">
+                                                {doc.title}
+                                                <button type="button" onClick={() => setSelectedRelatedDocs(selectedRelatedDocs.filter(d => d.id !== doc.id))} className="hover:text-tan transition-colors">
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Advanced Dublin Core Accordion */}
-                    <div className="border border-tan-light/50 rounded-lg overflow-hidden">
+                    <div className="space-y-6">
+                        <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-3 mb-2">
+                            <Tag size={22} className="text-tan" />
+                            Categorization & Transcript
+                        </h3>
+
+                        <div className="relative">
+                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2 underline underline-offset-4 decoration-tan/30">Archive Tags</label>
+                            <div className="relative">
+                                <Plus className="absolute left-3 top-3 text-charcoal/30" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Enter custom tag or pick suggested..."
+                                    className="w-full bg-white border border-tan-light/50 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
+                                    value={tagInput}
+                                    onChange={(e) => {
+                                        setTagInput(e.target.value);
+                                        setShowTagSuggestions(true);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (tagInput) addTag(tagInput);
+                                        }
+                                    }}
+                                    onFocus={() => setShowTagSuggestions(true)}
+                                />
+                                {showTagSuggestions && tagInput && (
+                                    <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto">
+                                        {filteredSuggestions.map(tag => (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => addTag(tag)}
+                                                className="w-full text-left px-4 py-2 hover:bg-cream text-sm text-charcoal border-b border-tan-light/20 last:border-0"
+                                            >
+                                                {tag}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-4 min-h-[2rem]">
+                                {currentTags.map(tag => (
+                                    <span key={tag} className="flex items-center gap-1.5 bg-beige text-charcoal px-2.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-tan-light/30 shadow-sm animate-in fade-in duration-200">
+                                        {tag}
+                                        <button type="button" onClick={() => removeTag(tag)} className="text-charcoal/40 hover:text-red-600 transition-colors">
+                                            <X size={12} />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="transcription" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2 underline underline-offset-4 decoration-tan/30">Full Text Transcription</label>
+                            <textarea id="transcription" name="transcription" placeholder="Exact word-for-word record of the document contents..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-mono text-sm resize-none leading-relaxed"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section 3: Extended Metadata Accordion */}
+                <div className="px-8 pb-8">
+                    <div className="border border-tan-light/50 rounded-2xl overflow-hidden shadow-inner bg-cream/5">
                         <button
                             type="button"
                             onClick={() => setShowAdvancedDC(!showAdvancedDC)}
-                            className="w-full px-6 py-4 bg-cream/50 flex justify-between items-center text-charcoal font-medium hover:bg-cream transition-colors"
+                            className="w-full px-6 py-5 flex justify-between items-center text-charcoal font-serif font-bold hover:bg-cream/50 transition-colors"
                         >
-                            <span className="font-serif">Extended Dublin Core Elements</span>
+                            <span>Extended Dublin Core Metadata (Academic)</span>
                             {showAdvancedDC ? <ChevronUp size={20} className="text-charcoal/50" /> : <ChevronDown size={20} className="text-charcoal/50" />}
                         </button>
 
                         {showAdvancedDC && (
-                            <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-tan-light/50">
-                                <div>
-                                    <label htmlFor="publisher" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Publisher</label>
-                                    <input type="text" name="publisher" id="publisher" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="contributor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Contributor</label>
-                                    <input type="text" name="contributor" id="contributor" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="rights" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Rights</label>
-                                    <input type="text" name="rights" id="rights" placeholder="e.g. Public Domain" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="relation" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Relation</label>
-                                    <input type="text" name="relation" id="relation" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="format" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Format</label>
-                                    <input type="text" name="format" id="format" placeholder="e.g. 8x10 photograph, 2 pages" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="language" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Language</label>
-                                    <input type="text" name="language" id="language" placeholder="e.g. English" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="dc_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">DC Type</label>
-                                    <input type="text" name="dc_type" id="dc_type" placeholder="e.g. StillImage, Text" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="identifier" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Identifier</label>
-                                    <input type="text" name="identifier" id="identifier" placeholder="e.g. Archive Ref # SAHS-192" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="source" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Source</label>
-                                    <input type="text" name="source" id="source" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
-                                <div>
-                                    <label htmlFor="coverage" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Coverage</label>
-                                    <input type="text" name="coverage" id="coverage" placeholder="Spatial or temporal topic" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
-                                </div>
+                            <div className="p-8 bg-white grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-tan-light/50 animate-in slide-in-from-top-4 duration-300">
+                                {["subject", "publisher", "contributor", "rights", "relation", "format", "language", "dc_type", "identifier", "source"].map(field => (
+                                    <div key={field}>
+                                        <label htmlFor={field} className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">{field.replace('_', ' ')}</label>
+                                        <input type="text" name={field} id={field} className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl text-sm transition-all focus:bg-white focus:ring-2 focus:ring-tan/20 outline-none" />
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="p-8 bg-cream/30 border-t border-tan-light/50 flex justify-end">
+                <div className="p-8 bg-cream border-t border-tan-light/50 flex flex-col sm:flex-row items-center justify-between gap-6">
+                    <div className="flex-1 w-full">
+                        {uploadProgress !== null && (
+                            <div className="w-full max-w-sm">
+                                <div className="flex justify-between text-xs font-black text-charcoal uppercase tracking-widest mb-2">
+                                    <span>Preserving to Storage...</span>
+                                    <span>{uploadProgress}%</span>
+                                </div>
+                                <div className="w-full bg-charcoal/5 rounded-full h-4 overflow-hidden border border-tan-light shadow-inner">
+                                    <div
+                                        className="bg-tan h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(186,140,99,0.5)]"
+                                        style={{ width: `${uploadProgress}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="bg-tan text-white px-8 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="bg-charcoal text-cream px-12 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-tan hover:text-white transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl min-w-[260px]"
                     >
-                        {isSubmitting ? 'Saving to Archive...' : 'Save Archive Item'}
+                        {isSubmitting ? 'Finalizing Record...' : 'Add to Archive'}
                     </button>
                 </div>
 
