@@ -25,3 +25,5 @@ dist-ssr
 .env
 .idx/dev.nix
 *.ini
+.env.local
+.env
