@@ -27,3 +27,4 @@ dist-ssr
 *.ini
 .env.local
 .env
+.github/workflows/sahs-archives-website.code-workspace
