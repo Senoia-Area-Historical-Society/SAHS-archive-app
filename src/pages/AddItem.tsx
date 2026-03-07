@@ -348,7 +348,7 @@ export function AddItem() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col pb-12 relative">
+        <div className="max-w-5xl mx-auto h-full flex flex-col pb-12 relative text-charcoal">
             {/* Zoom Overlay */}
             {zoomedImage && (
                 <div

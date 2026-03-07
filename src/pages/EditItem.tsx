@@ -347,7 +347,7 @@ export function EditItem() {
     if (!item) return null;
 
     return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col pb-12">
+        <div className="max-w-5xl mx-auto h-full flex flex-col pb-12">
             <div className="mb-8 border-b border-tan-light/50 pb-6 flex items-center justify-between">
                 <div>
                     <h1 className="text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">

@@ -128,7 +128,7 @@ export function ItemDetail() {
     const coverImage = file_urls && file_urls.length > 0 ? file_urls[0] : null;
 
     return (
-        <div className="flex flex-col h-full max-w-5xl mx-auto animate-in fade-in duration-500 pb-12">
+        <div className="flex flex-col h-full max-w-full mx-auto animate-in fade-in duration-500 pb-12">
             {zoomedImage && (
                 <div
                     className="fixed inset-0 z-[100] bg-charcoal/95 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"

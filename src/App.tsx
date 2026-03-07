@@ -13,7 +13,7 @@ import { SearchArchive } from './pages/SearchArchive';
 
 function PageWrapper() {
   return (
-    <div className="flex-1 p-8 md:p-12 max-w-7xl mx-auto w-full">
+    <div className="flex-1 p-8 md:p-12 max-w-screen-2xl mx-auto w-full">
       <Outlet />
     </div>
   );

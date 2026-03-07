@@ -151,7 +151,7 @@ export function BrowseArchive() {
     }
 
     return (
-        <div className="max-w-6xl mx-auto h-full flex flex-col">
+        <div className="max-w-full mx-auto h-full flex flex-col">
             <div className="mb-10">
                 <h1 className="text-5xl font-serif font-bold mb-4 text-charcoal tracking-tight">{headerText.title}</h1>
                 <p className="text-charcoal-light text-xl">{headerText.description}</p>
