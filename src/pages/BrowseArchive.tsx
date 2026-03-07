@@ -210,16 +210,17 @@ export function BrowseArchive() {
             </div>
 
             <div className="flex-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
-                    {sortedItems.map(item => (
-                        <DocumentCard key={item.id} item={item} />
-                    ))}
-                </div>
+                {sortedItems.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
+                        {sortedItems.map(item => (
+                            <DocumentCard key={item.id} item={item} />
+                        ))}
+                    </div>
                 ) : (
-                <div className="text-center py-24 bg-white rounded-xl border border-tan-light/50 shadow-sm">
-                    <p className="text-charcoal-light text-xl font-serif italic mb-2">No items found.</p>
-                    <p className="text-charcoal-light/70 font-sans">Try modifying your search or filters.</p>
-                </div>
+                    <div className="text-center py-24 bg-white rounded-xl border border-tan-light/50 shadow-sm">
+                        <p className="text-charcoal-light text-xl font-serif italic mb-2">No items found.</p>
+                        <p className="text-charcoal-light/70 font-sans">Try modifying your search or filters.</p>
+                    </div>
                 )}
             </div>
         </div>
