@@ -206,85 +206,85 @@ export function ItemDetail() {
                     </div>
 
                     <div className="bg-white rounded-xl border border-tan-light/50 p-6 shadow-sm">
-                        <h3 className="text-xs font-bold text-charcoal/40 uppercase tracking-widest border-b border-tan-light/50 pb-2 mb-4">Dublin Core Metadata</h3>
+                        <h3 className="text-sm font-black text-charcoal/60 uppercase tracking-widest border-b border-tan-light/50 pb-2 mb-4">Information</h3>
                         <div className="space-y-4">
                             <div>
-                                <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Item Type</p>
-                                <p className="font-medium text-charcoal">{item.item_type}</p>
+                                <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Item Type</p>
+                                <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
                             </div>
                             {item.date && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Date</p>
-                                    <p className="font-medium text-charcoal">{item.date}</p>
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Date</p>
+                                    <p className="text-lg font-serif text-charcoal">{item.date}</p>
                                 </div>
                             )}
                             {item.archive_reference && item.item_type !== 'Artifact' && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                        <FileText size={12} /> Filing Code
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                        <FileText size={14} /> Filing Code
                                     </p>
-                                    <p className="font-medium text-charcoal">{item.archive_reference}</p>
+                                    <p className="text-lg font-serif text-charcoal">{item.archive_reference}</p>
                                 </div>
                             )}
                             {item.identifier && item.item_type !== 'Artifact' && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                        <BookOpen size={12} /> Archive Reference
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                        <BookOpen size={14} /> Archive Reference
                                     </p>
-                                    <p className="font-medium text-charcoal">{item.identifier}</p>
+                                    <p className="text-lg font-serif text-charcoal">{item.identifier}</p>
                                 </div>
                             )}
                             {item.creator && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Creator</p>
-                                    <p className="font-medium text-charcoal">{item.creator}</p>
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Creator</p>
+                                    <p className="text-lg font-serif text-charcoal">{item.creator}</p>
                                 </div>
                             )}
                             {item.subject && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Subject</p>
-                                    <p className="font-medium text-charcoal">{item.subject}</p>
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Subject</p>
+                                    <p className="text-lg font-serif text-charcoal">{item.subject}</p>
                                 </div>
                             )}
 
                             {/* Figure Specific Facts */}
                             {item.item_type === 'Historic Figure' && (
                                 <div className="pt-4 border-t border-tan-light/50 mt-4 space-y-4">
-                                    <h3 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4">Timeline & Origins</h3>
+                                    <h3 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-4">Timeline & Origins</h3>
                                     {item.full_name && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
-                                            <p className="font-medium text-charcoal">{item.full_name}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.full_name}</p>
                                         </div>
                                     )}
                                     {item.also_known_as && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Also Known As</p>
-                                            <p className="font-medium text-charcoal italic">"{item.also_known_as}"</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Also Known As</p>
+                                            <p className="text-lg font-serif text-charcoal italic">"{item.also_known_as}"</p>
                                         </div>
                                     )}
                                     {item.birth_date && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Birth Date</p>
-                                            <p className="font-medium text-charcoal">{item.birth_date}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Birth Date</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.birth_date}</p>
                                         </div>
                                     )}
                                     {item.death_date && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Death Date</p>
-                                            <p className="font-medium text-charcoal">{item.death_date}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Death Date</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.death_date}</p>
                                         </div>
                                     )}
                                     {item.birthplace && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Birthplace</p>
-                                            <p className="font-medium text-charcoal">{item.birthplace}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Birthplace</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.birthplace}</p>
                                         </div>
                                     )}
                                     {item.occupation && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Occupation</p>
-                                            <p className="font-medium text-charcoal">{item.occupation}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Occupation</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.occupation}</p>
                                         </div>
                                     )}
                                 </div>
@@ -293,29 +293,29 @@ export function ItemDetail() {
                             {/* Organization Specific Facts */}
                             {item.item_type === 'Historic Organization' && (
                                 <div className="pt-4 border-t border-tan-light/50 mt-4 space-y-4">
-                                    <h3 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4">Organization History</h3>
+                                    <h3 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-4">Organization History</h3>
                                     {item.org_name && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
-                                            <p className="font-medium text-charcoal">{item.org_name}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Full Name</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.org_name}</p>
                                         </div>
                                     )}
                                     {item.alternative_names && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Alternative Names</p>
-                                            <p className="font-medium text-charcoal italic">{item.alternative_names}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Alternative Names</p>
+                                            <p className="text-lg font-serif text-charcoal italic">{item.alternative_names}</p>
                                         </div>
                                     )}
                                     {item.founding_date && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Founding Date</p>
-                                            <p className="font-medium text-charcoal">{item.founding_date}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Founding Date</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.founding_date}</p>
                                         </div>
                                     )}
                                     {item.dissolved_date && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Closed / Dissolved</p>
-                                            <p className="font-medium text-charcoal">{item.dissolved_date}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Closed / Dissolved</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.dissolved_date}</p>
                                         </div>
                                     )}
                                 </div>
@@ -324,10 +324,10 @@ export function ItemDetail() {
                             {/* Artifact Specific Facts */}
                             {item.item_type === 'Artifact' && (
                                 <div className="pt-4 border-t border-tan-light/50 mt-4 space-y-4">
-                                    <h3 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4">Provenance & Sourcing</h3>
+                                    <h3 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-4">Provenance & Sourcing</h3>
                                     {item.artifact_type && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 whitespace-nowrap">Artifact Type</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 whitespace-nowrap">Artifact Type</p>
                                             <span className="inline-block bg-tan/10 text-tan px-3 py-1 rounded-full text-xs font-bold border border-tan/20 mt-1 capitalize">
                                                 {item.artifact_type}
                                             </span>
@@ -335,14 +335,14 @@ export function ItemDetail() {
                                     )}
                                     {item.artifact_id && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">ID #</p>
-                                            <p className="font-medium text-charcoal">{item.artifact_id}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">ID #</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.artifact_id}</p>
                                         </div>
                                     )}
                                     {item.donor && (
                                         <div>
-                                            <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Original Donor / Contributor</p>
-                                            <p className="font-medium text-charcoal">{item.donor}</p>
+                                            <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Original Donor / Contributor</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.donor}</p>
                                         </div>
                                     )}
                                 </div>
@@ -350,7 +350,7 @@ export function ItemDetail() {
 
                             {item.category && item.item_type !== 'Artifact' && (
                                 <div className="mb-4">
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-1">Archive Category</p>
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-1">Archive Category</p>
                                     <span className="inline-block bg-tan/10 text-tan px-3 py-1 rounded-full text-xs font-bold border border-tan/20">
                                         {item.category}
                                     </span>
@@ -359,7 +359,7 @@ export function ItemDetail() {
 
                             {item.tags && item.tags.length > 0 && (
                                 <div>
-                                    <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-2">Subject Tags</p>
+                                    <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-2">Subject Tags</p>
                                     <div className="flex flex-wrap gap-2">
                                         {item.tags.map(tag => (
                                             <span key={tag} className="text-[10px] bg-beige text-charcoal px-2.5 py-1.5 rounded-md font-bold uppercase tracking-widest border border-tan-light/30">
@@ -370,30 +370,30 @@ export function ItemDetail() {
                                 </div>
                             )}
 
-                            <h3 className="text-xs font-bold text-charcoal/40 uppercase tracking-widest border-b border-tan-light/50 pb-2 mb-4 pt-4">Archival Tracking</h3>
+                            <h3 className="text-sm font-black text-charcoal/60 uppercase tracking-widest border-b border-tan-light/50 pb-2 mb-4 pt-4">Archival Tracking</h3>
                             <div className="space-y-4">
                                 {item.condition && (
                                     <div>
-                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={12} /> Condition</p>
-                                        <p className="font-medium text-charcoal">{item.condition}</p>
+                                        <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={14} /> Condition</p>
+                                        <p className="text-lg font-serif text-charcoal">{item.condition}</p>
                                     </div>
                                 )}
                                 {item.physical_location && (
                                     <div>
-                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><MapPin size={12} /> Origin / Place</p>
-                                        <p className="font-medium text-charcoal">{item.physical_location}</p>
+                                        <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><MapPin size={14} /> Origin / Place</p>
+                                        <p className="text-lg font-serif text-charcoal">{item.physical_location}</p>
                                     </div>
                                 )}
                                 {item.museum_location && (
                                     <div>
-                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={12} /> Museum Location</p>
-                                        <p className="font-medium text-charcoal">{item.museum_location}</p>
+                                        <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={14} /> Museum Location</p>
+                                        <p className="text-lg font-serif text-charcoal">{item.museum_location}</p>
                                     </div>
                                 )}
                                 {item.coverage && (
                                     <div>
-                                        <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5">Coverage / Place</p>
-                                        <p className="font-medium text-charcoal">{item.coverage}</p>
+                                        <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5">Coverage / Place</p>
+                                        <p className="text-lg font-serif text-charcoal">{item.coverage}</p>
                                     </div>
                                 )}
                             </div>
