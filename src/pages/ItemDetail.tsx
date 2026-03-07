@@ -218,7 +218,7 @@ export function ItemDetail() {
                                     <p className="font-medium text-charcoal">{item.date}</p>
                                 </div>
                             )}
-                            {item.archive_reference && (
+                            {item.archive_reference && item.item_type !== 'Artifact' && (
                                 <div>
                                     <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
                                         <FileText size={12} /> Filing Code
@@ -226,7 +226,7 @@ export function ItemDetail() {
                                     <p className="font-medium text-charcoal">{item.archive_reference}</p>
                                 </div>
                             )}
-                            {item.identifier && (
+                            {item.identifier && item.item_type !== 'Artifact' && (
                                 <div>
                                     <p className="text-xs text-charcoal/50 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
                                         <BookOpen size={12} /> Archive Reference
