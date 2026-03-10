@@ -2,7 +2,8 @@ export interface Collection {
     id: string;
     title: string;
     description: string;
-    cover_image_url?: string;
+    featured_image_url?: string;
+    file_urls?: string[];
     created_at: string;
 }
 

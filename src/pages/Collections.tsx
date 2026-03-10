@@ -92,9 +92,9 @@ export function Collections() {
                             className="group flex flex-col bg-white rounded-xl border border-tan-light/50 overflow-hidden hover:shadow-md transition-all duration-300 hover:border-tan/40"
                         >
                             <div className="aspect-[16/9] bg-tan-light/20 relative overflow-hidden">
-                                {col.cover_image_url ? (
+                                {col.featured_image_url || col.file_urls?.[0] || col.cover_image_url ? (
                                     <img
-                                        src={col.cover_image_url}
+                                        src={col.featured_image_url || col.file_urls?.[0] || col.cover_image_url}
                                         alt={col.title}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                                     />

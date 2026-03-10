@@ -1,13 +1,65 @@
 import { useState, useRef, useEffect } from 'react';
-import { Edit2, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles } from 'lucide-react';
+import { Edit2, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import { extractMetadataFromFile } from '../lib/gemini';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 
 export function EditItem() {
+    // Simplified PendingFilePreview
+    const PendingFilePreview = ({
+        file,
+        url,
+        isFeatured,
+        onSetFeatured,
+        onRemove
+    }: {
+        file: File,
+        url: string,
+        isFeatured: boolean,
+        onSetFeatured: (url: string) => void,
+        onRemove: () => void
+    }) => {
+        const isImage = file.type.startsWith('image/');
+
+        return (
+            <div className={`relative aspect-square rounded-lg overflow-hidden border-2 border-dashed transition-all group/thumb ${isFeatured ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-indigo-200'}`}>
+                {isImage ? (
+                    <img src={url} className="w-full h-full object-cover" alt="new" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-300">
+                        <ImageIcon size={20} />
+                    </div>
+                )}
+                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                    <button
+                        type="button"
+                        onClick={() => onSetFeatured(url)}
+                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                        title="Set as Featured"
+                    >
+                        <CheckCircle size={14} />
+                    </button>
+                </div>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
+                    title="Remove"
+                >
+                    <X size={10} />
+                </button>
+                {isFeatured && (
+                    <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                        <CheckCircle size={10} />
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,6 +73,52 @@ export function EditItem() {
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
     const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [existingFileUrls, setExistingFileUrls] = useState<string[]>([]);
+    const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+    const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
+
+    // Clean up blob URLs on unmount
+    useEffect(() => {
+        return () => {
+            fileObjectURLs.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, []);
+
+    // Update object URLs when files change
+    useEffect(() => {
+        setFileObjectURLs(prev => {
+            const next = new Map(prev);
+            // Add new files
+            selectedFiles.forEach(file => {
+                if (!next.has(file)) {
+                    next.set(file, URL.createObjectURL(file));
+                }
+            });
+            // Cleanup removed files
+            next.forEach((url, file) => {
+                if (!selectedFiles.includes(file)) {
+                    URL.revokeObjectURL(url);
+                    next.delete(file);
+                }
+            });
+            return next;
+        });
+    }, [selectedFiles]);
+
+    const removeExistingFile = (url: string) => {
+        setExistingFileUrls(prev => {
+            const newUrls = prev.filter(u => u !== url);
+            if (featuredImageUrl === url) {
+                setFeaturedImageUrl(newUrls.length > 0 ? newUrls[0] : null);
+            }
+            return newUrls;
+        });
+    };
+
+    const removeNewFile = (index: number) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
 
 
     // Networking / Linking
@@ -82,6 +180,7 @@ export function EditItem() {
                     setItemType(data.item_type || 'Document');
                     setSelectedCollectionId(data.collection_id || "");
                     setFeaturedImageUrl(data.featured_image_url || null);
+                    setExistingFileUrls(data.file_urls || []);
                 } else {
                     setError("Item not found.");
                 }
@@ -218,17 +317,44 @@ export function EditItem() {
         try {
             const formData = new FormData(e.target as HTMLFormElement);
 
-            const file = formData.get('fileUpload') as File | null;
-            let fileUrls: string[] = item.file_urls || [];
+            const newFiles = selectedFiles;
+            let fileUrls: string[] = [...existingFileUrls];
+            let finalFeaturedUrl = featuredImageUrl;
 
-            if (file && file.size > 0) {
-                const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
-                const snapshot = await uploadBytes(storageRef, file);
-                const downloadUrl = await getDownloadURL(snapshot.ref);
-                // For simplicity now, replacing the primary image
-                fileUrls = [downloadUrl];
-                // If we upload a new image, make it the default featured image unless one is already set
-                if (!featuredImageUrl) setFeaturedImageUrl(downloadUrl);
+            if (newFiles.length > 0) {
+                const totalFiles = newFiles.length;
+                let completedFiles = 0;
+                setUploadProgress(0);
+
+                for (let i = 0; i < newFiles.length; i++) {
+                    const file = newFiles[i];
+                    const blobUrl = fileObjectURLs.get(file);
+
+                    const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+
+                    await new Promise<void>((resolve, reject) => {
+                        uploadTask.on('state_changed',
+                            (snapshot) => {
+                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                const overallProgress = ((completedFiles * 100) + progress) / totalFiles;
+                                setUploadProgress(Math.round(overallProgress));
+                            },
+                            reject,
+                            async () => {
+                                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                                fileUrls.push(downloadUrl);
+
+                                if (featuredImageUrl === blobUrl) {
+                                    finalFeaturedUrl = downloadUrl;
+                                }
+
+                                completedFiles++;
+                                resolve();
+                            }
+                        );
+                    });
+                }
             }
 
             // Parse tags
@@ -238,7 +364,7 @@ export function EditItem() {
             const updateData: Partial<ArchiveItem> = {
                 item_type: itemType,
                 file_urls: fileUrls,
-                featured_image_url: featuredImageUrl || (fileUrls.length > 0 ? fileUrls[0] : undefined),
+                featured_image_url: finalFeaturedUrl || (fileUrls.length > 0 ? fileUrls[0] : undefined),
                 tags: tags,
                 collection_id: (formData.get('collection_id') as string) || "",
                 updated_at: new Date().toISOString(),
@@ -391,74 +517,118 @@ export function EditItem() {
                                 ))}
                             </div>
 
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Primary Upload</label>
+                            <div className="flex items-center justify-between mb-3 underline underline-offset-4 decoration-tan/30">
+                                <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider">Archive Gallery / Media</label>
+                                {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setExistingFileUrls([]);
+                                            setSelectedFiles([]);
+                                            setFeaturedImageUrl(null);
+                                        }}
+                                        className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
+                                    >
+                                        <X size={10} /> Wipe Gallery
+                                    </button>
+                                )}
+                            </div>
+
                             <div
                                 onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-tan-light bg-white rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors h-48 relative overflow-hidden"
+                                className="border-2 border-dashed border-tan-light bg-white rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-colors h-40 relative overflow-hidden group mb-6"
                             >
-                                {item.file_urls?.[0] && !selectedFileName && (
-                                    <img src={item.file_urls[0]} alt="Current item scan" className="absolute inset-0 w-full h-full object-cover opacity-20" />
-                                )}
                                 <input
                                     type="file"
                                     name="fileUpload"
                                     ref={fileInputRef}
                                     className="hidden"
-                                    accept="image/png, image/jpeg, application/pdf"
-                                    onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || null)}
+                                    multiple
+                                    accept="image/png, image/jpeg, image/webp, application/pdf"
+                                    onChange={(e) => {
+                                        const files = e.target.files;
+                                        if (files) {
+                                            setSelectedFiles(prev => [...prev, ...Array.from(files)]);
+                                        }
+                                        e.target.value = '';
+                                    }}
                                 />
-                                <div className="w-12 h-12 bg-cream rounded-full flex items-center justify-center text-tan shadow-sm mb-3 relative z-10">
-                                    <ImageIcon size={24} />
+                                <div className="w-10 h-10 bg-cream rounded-full flex items-center justify-center text-tan shadow-sm mb-2 group-hover:scale-110 transition-transform">
+                                    <ImageIcon size={20} />
                                 </div>
-                                {selectedFileName ? (
-                                    <p className="font-medium text-sm text-charcoal mb-1 relative z-10"><span className="text-tan">{selectedFileName}</span></p>
-                                ) : (
-                                    <>
-                                        <p className="font-medium text-sm text-charcoal mb-1 relative z-10"><span className="text-tan hover:underline">Click to upload new file</span></p>
-                                        <p className="text-xs text-charcoal/50 relative z-10">Leave empty to keep current file</p>
-                                    </>
-                                )}
+                                <p className="font-bold text-sm text-charcoal mb-0.5">Click to append scans</p>
+                                <p className="text-[10px] text-charcoal/50">Multiple PNG, JPG, or PDF allowed</p>
                             </div>
+
+                            {/* Image Grid: Existing and New */}
+                            {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
+                                <div className="space-y-4 mb-6">
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {/* Existing Files */}
+                                        {existingFileUrls.map((url, idx) => (
+                                            <div key={`existing-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
+                                                <img src={url} className="w-full h-full object-cover" alt="existing" />
+                                                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFeaturedImageUrl(url)}
+                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                        title="Set as Featured"
+                                                    >
+                                                        <CheckCircle size={14} />
+                                                    </button>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeExistingFile(url)}
+                                                    className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
+                                                    title="Remove from Record"
+                                                >
+                                                    <X size={10} />
+                                                </button>
+                                                {featuredImageUrl === url && (
+                                                    <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                        <CheckCircle size={10} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                        {/* New Pending Files */}
+                                        {selectedFiles.map((file, idx) => {
+                                            const url = fileObjectURLs.get(file) || '';
+                                            return (
+                                                <PendingFilePreview
+                                                    key={`new-${idx}-${file.name}`}
+                                                    file={file}
+                                                    url={url}
+                                                    isFeatured={featuredImageUrl === url}
+                                                    onSetFeatured={(url) => setFeaturedImageUrl(url)}
+                                                    onRemove={() => removeNewFile(idx)}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] text-charcoal/40 italic flex items-center gap-1">
+                                        <Sparkles size={10} /> Dash-border items are pending upload and will be saved when you click "Save Changes"
+                                    </p>
+                                </div>
+                            )}
 
                             <button
                                 type="button"
                                 onClick={handleAutoExtract}
-                                disabled={isExtracting || !selectedFileName}
-                                className={`mt-4 w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all border ${isExtracting
+                                disabled={isExtracting || selectedFiles.length === 0}
+                                className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all border ${isExtracting
                                     ? 'bg-tan-light/20 text-tan border-tan-light/50 cursor-not-allowed'
-                                    : !selectedFileName
+                                    : selectedFiles.length === 0
                                         ? 'bg-cream/50 text-charcoal/30 border-tan-light/30 cursor-not-allowed'
                                         : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:shadow-sm'
                                     }`}
-                                title={!selectedFileName ? "Select a new file above to extract metadata" : "Extract metadata from the selected file"}
                             >
                                 <Sparkles size={16} className={isExtracting ? 'animate-pulse' : ''} />
-                                {isExtracting ? 'Analyzing Document with AI...' : 'Auto-Extract Metadata with AI'}
+                                {isExtracting ? 'Analyzing Document with AI...' : 'Auto-Extract from Newest Scan'}
                             </button>
-
-                            {item.file_urls && item.file_urls.length > 0 && (
-                                <div className="mt-6 pt-6 border-t border-tan-light/30">
-                                    <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3">Profile / Featured Image</label>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {item.file_urls.map((url, idx) => (
-                                            <button
-                                                key={idx}
-                                                type="button"
-                                                onClick={() => setFeaturedImageUrl(url)}
-                                                className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-transparent opacity-60 hover:opacity-100 hover:border-tan-light/50'}`}
-                                            >
-                                                <img src={url} alt={`Selection ${idx}`} className="w-full h-full object-cover" />
-                                                {featuredImageUrl === url && (
-                                                    <div className="absolute top-1 right-1 bg-tan text-white p-0.5 rounded-full shadow-sm">
-                                                        <CheckCircle size={10} />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    <p className="text-[10px] text-charcoal/50 mt-2 italic">Click an image above to set it as the primary display portrait/cover.</p>
-                                </div>
-                            )}
                         </div>
 
                         <div className="space-y-6">
@@ -881,12 +1051,28 @@ export function EditItem() {
                 </div>
 
                 <div className="p-8 bg-cream/30 border-t border-tan-light/50 flex justify-end">
+                    {uploadProgress !== null && (
+                        <div className="flex-1 mr-8">
+                            <div className="flex justify-between items-center mb-1.5">
+                                <span className="text-[10px] font-black uppercase text-tan tracking-widest">Uploading Media Gallery...</span>
+                                <span className="text-[10px] font-black text-tan">{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-tan-light/20 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-tan h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                        </div>
+                    )}
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="bg-tan text-white px-8 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="bg-tan text-white px-8 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                        {isSubmitting ? 'Saving Changes...' : 'Save Changes'}
+                        {isSubmitting ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Saving Changes...
+                            </>
+                        ) : 'Save Changes'}
                     </button>
                 </div>
 

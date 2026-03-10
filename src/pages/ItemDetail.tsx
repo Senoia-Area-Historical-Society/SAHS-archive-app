@@ -490,7 +490,7 @@ export function ItemDetail() {
                     <div className="pt-4">
                         <h2 className="text-xl font-serif font-bold text-charcoal mb-4">Additional Media / Scans</h2>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                            {file_urls.slice(1).map((url, idx) => (
+                            {file_urls.filter(url => url !== coverImage).map((url, idx) => (
                                 <button
                                     key={idx}
                                     onClick={() => setZoomedImage(url)}

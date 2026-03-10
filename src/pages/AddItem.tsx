@@ -12,6 +12,36 @@ export function AddItem() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
+    const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
+
+    // Clean up blob URLs on unmount
+    useEffect(() => {
+        return () => {
+            fileObjectURLs.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, []);
+
+    // Update object URLs when files change
+    useEffect(() => {
+        setFileObjectURLs(prev => {
+            const next = new Map(prev);
+            // Add new files
+            selectedFiles.forEach(file => {
+                if (!next.has(file)) {
+                    next.set(file, URL.createObjectURL(file));
+                }
+            });
+            // Cleanup removed files
+            next.forEach((url, file) => {
+                if (!selectedFiles.includes(file)) {
+                    URL.revokeObjectURL(url);
+                    next.delete(file);
+                }
+            });
+            return next;
+        });
+    }, [selectedFiles]);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
@@ -39,7 +69,6 @@ export function AddItem() {
     const [docSearch, setDocSearch] = useState('');
     const [showDocResults, setShowDocResults] = useState(false);
 
-    const [featuredImageIndex, setFeaturedImageIndex] = useState<number>(0);
     const [selectedCollectionId, setSelectedCollectionId] = useState("");
 
     const handleCollectionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -408,8 +437,17 @@ export function AddItem() {
                                 ))}
                             </div>
 
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">
+                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30 flex items-center">
                                 {itemType === 'Document' ? 'Document Scans / Photos' : itemType === 'Artifact' ? 'Artifact Photos' : 'Representative Media / Portraits'}
+                                {selectedFiles.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => { setSelectedFiles([]); setFeaturedImageIndex(0); }}
+                                        className="ml-auto text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
+                                    >
+                                        <X size={10} /> Clear All
+                                    </button>
+                                )}
                             </label>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
@@ -424,63 +462,65 @@ export function AddItem() {
                                     accept="image/png, image/jpeg, image/webp, application/pdf"
                                     onChange={(e) => {
                                         const files = e.target.files;
-                                        if (files) setSelectedFiles(Array.from(files));
+                                        if (files) {
+                                            const newFiles = Array.from(files);
+                                            setSelectedFiles(prev => [...prev, ...newFiles]);
+                                        }
+                                        // Reset input so same file can be selected again if needed
+                                        e.target.value = '';
                                     }}
                                 />
+                                {/* Image Grid */}
                                 {selectedFiles.length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-2 w-full">
-                                        {selectedFiles.slice(0, 6).map((file, i) => {
+                                    <div className="grid grid-cols-4 gap-2 w-full max-w-sm mt-4">
+                                        {selectedFiles.map((file, idx) => {
+                                            const url = fileObjectURLs.get(file) || '';
                                             const isImage = file.type.startsWith('image/');
                                             return (
-                                                <div key={i} className="relative aspect-square bg-cream rounded-lg overflow-hidden border border-tan-light/50 group/thumb">
+                                                <div key={`pending-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageIndex === idx ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30 hover:border-tan-light'}`}>
                                                     {isImage ? (
-                                                        <img
-                                                            src={URL.createObjectURL(file)}
-                                                            className="w-full h-full object-cover"
-                                                            alt="preview"
-                                                        />
+                                                        <img src={url} className="w-full h-full object-cover" alt="preview" />
                                                     ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-tan/40">
-                                                            <FileText size={24} />
+                                                        <div className="w-full h-full flex items-center justify-center bg-cream/50 text-tan/40">
+                                                            <FileText size={16} />
                                                         </div>
                                                     )}
-                                                    {isImage && (
-                                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setZoomedImage(URL.createObjectURL(file));
-                                                                }}
-                                                                className="p-1.5 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                                title="Zoom"
-                                                            >
-                                                                <ZoomIn size={16} />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setFeaturedImageIndex(i);
-                                                                }}
-                                                                className={`p-1.5 rounded-full backdrop-blur-sm transition-colors ${featuredImageIndex === i ? 'bg-tan text-white' : 'bg-white/20 hover:bg-white/40 text-white'}`}
-                                                                title="Set as Featured Image"
-                                                            >
-                                                                <CheckCircle size={16} />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                    {isImage && featuredImageIndex === i && (
+                                                    <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setFeaturedImageIndex(idx);
+                                                            }}
+                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                            title="Set as Featured"
+                                                        >
+                                                            <CheckCircle size={12} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+                                                                if (featuredImageIndex === idx) setFeaturedImageIndex(0);
+                                                            }}
+                                                            className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                            title="Remove File"
+                                                        >
+                                                            <X size={12} />
+                                                        </button>
+                                                    </div>
+                                                    {featuredImageIndex === idx && (
                                                         <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                            <CheckCircle size={10} />
+                                                            <CheckCircle size={8} />
                                                         </div>
                                                     )}
                                                 </div>
                                             );
                                         })}
-                                        {selectedFiles.length > 6 && (
-                                            <div className="aspect-square bg-tan/20 flex items-center justify-center text-tan font-bold rounded-lg border border-tan-light/50">
-                                                +{selectedFiles.length - 6}
+                                        {selectedFiles.length > 8 && (
+                                            <div className="aspect-square bg-tan/20 flex items-center justify-center text-tan font-black text-xs rounded-lg border border-tan-light/50 uppercase tracking-tighter">
+                                                +{selectedFiles.length - 8} MORE
                                             </div>
                                         )}
                                     </div>
@@ -659,11 +699,11 @@ export function AddItem() {
                                 <textarea required id="description" name="description" placeholder={itemType === 'Historic Figure' ? "Biographical details, family history, and significance..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : itemType === 'Artifact' ? "Physical details, materials, historical use, and significance..." : "Provide background, provenance, or biographical details..."} className="w-full min-h-[140px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans resize-none leading-relaxed"></textarea>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {/* Section 2: Extended Details & Relationships */}
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                < div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10" >
                     <div className="space-y-6">
                         <h3 className="text-lg font-serif font-bold text-charcoal flex flex-col border-b border-tan-light/50 pb-3 mb-2">
                             <div className="flex items-center gap-2 mb-1">
@@ -935,10 +975,10 @@ export function AddItem() {
                             <textarea id="transcription" name="transcription" placeholder="Exact word-for-word record of the document contents..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-mono text-sm resize-none leading-relaxed"></textarea>
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* Section 3: Extended Metadata Accordion */}
-                <div className="px-8 pb-8">
+                < div className="px-8 pb-8" >
                     <div className="border border-tan-light/50 rounded-2xl overflow-hidden shadow-inner bg-cream/5">
                         <button
                             type="button"
@@ -960,7 +1000,7 @@ export function AddItem() {
                             </div>
                         )}
                     </div>
-                </div>
+                </div >
 
                 <div className="p-8 bg-cream border-t border-tan-light/50 flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="flex-1 w-full">
@@ -988,7 +1028,7 @@ export function AddItem() {
                     </button>
                 </div>
 
-            </form>
-        </div>
+            </form >
+        </div >
     );
 }
