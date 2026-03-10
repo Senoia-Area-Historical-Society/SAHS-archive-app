@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# SAHS Archive Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The official digital archives platform for the **Senoia Area Historical Society (SAHS)**. This application provides a modern, high-performance interface for browsing, searching, and managing historical documents, artifacts, figures, and organizations related to the rich history of Senoia, Georgia.
 
-Currently, two official plugins are available:
+## 🚀 Live Site
+Visit the public archive at: **[archives.senoiahistory.com](https://archives.senoiahistory.com)**
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Key Features
+- **Unified Search**: Quickly find documents, artifacts, and historical figures across the entire archive.
+- **Curated Collections**: Explore categorized groups of items focused on specific themes or time periods.
+- **Modern UI**: A premium, responsive design built with React 19 and Tailwind CSS.
+- **Firebase Backend**: Real-time data management with Firestore and media storage with Firebase Storage.
+- **AI-Powered Metadata**: Integrated with Google Gemini for automated metadata extraction from historical documents.
 
-## React Compiler
+## 🛠️ Tech Stack
+- **Frontend**: React 19, Vite, TypeScript
+- **Styling**: Tailwind CSS
+- **Backend / Database**: Firebase Firestore & Storage
+- **Icons**: Lucide React
+- **AI**: Google Generative AI (Gemini)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 📦 Development
 
-## Expanding the ESLint configuration
+### Prerequisites
+- Node.js (Latest LTS recommended)
+- Firebase Account & Project Configuration
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Setup
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file with your Firebase configuration.
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Building for Production
+```bash
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+© 2025 Senoia Area Historical Society
