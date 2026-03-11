@@ -7,7 +7,7 @@ import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId }
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem } from '../types/database';
 
-import { APIProvider, Map as GoogleMap, Marker } from '@vis.gl/react-google-maps';
+import { APIProvider, Map as GoogleMap, AdvancedMarker } from '@vis.gl/react-google-maps';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -443,8 +443,9 @@ export function ItemDetail() {
                                         defaultZoom={15}
                                         gestureHandling={'greedy'}
                                         disableDefaultUI={false}
+                                        mapId="DEMO_MAP_ID"
                                     >
-                                        <Marker position={{ lat: item.coordinates.lat, lng: item.coordinates.lng }} />
+                                        <AdvancedMarker position={{ lat: item.coordinates.lat, lng: item.coordinates.lng }} />
                                     </GoogleMap>
                                 </APIProvider>
                             </div>
