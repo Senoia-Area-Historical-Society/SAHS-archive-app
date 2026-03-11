@@ -59,6 +59,11 @@ export interface ArchiveItem {
     // SAHS Specific
     condition?: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | 'Needs to be rescanned';
     physical_location?: string;
+    historical_address?: string; // Physical address for geolocation
+    coordinates?: { // Automatically populated by Firebase Geocoding Extension
+        lat: number;
+        lng: number;
+    };
     related_figures?: string[]; // IDs of Historic Figures
     related_documents?: string[]; // IDs of Documents/Photos for Figures
     related_organizations?: string[]; // IDs of Historic Organizations

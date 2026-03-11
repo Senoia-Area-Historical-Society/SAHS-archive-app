@@ -274,6 +274,7 @@ export function AddItem() {
                 // SAHS Specific
                 condition: formData.get('condition') as any,
                 physical_location: formData.get('physical_location') as any,
+                historical_address: formData.get('historical_address') as string || "",
                 related_figures: selectedRelatedFigures.map(f => f.id),
                 related_documents: selectedRelatedDocs.map(d => d.id),
                 related_organizations: selectedRelatedOrgs.map(o => o.id),
@@ -679,6 +680,10 @@ export function AddItem() {
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-4 mt-4">
+                                        <div>
+                                            <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
+                                            <input type="text" name="historical_address" id="historical_address" placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
                                         <div>
                                             <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
                                             <div className="relative">

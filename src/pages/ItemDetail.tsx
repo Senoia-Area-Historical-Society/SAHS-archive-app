@@ -7,6 +7,8 @@ import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId }
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem } from '../types/database';
 
+import { APIProvider, Map as GoogleMap, Marker } from '@vis.gl/react-google-maps';
+
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -384,6 +386,15 @@ export function ItemDetail() {
                                         <p className="text-lg font-serif text-charcoal">{item.physical_location}</p>
                                     </div>
                                 )}
+                                {item.historical_address && (
+                                    <div>
+                                        <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><MapPin size={14} /> Historical Location</p>
+                                        <p className="text-lg font-serif text-charcoal">{item.historical_address}</p>
+                                        {item.coordinates && (
+                                            <p className="text-xs text-charcoal/50 mt-1">({item.coordinates.lat.toFixed(4)}, {item.coordinates.lng.toFixed(4)})</p>
+                                        )}
+                                    </div>
+                                )}
                                 {item.museum_location && (
                                     <div>
                                         <p className="text-sm text-charcoal/60 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1"><Info size={14} /> Museum Location</p>
@@ -414,6 +425,28 @@ export function ItemDetail() {
                             </h3>
                             <div className="font-mono text-sm text-charcoal/80 leading-relaxed whitespace-pre-wrap">
                                 {item.transcription}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Google Map Display */}
+                    {item.coordinates && (
+                        <div className="mb-10 bg-white border border-tan-light/50 rounded-xl overflow-hidden shadow-sm h-[400px]">
+                            <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 p-4 bg-tan-light/10 m-0">
+                                <MapPin className="text-tan" size={20} />
+                                Geographic Location Map
+                            </h3>
+                            <div className="h-[calc(100%-60px)] w-full relative">
+                                <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}>
+                                    <GoogleMap
+                                        defaultCenter={{ lat: item.coordinates.lat, lng: item.coordinates.lng }}
+                                        defaultZoom={15}
+                                        gestureHandling={'greedy'}
+                                        disableDefaultUI={false}
+                                    >
+                                        <Marker position={{ lat: item.coordinates.lat, lng: item.coordinates.lng }} />
+                                    </GoogleMap>
+                                </APIProvider>
                             </div>
                         </div>
                     )}
