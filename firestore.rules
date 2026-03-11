@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user has a @senoiahistory.com email
+    function isSAHSUser() {
+      return request.auth != null && 
+             request.auth.token.email.endsWith('@senoiahistory.com');
+    }
+
+    // archive_items collection: Anyone can read, only SAHS users can write
+    match /archive_items/{item} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // collections collection: Anyone can read, only SAHS users can write
+    match /collections/{collection} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // Default deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

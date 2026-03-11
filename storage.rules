@@ -1,0 +1,28 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper function to check if user has a @senoiahistory.com email
+    function isSAHSUser() {
+      return request.auth != null && 
+             request.auth.token.email.endsWith('@senoiahistory.com');
+    }
+
+    // archive_media folder: Anyone can read, only SAHS users can write
+    match /archive_media/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // collections folder: Anyone can read, only SAHS users can write
+    match /collections/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // Default deny for everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
