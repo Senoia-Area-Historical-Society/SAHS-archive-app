@@ -263,7 +263,7 @@ export function EditItem() {
             const form = document.querySelector('form') as HTMLFormElement;
             if (!form) return;
 
-            const setVal = (name: string, val?: string) => {
+            const setVal = (name: string, val?: string | null) => {
                 const el = form.elements.namedItem(name);
                 if (el) (el as HTMLInputElement).value = val || '';
             }
