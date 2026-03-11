@@ -363,13 +363,13 @@ export function EditItem() {
             const updateData: Partial<ArchiveItem> = {
                 item_type: itemType,
                 file_urls: fileUrls,
-                featured_image_url: finalFeaturedUrl || (fileUrls.length > 0 ? fileUrls[0] : undefined),
+                featured_image_url: finalFeaturedUrl || (fileUrls.length > 0 ? fileUrls[0] : null),
                 tags: tags,
                 collection_id: (formData.get('collection_id') as string) || "",
                 updated_at: new Date().toISOString(),
 
                 // Core DC Elements
-                title: formData.get('title') as string,
+                title: formData.get('title') as string || "",
                 description: formData.get('description') as string || "",
                 transcription: formData.get('transcription') as string || "",
                 archive_reference: formData.get('archive_reference') as string || "",
@@ -390,8 +390,8 @@ export function EditItem() {
                 coverage: formData.get('coverage') as string || "",
 
                 // SAHS Archival Tracking
-                condition: formData.get('condition') as any,
-                physical_location: formData.get('physical_location') as any,
+                condition: (formData.get('condition') as any) || null,
+                physical_location: (formData.get('physical_location') as any) || null,
                 historical_address: formData.get('historical_address') as string || "",
                 category: formData.get('category') as string || "",
 

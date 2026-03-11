@@ -255,12 +255,12 @@ export function AddItem() {
             const itemData: Omit<ArchiveItem, 'id'> = {
                 item_type: itemType,
                 file_urls: fileUrls,
-                featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : undefined),
+                featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : null),
                 tags: currentTags,
                 collection_id: (formData.get('collection_id') as string) || "",
                 created_at: new Date().toISOString(),
 
-                title: formData.get('title') as string,
+                title: formData.get('title') as string || "",
                 description: formData.get('description') as string || "",
                 transcription: formData.get('transcription') as string || "",
                 archive_reference: formData.get('archive_reference') as string || "",
@@ -272,8 +272,8 @@ export function AddItem() {
                 category: formData.get('category') as string || "",
 
                 // SAHS Specific
-                condition: formData.get('condition') as any,
-                physical_location: formData.get('physical_location') as any,
+                condition: (formData.get('condition') as any) || null,
+                physical_location: (formData.get('physical_location') as any) || null,
                 historical_address: formData.get('historical_address') as string || "",
                 related_figures: selectedRelatedFigures.map(f => f.id),
                 related_documents: selectedRelatedDocs.map(d => d.id),
