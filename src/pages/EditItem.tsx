@@ -263,7 +263,7 @@ export function EditItem() {
             const form = document.querySelector('form') as HTMLFormElement;
             if (!form) return;
 
-            const setVal = (name: string, val?: string) => {
+            const setVal = (name: string, val?: string | null) => {
                 const el = form.elements.namedItem(name);
                 if (el) (el as HTMLInputElement).value = val || '';
             }
@@ -369,7 +369,7 @@ export function EditItem() {
                 updated_at: new Date().toISOString(),
 
                 // Core DC Elements
-                title: formData.get('title') as string,
+                title: formData.get('title') as string || "",
                 description: formData.get('description') as string || "",
                 transcription: formData.get('transcription') as string || "",
                 archive_reference: formData.get('archive_reference') as string || "",
@@ -390,8 +390,8 @@ export function EditItem() {
                 coverage: formData.get('coverage') as string || "",
 
                 // SAHS Archival Tracking
-                condition: formData.get('condition') as any,
-                physical_location: formData.get('physical_location') as any,
+                condition: (formData.get('condition') as any) || null,
+                physical_location: (formData.get('physical_location') as any) || null,
                 historical_address: formData.get('historical_address') as string || "",
                 category: formData.get('category') as string || "",
 
@@ -634,7 +634,7 @@ export function EditItem() {
                         <div className="space-y-6">
                             <div>
                                 <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Title / Name *</label>
-                                <input required type="text" name="title" id="title" defaultValue={item.title} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
+                                <input required type="text" name="title" id="title" defaultValue={item.title ?? undefined} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
                             </div>
 
                             {itemType === 'Historic Organization' ? (
@@ -642,23 +642,23 @@ export function EditItem() {
                                     <div className="grid grid-cols-1 gap-4">
                                         <div>
                                             <label htmlFor="org_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Organization Name</label>
-                                            <input type="text" name="org_name" id="org_name" defaultValue={item.org_name} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="org_name" id="org_name" defaultValue={item.org_name ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 gap-4">
                                         <div>
                                             <label htmlFor="alternative_names" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Alternative Names / Former Names</label>
-                                            <input type="text" name="alternative_names" id="alternative_names" defaultValue={item.alternative_names} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="alternative_names" id="alternative_names" defaultValue={item.alternative_names ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="founding_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Founding Date</label>
-                                            <input type="text" name="founding_date" id="founding_date" defaultValue={item.founding_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="founding_date" id="founding_date" defaultValue={item.founding_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         <div>
                                             <label htmlFor="dissolved_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Closed / Dissolved Date</label>
-                                            <input type="text" name="dissolved_date" id="dissolved_date" defaultValue={item.dissolved_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="dissolved_date" id="dissolved_date" defaultValue={item.dissolved_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                 </>
@@ -667,31 +667,31 @@ export function EditItem() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="full_name" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Given Name</label>
-                                            <input type="text" name="full_name" id="full_name" defaultValue={item.full_name} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="full_name" id="full_name" defaultValue={item.full_name ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         <div>
                                             <label htmlFor="also_known_as" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Also Known As / Alias</label>
-                                            <input type="text" name="also_known_as" id="also_known_as" defaultValue={item.also_known_as} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="also_known_as" id="also_known_as" defaultValue={item.also_known_as ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="birth_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birth Date</label>
-                                            <input type="text" name="birth_date" id="birth_date" defaultValue={item.birth_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="birth_date" id="birth_date" defaultValue={item.birth_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         <div>
                                             <label htmlFor="death_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Death Date</label>
-                                            <input type="text" name="death_date" id="death_date" defaultValue={item.death_date} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="death_date" id="death_date" defaultValue={item.death_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label htmlFor="birthplace" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Birthplace</label>
-                                            <input type="text" name="birthplace" id="birthplace" defaultValue={item.birthplace} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="birthplace" id="birthplace" defaultValue={item.birthplace ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         <div>
                                             <label htmlFor="occupation" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Occupation / Title</label>
-                                            <input type="text" name="occupation" id="occupation" defaultValue={item.occupation} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="occupation" id="occupation" defaultValue={item.occupation ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                 </>
@@ -702,7 +702,7 @@ export function EditItem() {
                                             <div>
                                                 <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Type</label>
                                                 <div className="relative">
-                                                    <select name="artifact_type" id="artifact_type" defaultValue={item.artifact_type} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <select name="artifact_type" id="artifact_type" defaultValue={item.artifact_type ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                         {["textile", "photo", "print", "award/trophy", "memorabilia", "furniture", "ceramics", "miscellaneous", "technology", "signs", "jewelry", "metal", "glass", "agriculture"].map(t => (
                                                             <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
                                                         ))}
@@ -714,7 +714,7 @@ export function EditItem() {
                                             <div>
                                                 <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
                                                 <div className="relative">
-                                                    <select name="category" id="category" defaultValue={item.category} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <select name="category" id="category" defaultValue={item.category ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                         {["Manuscript", "Photograph", "Map", "Artifact", "Letter", "Newspaper", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
@@ -724,7 +724,7 @@ export function EditItem() {
                                         {itemType === 'Artifact' ? (
                                             <div>
                                                 <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">ID #</label>
-                                                <input type="text" name="artifact_id" id="artifact_id" defaultValue={item.artifact_id} placeholder="e.g. 2024.01.05" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                                <input type="text" name="artifact_id" id="artifact_id" defaultValue={item.artifact_id ?? undefined} placeholder="e.g. 2024.01.05" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                             </div>
                                         ) : (
                                             <div>
@@ -744,7 +744,7 @@ export function EditItem() {
                                         <div>
                                             <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
                                             <div className="relative">
-                                                <select name="condition" id="condition" defaultValue={item.condition} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                <select name="condition" id="condition" defaultValue={item.condition ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                     {["Excellent", "Good", "Fair", "Poor", "Fragile", "Needs To Be Rescanned"].map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
@@ -752,19 +752,19 @@ export function EditItem() {
                                         </div>
                                         <div>
                                             <label htmlFor="date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Date (e.g. 1920, c. 1905)</label>
-                                            <input type="text" name="date" id="date" defaultValue={item.date} placeholder="Approximate or Exact Date" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="date" id="date" defaultValue={item.date ?? undefined} placeholder="Approximate or Exact Date" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-4 mt-4">
                                         <div>
                                             <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
-                                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         <div>
                                             <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
                                             <div className="relative">
-                                                <select name="physical_location" id="physical_location" defaultValue={item.physical_location} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                     <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
                                                     <option value="Digital Archive">Digital Archive</option>
                                                 </select>
@@ -777,12 +777,12 @@ export function EditItem() {
 
                             <div>
                                 <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">{itemType === 'Historic Figure' ? 'Biography *' : itemType === 'Historic Organization' ? 'History & Description *' : itemType === 'Artifact' ? 'Physical Description & History *' : 'Description / History *'}</label>
-                                <textarea required id="description" name="description" defaultValue={item.description} placeholder={itemType === 'Document' ? "Historical context, transcriptions..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : itemType === 'Artifact' ? "Physical details, materials, historical use, and significance..." : "Life history, achievements..."} className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
+                                <textarea required id="description" name="description" defaultValue={item.description ?? undefined} placeholder={itemType === 'Document' ? "Historical context, transcriptions..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : itemType === 'Artifact' ? "Physical details, materials, historical use, and significance..." : "Life history, achievements..."} className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
                             </div>
 
                             <div>
                                 <label htmlFor="transcription" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Transcription</label>
-                                <textarea id="transcription" name="transcription" defaultValue={item.transcription} placeholder="Exact word-for-word OCR transcription (if applicable)..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
+                                <textarea id="transcription" name="transcription" defaultValue={item.transcription ?? undefined} placeholder="Exact word-for-word OCR transcription (if applicable)..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans resize-none"></textarea>
                             </div>
                         </div>
                     </div>
@@ -800,29 +800,29 @@ export function EditItem() {
                             <>
                                 <div>
                                     <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Code</label>
-                                    <input type="text" name="archive_reference" id="archive_reference" defaultValue={item.archive_reference} placeholder="e.g. SAHS-2024-001" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                                    <input type="text" name="archive_reference" id="archive_reference" defaultValue={item.archive_reference ?? undefined} placeholder="e.g. SAHS-2024-001" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="identifier" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Reference</label>
-                                    <input type="text" name="identifier" id="identifier" defaultValue={item.identifier} placeholder="e.g. LTR_Jun. 14, 1945" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                                    <input type="text" name="identifier" id="identifier" defaultValue={item.identifier ?? undefined} placeholder="e.g. LTR_Jun. 14, 1945" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                                 </div>
                             </>
                         )}
                         <div>
                             <label htmlFor="subject" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Subject (DC:Subject)</label>
-                            <input type="text" name="subject" id="subject" defaultValue={item.subject} placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            <input type="text" name="subject" id="subject" defaultValue={item.subject ?? undefined} placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             <label htmlFor="creator" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Creator (DC:Creator)</label>
-                            <input type="text" name="creator" id="creator" defaultValue={item.creator} placeholder="Author, photographer, or originating body" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            <input type="text" name="creator" id="creator" defaultValue={item.creator ?? undefined} placeholder="Author, photographer, or originating body" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             <label htmlFor="donor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Donor / Contributor</label>
-                            <input type="text" name="donor" id="donor" defaultValue={item.donor} placeholder="Donated by" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            <input type="text" name="donor" id="donor" defaultValue={item.donor ?? undefined} placeholder="Donated by" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             <label htmlFor="subject" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Subject (DC:Subject)</label>
-                            <input type="text" name="subject" id="subject" defaultValue={item.subject} placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            <input type="text" name="subject" id="subject" defaultValue={item.subject ?? undefined} placeholder="Topic keywords" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Tags (Comma Separated)</label>
@@ -830,7 +830,7 @@ export function EditItem() {
                         </div>
                         <div className="md:col-span-2">
                             <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>
-                            <input type="text" name="museum_location" id="museum_location" defaultValue={item.museum_location} placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            <input type="text" name="museum_location" id="museum_location" defaultValue={item.museum_location ?? undefined} placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                     </div>
 
@@ -849,39 +849,39 @@ export function EditItem() {
                             <div className="p-6 bg-white grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-tan-light/50">
                                 <div>
                                     <label htmlFor="publisher" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Publisher</label>
-                                    <input type="text" name="publisher" id="publisher" defaultValue={item.publisher} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="publisher" id="publisher" defaultValue={item.publisher ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="contributor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Contributor</label>
-                                    <input type="text" name="contributor" id="contributor" defaultValue={item.contributor} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="contributor" id="contributor" defaultValue={item.contributor ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="rights" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Rights</label>
-                                    <input type="text" name="rights" id="rights" defaultValue={item.rights} placeholder="e.g. Public Domain" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="rights" id="rights" defaultValue={item.rights ?? undefined} placeholder="e.g. Public Domain" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="relation" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Relation</label>
-                                    <input type="text" name="relation" id="relation" defaultValue={item.relation} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="relation" id="relation" defaultValue={item.relation ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="format" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Format</label>
-                                    <input type="text" name="format" id="format" defaultValue={item.format} placeholder="e.g. 8x10 photograph, 2 pages" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="format" id="format" defaultValue={item.format ?? undefined} placeholder="e.g. 8x10 photograph, 2 pages" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="language" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Language</label>
-                                    <input type="text" name="language" id="language" defaultValue={item.language} placeholder="e.g. English" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="language" id="language" defaultValue={item.language ?? undefined} placeholder="e.g. English" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="dc_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">DC Type</label>
-                                    <input type="text" name="dc_type" id="dc_type" defaultValue={item.type} placeholder="e.g. StillImage, Text" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="dc_type" id="dc_type" defaultValue={item.type ?? undefined} placeholder="e.g. StillImage, Text" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="source" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Source</label>
-                                    <input type="text" name="source" id="source" defaultValue={item.source} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="source" id="source" defaultValue={item.source ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="coverage" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Coverage</label>
-                                    <input type="text" name="coverage" id="coverage" defaultValue={item.coverage} placeholder="Spatial or temporal topic" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
+                                    <input type="text" name="coverage" id="coverage" defaultValue={item.coverage ?? undefined} placeholder="Spatial or temporal topic" className="w-full bg-white border border-tan-light/50 px-4 py-2 rounded-lg text-sm" />
                                 </div>
                             </div>
                         )}

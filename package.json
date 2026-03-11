@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.43.0",
     "@vis.gl/react-google-maps": "^1.7.1",
     "firebase": "^12.10.0",
     "lucide-react": "^0.575.0",
