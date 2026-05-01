@@ -29,7 +29,7 @@ function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
 
 export function AddItem() {
     const [searchParams] = useSearchParams();
-    const { isSAHSUser, isAdmin, user } = useAuth();
+    const { user } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -119,35 +119,32 @@ export function AddItem() {
     const [docSearch, setDocSearch] = useState('');
     const [showDocResults, setShowDocResults] = useState(false);
 
-    const [selectedCollectionId, setSelectedCollectionId] = useState(searchParams.get('collection_id') || "");
+    const initialCollectionParam = searchParams.get('collection_id');
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(initialCollectionParam ? [initialCollectionParam] : []);
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
     const [isPrivate, setIsPrivate] = useState(false);
 
-    const handleCollectionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
-        if (val === 'NEW_COLLECTION') {
-            const title = window.prompt("Enter the name of the new collection:");
-            if (title && title.trim()) {
-                try {
-                    const newCollData = {
-                        title: title.trim(),
-                        description: '',
-                        created_at: new Date().toISOString()
-                    };
-                    const docRef = await addDoc(collection(db, 'collections'), newCollData);
-                    const newColl = { id: docRef.id, ...newCollData } as Collection;
-                    setCollections(prev => [...prev, newColl].sort((a, b) => a.title.localeCompare(b.title)));
-                    setSelectedCollectionId(docRef.id);
-                } catch (err) {
-                    alert("Failed to create collection.");
-                    setSelectedCollectionId("");
-                }
-            } else {
-                setSelectedCollectionId("");
+    const handleCollectionToggle = (collId: string) => {
+        setSelectedCollectionIds(prev => prev.includes(collId) ? prev.filter(id => id !== collId) : [...prev, collId]);
+    };
+
+    const handleCreateNewCollection = async () => {
+        const title = window.prompt("Enter the name of the new collection:");
+        if (title && title.trim()) {
+            try {
+                const newCollData = {
+                    title: title.trim(),
+                    description: '',
+                    created_at: new Date().toISOString()
+                };
+                const docRef = await addDoc(collection(db, 'collections'), newCollData);
+                const newColl = { id: docRef.id, ...newCollData } as Collection;
+                setCollections(prev => [...prev, newColl].sort((a, b) => a.title.localeCompare(b.title)));
+                setSelectedCollectionIds(prev => [...prev, docRef.id]);
+            } catch (err) {
+                alert("Failed to create collection.");
             }
-        } else {
-            setSelectedCollectionId(val);
         }
     };
 
@@ -396,7 +393,8 @@ export function AddItem() {
                 accession_paperwork_urls: accessionUrls,
                 additional_media_urls: additionalMediaUrls,
                 tags: currentTags,
-                collection_id: (formData.get('collection_id') as string) || "",
+                collection_id: selectedCollectionIds.length > 0 ? selectedCollectionIds[0] : null,
+                collection_ids: selectedCollectionIds,
                 created_at: new Date().toISOString(),
                 uploaded_by_email: user?.email || null,
                 uploaded_by_name: user?.displayName || null,
@@ -977,15 +975,28 @@ export function AddItem() {
                                     )}
                                     {itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && (
                                         <div>
-                                            <label htmlFor="collection_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                            <div className="relative">
-                                                <select name="collection_id" id="collection_id" value={selectedCollectionId} onChange={handleCollectionChange} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    <option value="">No Collection</option>
-                                                    {collections.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                                                    <option value="NEW_COLLECTION" className="font-bold text-tan">+ Create New Collection...</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collections</label>
+                                            <div className="bg-white border border-tan-light/50 rounded-lg p-3 max-h-[200px] overflow-y-auto flex flex-col gap-2 shadow-inner">
+                                                {collections.map(c => (
+                                                    <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-cream/50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-tan-light/30">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedCollectionIds.includes(c.id)} 
+                                                            onChange={() => handleCollectionToggle(c.id)}
+                                                            className="w-4 h-4 text-tan border-tan-light rounded focus:ring-tan/20"
+                                                        />
+                                                        <span className="text-sm text-charcoal font-medium">{c.title}</span>
+                                                    </label>
+                                                ))}
+                                                {collections.length === 0 && <p className="text-sm text-charcoal/40 italic p-2">No collections available.</p>}
                                             </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleCreateNewCollection}
+                                                className="mt-2 text-xs font-bold text-tan hover:text-tan-light flex items-center gap-1 transition-colors"
+                                            >
+                                                <Plus size={14} /> Create New Collection
+                                            </button>
                                         </div>
                                     )}
                                 </div>

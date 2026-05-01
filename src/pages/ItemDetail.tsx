@@ -3,7 +3,7 @@ import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPi
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 import { ArchiveMap } from '../components/ArchiveMap';
@@ -29,7 +29,7 @@ export function ItemDetail() {
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [zoomScale, setZoomScale] = useState(1);
-    const [collectionName, setCollectionName] = useState<string | null>(null);
+    const [collectionsData, setCollectionsData] = useState<{id: string, title: string, is_private?: boolean}[]>([]);
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [showLinkedItems, setShowLinkedItems] = useState(false);
@@ -92,15 +92,19 @@ export function ItemDetail() {
                     const data = { id: docSnap.id, ...(docSnap.data() || {}) } as ArchiveItem;
                     setItem(data);
 
-                    if (data.collection_id) {
+                    const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
+                    if (cIds.length > 0) {
                         try {
-                            const collRef = doc(db, 'collections', data.collection_id);
-                            const collSnap = await getDoc(collRef);
-                            if (collSnap.exists()) {
-                                const collData = collSnap.data();
-                                setCollectionName(collData.title);
-                                setIsCollectionPrivate(collData.is_private === true);
+                            const colls = [];
+                            for (const cid of cIds) {
+                                const collRef = doc(db, 'collections', cid);
+                                const collSnap = await getDoc(collRef);
+                                if (collSnap.exists()) {
+                                    colls.push({ id: collSnap.id, ...collSnap.data() } as any);
+                                }
                             }
+                            setCollectionsData(colls);
+                            setIsCollectionPrivate(colls.some(c => c.is_private === true));
                         } catch (err) {
                             console.error("Error fetching collection details:", err);
                         }
@@ -176,8 +180,15 @@ export function ItemDetail() {
 
                     // --- Fetch "Keep Exploring" items ---
                     let exploreQuery;
-                    if (data.collection_id) {
-                        exploreQuery = query(collection(db, 'archive_items'), where('collection_id', '==', data.collection_id));
+                    const cIdsExplore = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
+                    if (cIdsExplore.length > 0) {
+                        exploreQuery = query(
+                            collection(db, 'archive_items'), 
+                            or(
+                                where('collection_ids', 'array-contains-any', cIdsExplore),
+                                where('collection_id', 'in', cIdsExplore)
+                            )
+                        );
                     } else {
                         exploreQuery = query(collection(db, 'archive_items'), where('item_type', '==', data.item_type));
                     }
@@ -605,13 +616,17 @@ export function ItemDetail() {
                                         )}
                                     </div>
                                 )}
-                                    {collectionName && item.collection_id && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                    {collectionsData.length > 0 && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection</p>
-                                            <Link to={`/collections/${item.collection_id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
-                                                <BookOpen size={16} />
-                                                {collectionName}
-                                            </Link>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
+                                            <div className="flex flex-col gap-2">
+                                                {collectionsData.map(col => (
+                                                    <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
+                                                        <BookOpen size={16} />
+                                                        {col.title}
+                                                    </Link>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 {item.condition && item.item_type !== 'Historic Figure' && (
@@ -640,15 +655,7 @@ export function ItemDetail() {
                             <div className="space-y-6">
                                 {item.item_type === 'Historic Organization' && (
                                     <>
-                                        {collectionName && item.collection_id && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection</p>
-                                                <Link to={`/collections/${item.collection_id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
-                                                    <BookOpen size={16} />
-                                                    {collectionName}
-                                                </Link>
-                                            </div>
-                                        )}
+
                                         {item.creator && (
                                             <div>
                                                 <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Media / Data Contributor</p>

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, AlertTriangle, Minus, Edit2 } from 'lucide-react';
+import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, Minus, Edit2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
 import { CollectionGridImage } from '../components/CollectionGridImage';
 import type { Collection, ArchiveItem } from '../types/database';
@@ -22,8 +22,7 @@ export function CollectionDetail() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
     const [isAdding, setIsAdding] = useState(false);
-    const [warningModalItem, setWarningModalItem] = useState<ArchiveItem | null>(null);
-    const [pendingItemToAdd, setPendingItemToAdd] = useState<ArchiveItem | null>(null);
+
 
     useEffect(() => {
         const fetchCollectionAndItems = async () => {
@@ -42,7 +41,7 @@ export function CollectionDetail() {
                 // Fetch items in this collection
                 const q = query(
                     collection(db, 'archive_items'), 
-                    where('collection_id', '==', id)
+                    or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
                 );
                 
                 const querySnapshot = await getDocs(q);
@@ -81,7 +80,11 @@ export function CollectionDetail() {
             const allItems = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchiveItem));
             
             // Filter out items already in this collection
-            setAllOtherItems(allItems.filter(item => item.collection_id !== id));
+            setAllOtherItems(allItems.filter(item => {
+                const legacyMatch = item.collection_id === id;
+                const arrayMatch = id ? item.collection_ids?.includes(id) : false;
+                return !(legacyMatch || arrayMatch);
+            }));
 
             // Fetch all collections for warning context
             const colsSnap = await getDocs(query(collection(db, 'collections')));
@@ -97,31 +100,10 @@ export function CollectionDetail() {
             next.delete(item.id || '');
             setSelectedItemIds(next);
         } else {
-            // Check if it belongs to another named collection
-            if (item.collection_id && item.collection_id !== id && item.collection_id.trim() !== '') {
-                setPendingItemToAdd(item);
-                setWarningModalItem(item);
-            } else {
-                const next = new Set(selectedItemIds);
-                next.add(item.id || '');
-                setSelectedItemIds(next);
-            }
-        }
-    };
-
-    const confirmWarningSelection = () => {
-        if (pendingItemToAdd) {
             const next = new Set(selectedItemIds);
-            next.add(pendingItemToAdd.id || '');
+            next.add(item.id || '');
             setSelectedItemIds(next);
         }
-        setWarningModalItem(null);
-        setPendingItemToAdd(null);
-    };
-
-    const cancelWarningSelection = () => {
-        setWarningModalItem(null);
-        setPendingItemToAdd(null);
     };
 
     const handleAddSelectedItems = async () => {
@@ -129,14 +111,16 @@ export function CollectionDetail() {
         setIsAdding(true);
         try {
             const promises = Array.from(selectedItemIds).map(itemId => 
-                updateDoc(doc(db, 'archive_items', itemId), { collection_id: id })
+                updateDoc(doc(db, 'archive_items', itemId), { 
+                    collection_ids: arrayUnion(id)
+                })
             );
             await Promise.all(promises);
             
             // Refresh current items
             const q = query(
                 collection(db, 'archive_items'), 
-                where('collection_id', '==', id)
+                or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
             );
             const querySnapshot = await getDocs(q);
             const itemsData = querySnapshot.docs.map(d => ({
@@ -169,7 +153,10 @@ export function CollectionDetail() {
         }
         
         try {
-            await updateDoc(doc(db, 'archive_items', itemId), { collection_id: null });
+            await updateDoc(doc(db, 'archive_items', itemId), { 
+                collection_id: null,
+                collection_ids: arrayRemove(id)
+            });
             setItems(prev => prev.filter(item => item.id !== itemId));
         } catch (error) {
             console.error("Error removing item:", error);
@@ -398,34 +385,6 @@ export function CollectionDetail() {
                 </div>
             )}
 
-            {/* Warning Modal */}
-            {warningModalItem && (
-                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-charcoal/80 backdrop-blur-sm animate-in fade-in duration-200">
-                     <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl relative text-center">
-                         <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                             <AlertTriangle size={32} />
-                         </div>
-                         <h3 className="text-2xl font-serif font-bold text-charcoal mb-2">Move Item?</h3>
-                         <p className="text-charcoal/70 mb-8">
-                             <strong>"{warningModalItem.title}"</strong> is currently in another collection (<strong>{allCollections.find(c => c.id === warningModalItem.collection_id)?.title || 'Unknown'}</strong>). Adding it here will remove it from its current collection.
-                         </p>
-                         <div className="flex gap-4">
-                             <button 
-                                 onClick={cancelWarningSelection}
-                                 className="flex-1 py-3 rounded-xl font-bold text-charcoal bg-cream hover:bg-charcoal/10 transition-colors"
-                             >
-                                 Cancel
-                             </button>
-                             <button 
-                                 onClick={confirmWarningSelection}
-                                 className="flex-1 py-3 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors shadow-md"
-                             >
-                                 Yes, Move It
-                             </button>
-                         </div>
-                     </div>
-                 </div>
-            )}
         </div>
     );
 }

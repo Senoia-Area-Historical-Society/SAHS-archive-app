@@ -64,6 +64,7 @@ export interface ArchiveItem {
     // System Fields
     item_type: ItemType;
     collection_id?: string | null;
+    collection_ids?: string[];
     tags: string[];
     category?: string | null;
     file_urls: string[]; // For documents, scans, or portraits

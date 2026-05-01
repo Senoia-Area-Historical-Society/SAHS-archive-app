@@ -92,11 +92,14 @@ export function BrowseArchive() {
                 item.tags?.some(tag => tag.toLowerCase().includes(searchLower));
 
             const matchesType = selectedType === 'All Items' || item.item_type === selectedType;
-            const matchesCollection = selectedCollection === 'All Collections' || item.collection_id === selectedCollection;
+            const matchesCollection = selectedCollection === 'All Collections' || 
+                item.collection_id === selectedCollection || 
+                item.collection_ids?.includes(selectedCollection);
 
             if (!isSAHSUser) {
                 const isItemPrivate = item.is_private === true;
-                const isCollectionPrivate = item.collection_id ? collectionPrivacyMap[item.collection_id] === true : false;
+                const cIds = item.collection_ids || (item.collection_id ? [item.collection_id] : []);
+                const isCollectionPrivate = cIds.some(cid => collectionPrivacyMap[cid] === true);
                 if (isItemPrivate || isCollectionPrivate) return false;
             }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, query, where, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, or } from 'firebase/firestore';
 import { FolderOpen } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 
@@ -29,7 +29,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 // Fetch a handful of items to hopefully find at least 4 images
                 const q = query(
                     collection(db, 'archive_items'),
-                    where('collection_id', '==', collectionId),
+                    or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId)),
                     limit(20)
                 );
                 const snapshot = await getDocs(q);

@@ -185,7 +185,9 @@ export function AuditDashboard() {
             const normalizedItemType = typeof rawType === 'string' ? rawType.trim().toLowerCase() : '';
             const normalizedSelectedType = selectedType.trim().toLowerCase();
             const matchesType = selectedType === 'All Types' || normalizedItemType === normalizedSelectedType;
-            const matchesCollection = selectedCollection === 'All Collections' || item.collection_id === selectedCollection;
+            const matchesCollection = selectedCollection === 'All Collections' || 
+                item.collection_id === selectedCollection || 
+                item.collection_ids?.includes(selectedCollection);
             
             return matchesSearch && matchesIssue && matchesType && matchesCollection;
         });

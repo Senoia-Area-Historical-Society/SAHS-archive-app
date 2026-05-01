@@ -373,7 +373,7 @@ export function Home() {
                     <p className="mb-8 leading-loose max-w-3xl">
                         The Senoia Area Historical Society is committed to preserving history. No artificial intelligence (AI) is used to generate, transcribe, alter, or enhance the historical documents, photographs, and metadata within this archive. All historical materials are manually curated, researched, and transcribed by our dedicated curators and volunteers to ensure complete authenticity.
                         <br /><br />
-                        While AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from interacting with or altering the historical records themselves.
+                        While AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from altering the historical records themselves.
                     </p>
                     <div className="w-12 h-px bg-tan-light/20 mb-8"></div>
                     <p className="text-cream/50 font-medium tracking-wide">

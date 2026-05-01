@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw } from 'lucide-react';
+import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
@@ -98,7 +98,7 @@ const PendingFilePreview = ({
 };
 
 export default function EditItem() {
-    const { isSAHSUser, isAdmin, lastSearchPath, user } = useAuth();
+    const { lastSearchPath, user } = useAuth();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -302,32 +302,40 @@ export default function EditItem() {
     useClickOutside(figureRef, () => setShowFigureResults(false));
     useClickOutside(docRef, () => setShowDocResults(false));
     useClickOutside(orgRef, () => setShowOrgResults(false));
-
     const cropExistingImage = (url: string) => {
         setCroppingImageUrl(url);
     };
 
-    const handleCollectionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
-        if (val === 'NEW_COLLECTION') {
-            const nextTitle = prompt("Enter the name for the new collection:");
-            if (nextTitle) {
-                try {
-                    const docRef = await addDoc(collection(db, 'collections'), {
-                        title: nextTitle,
-                        description: "",
-                        created_at: new Date().toISOString(),
-                        item_count: 0
-                    });
-                    const newCol = { id: docRef.id, title: nextTitle, description: "", created_at: new Date().toISOString() };
-                    setCollections(prev => [...prev, newCol].sort((a, b) => a.title.localeCompare(b.title)));
-                    setItem((prev: any) => prev ? ({ ...prev, collection_id: docRef.id }) : null);
-                } catch (err) {
-                    console.error("Error creating collection:", err);
-                }
+    const handleCollectionToggle = (collId: string) => {
+        setItem((prev: any) => {
+            if (!prev) return prev;
+            const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
+            const newIds = currentIds.includes(collId) ? currentIds.filter((id: string) => id !== collId) : [...currentIds, collId];
+            return { ...prev, collection_ids: newIds, collection_id: newIds.length > 0 ? newIds[0] : null };
+        });
+    };
+
+    const handleCreateNewCollection = async () => {
+        const nextTitle = window.prompt("Enter the name of the new collection:");
+        if (nextTitle && nextTitle.trim()) {
+            try {
+                const docRef = await addDoc(collection(db, 'collections'), {
+                    title: nextTitle,
+                    description: "",
+                    created_at: new Date().toISOString(),
+                    item_count: 0
+                });
+                const newCol = { id: docRef.id, title: nextTitle, description: "", created_at: new Date().toISOString() };
+                setCollections(prev => [...prev, newCol].sort((a, b) => a.title.localeCompare(b.title)));
+                setItem((prev: any) => {
+                    if (!prev) return prev;
+                    const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
+                    const newIds = [...currentIds, docRef.id];
+                    return { ...prev, collection_ids: newIds, collection_id: newIds[0] };
+                });
+            } catch (err) {
+                console.error("Error creating collection:", err);
             }
-        } else {
-            setItem((prev: any) => prev ? ({ ...prev, collection_id: val }) : null);
         }
     };
 
@@ -631,7 +639,8 @@ export default function EditItem() {
                 accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
-                collection_id: (formData.get('collection_id') as string) || "",
+                collection_id: item.collection_id || null,
+                collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
                 is_private: isPrivate,
 
                 // Core DC Elements
@@ -1271,23 +1280,31 @@ export default function EditItem() {
 
                                     {!['Historic Figure', 'Historic Organization'].includes(itemType.trim()) && (
                                         <div className="mb-6">
-                                            <label htmlFor="collection_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                            <div className="relative">
-                                                <select 
-                                                    name="collection_id" 
-                                                    id="collection_id" 
-                                                    value={item.collection_id || ""} 
-                                                    onChange={handleCollectionChange}
-                                                    className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans appearance-none text-sm"
-                                                >
-                                                    <option value="">-- No Collection --</option>
-                                                    {collections.map(c => (
-                                                        <option key={c.id} value={c.id}>{c.title}</option>
-                                                    ))}
-                                                    <option value="NEW_COLLECTION" className="font-bold text-tan">+ Create New Collection...</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collections</label>
+                                            <div className="bg-white border border-tan-light/50 rounded-lg p-3 max-h-[200px] overflow-y-auto flex flex-col gap-2 shadow-inner">
+                                                {collections.map(c => {
+                                                    const currentIds = item.collection_ids || (item.collection_id ? [item.collection_id] : []);
+                                                    return (
+                                                        <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-cream/50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-tan-light/30">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={currentIds.includes(c.id)} 
+                                                                onChange={() => handleCollectionToggle(c.id)}
+                                                                className="w-4 h-4 text-tan border-tan-light rounded focus:ring-tan/20"
+                                                            />
+                                                            <span className="text-sm text-charcoal font-medium">{c.title}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                                {collections.length === 0 && <p className="text-sm text-charcoal/40 italic p-2">No collections available.</p>}
                                             </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleCreateNewCollection}
+                                                className="mt-2 text-xs font-bold text-tan hover:text-tan-light flex items-center gap-1 transition-colors"
+                                            >
+                                                <Plus size={14} /> Create New Collection
+                                            </button>
                                         </div>
                                     )}
 
