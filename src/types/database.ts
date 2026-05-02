@@ -133,4 +133,5 @@ export interface ArchiveItem {
     featured_image_url?: string | null; // Primary display image selected from file_urls
     accession_paperwork_urls?: string[]; // Admin/Curator only scans of paperwork
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
+    accession_date?: string | null;
 }

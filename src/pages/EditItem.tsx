@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus } from 'lucide-react';
+import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
@@ -35,7 +35,10 @@ const PendingFilePreview = ({
     onSetFeatured,
     onRemove,
     onCrop,
-    onZoom
+    onZoom,
+    onMove,
+    isFirst,
+    isLast
 }: {
     file: File,
     url: string,
@@ -43,7 +46,10 @@ const PendingFilePreview = ({
     onSetFeatured: (url: string) => void,
     onRemove: () => void,
     onCrop?: () => void,
-    onZoom: (url: string) => void
+    onZoom: (url: string) => void,
+    onMove: (direction: 'left' | 'right') => void,
+    isFirst: boolean,
+    isLast: boolean
 }) => {
     const isImage = file.type.startsWith('image/');
 
@@ -79,6 +85,32 @@ const PendingFilePreview = ({
                         Edit / Rotate
                     </button>
                 )}
+                <div className="flex gap-1">
+                    <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMove('left');
+                        }}
+                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                        title="Move Left"
+                    >
+                        <ChevronLeft size={14} />
+                    </button>
+                    <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMove('right');
+                        }}
+                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                        title="Move Right"
+                    >
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
             </div>
             <button
                 type="button"
@@ -112,8 +144,11 @@ export default function EditItem() {
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [existingFileUrls, setExistingFileUrls] = useState<string[]>([]);
+    const [mediaItems, setMediaItems] = useState<{ id: string, type: 'existing' | 'new', value: string | File }[]>([]);
+    
+    // Derived states for backward compatibility and simpler logic in some places
+    const existingFileUrls = useMemo(() => mediaItems.filter(m => m.type === 'existing').map(m => m.value as string), [mediaItems]);
+    const selectedFiles = useMemo(() => mediaItems.filter(m => m.type === 'new').map(m => m.value as File), [mediaItems]);
     const [accessionFiles, setAccessionFiles] = useState<File[]>([]);
     const [existingAccessionUrls, setExistingAccessionUrls] = useState<string[]>([]);
     const [isConvertingAccessionPdf, setIsConvertingAccessionPdf] = useState(false);
@@ -136,20 +171,28 @@ export default function EditItem() {
 
 
 
-    const removeNewFile = (index: number) => {
-        setSelectedFiles(prev => {
-            const newFiles = [...prev];
-            const fileToRemove = newFiles[index];
-            const url = fileObjectURLs.get(fileToRemove);
-            if (url) URL.revokeObjectURL(url);
-            newFiles.splice(index, 1);
-            return newFiles;
+    const removeMediaItem = (id: string) => {
+        setMediaItems(prev => {
+            const itemToRemove = prev.find(m => m.id === id);
+            if (itemToRemove?.type === 'new') {
+                const url = fileObjectURLs.get(itemToRemove.value as File);
+                if (url) URL.revokeObjectURL(url);
+            }
+            if (itemToRemove?.type === 'existing' && featuredImageUrl === itemToRemove.value) {
+                setFeaturedImageUrl(null);
+            }
+            return prev.filter(m => m.id !== id);
         });
     };
 
-    const removeExistingFile = (url: string) => {
-        setExistingFileUrls(prev => prev.filter((u: string) => u !== url));
-        if (featuredImageUrl === url) setFeaturedImageUrl(null);
+    const moveMediaItem = (index: number, direction: 'left' | 'right') => {
+        setMediaItems(prev => {
+            const next = [...prev];
+            const newIndex = direction === 'left' ? index - 1 : index + 1;
+            if (newIndex < 0 || newIndex >= next.length) return prev;
+            [next[index], next[newIndex]] = [next[newIndex], next[index]];
+            return next;
+        });
     };
 
     const removeNewAccession = (index: number) => {
@@ -181,7 +224,8 @@ export default function EditItem() {
         setFileObjectURLs(prev => {
             const next = new Map(prev);
             // Add new files
-            selectedFiles.forEach(file => {
+            mediaItems.filter(m => m.type === 'new').forEach(m => {
+                const file = m.value as File;
                 if (!next.has(file)) {
                     next.set(file, URL.createObjectURL(file));
                 }
@@ -198,7 +242,7 @@ export default function EditItem() {
             });
             // Cleanup removed files
             next.forEach((url, file) => {
-                const isSelected = selectedFiles.includes(file) || 
+                const isSelected = mediaItems.some(m => m.type === 'new' && m.value === file) || 
                                  accessionFiles.includes(file) || 
                                  additionalMediaFiles.includes(file);
                 if (!isSelected) {
@@ -208,7 +252,7 @@ export default function EditItem() {
             });
             return next;
         });
-    }, [selectedFiles, accessionFiles, additionalMediaFiles]);
+    }, [mediaItems, accessionFiles, additionalMediaFiles]);
 
     // Cleanup all blob URLs on final unmount
     useEffect(() => {
@@ -223,31 +267,40 @@ export default function EditItem() {
         // Determine original filename
         let fileName = 'edited_image.jpg';
         let originalObjectURL: string | null = null;
+        let originalId: string | null = null;
 
         if (croppingImageIndex !== null) {
-            const originalFile = selectedFiles[croppingImageIndex];
+            const item = mediaItems[croppingImageIndex];
+            const originalFile = item.value as File;
             fileName = originalFile.name;
             originalObjectURL = fileObjectURLs.get(originalFile) || null;
+            originalId = item.id;
         } else if (croppingImageUrl) {
             fileName = croppingImageUrl.split('/').pop()?.split('?')[0] || 'existing_image.jpg';
             originalObjectURL = croppingImageUrl;
-            
-            // Remove the old URL from existing files to "replace" it
-            setExistingFileUrls(prev => prev.filter(u => u !== croppingImageUrl));
+            originalId = croppingImageUrl;
         }
 
         const croppedFile = new File([croppedBlob], fileName, { type: 'image/jpeg' });
         const croppedObjectURL = URL.createObjectURL(croppedFile);
+        const newId = `new-${Date.now()}`;
         
-        if (croppingImageIndex !== null) {
-            // Replacing a new pending file
-            const newFiles = [...selectedFiles];
-            newFiles[croppingImageIndex] = croppedFile;
-            setSelectedFiles(newFiles);
-        } else {
-            // Adding as a new pending file (it will replace the old URL we just removed above)
-            setSelectedFiles(prev => [...prev, croppedFile]);
-        }
+        setMediaItems(prev => {
+            const next = [...prev];
+            if (croppingImageIndex !== null) {
+                // Replacing a new pending file
+                next[croppingImageIndex] = { id: newId, type: 'new', value: croppedFile };
+            } else {
+                // Replacing an existing file (remove old, add new at same position or end)
+                const idx = prev.findIndex(m => m.id === originalId);
+                if (idx !== -1) {
+                    next[idx] = { id: newId, type: 'new', value: croppedFile };
+                } else {
+                    next.push({ id: newId, type: 'new', value: croppedFile });
+                }
+            }
+            return next;
+        });
 
         setFileObjectURLs(prev => {
             const next = new Map(prev);
@@ -357,7 +410,7 @@ export default function EditItem() {
                     const rawType = data.item_type || 'Document';
             setItemType(rawType.trim() as ItemType);
                     setFeaturedImageUrl(data.featured_image_url || null);
-                    setExistingFileUrls(data.file_urls || []);
+                    setMediaItems((data.file_urls || []).map(url => ({ id: url, type: 'existing', value: url })));
                     setExistingAccessionUrls(data.accession_paperwork_urls || []);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
@@ -467,18 +520,19 @@ export default function EditItem() {
         }
 
         try {
+            const newItems: { id: string, type: 'new', value: File }[] = [];
             for (let i = 0; i < fileArray.length; i++) {
                 const file = fileArray[i];
                 if (file.type === 'application/pdf') {
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
-                    finalFiles.push(...pngs);
+                    newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f })));
                 } else {
-                    finalFiles.push(file);
+                    newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file });
                 }
             }
-            setSelectedFiles(prev => [...prev, ...finalFiles]);
+            setMediaItems(prev => [...prev, ...newItems]);
         } catch (error) {
             console.error("Failed to process files:", error);
             alert("Failed to read or convert one or more files.");
@@ -563,43 +617,47 @@ export default function EditItem() {
                 }
             }
 
-            const newFiles = selectedFiles;
-            let fileUrls: string[] = [...existingFileUrls];
+            let finalFileUrls: string[] = [];
             let finalFeaturedUrl = featuredImageUrl;
 
-            if (newFiles.length > 0) {
-                const totalFiles = newFiles.length;
-                let completedFiles = 0;
-                setUploadProgress(0);
+            if (mediaItems.length > 0) {
+                const totalNewFiles = mediaItems.filter(m => m.type === 'new').length;
+                let completedNewFiles = 0;
+                if (totalNewFiles > 0) setUploadProgress(0);
 
-                for (let i = 0; i < newFiles.length; i++) {
-                    const file = newFiles[i];
-                    const blobUrl = fileObjectURLs.get(file);
+                for (let i = 0; i < mediaItems.length; i++) {
+                    const item = mediaItems[i];
+                    if (item.type === 'existing') {
+                        finalFileUrls.push(item.value as string);
+                    } else {
+                        const file = item.value as File;
+                        const blobUrl = fileObjectURLs.get(file);
 
-                    const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
-                    const uploadTask = uploadBytesResumable(storageRef, file);
+                        const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
+                        const uploadTask = uploadBytesResumable(storageRef, file);
 
-                    await new Promise<void>((resolve, reject) => {
-                        uploadTask.on('state_changed',
-                            (snapshot) => {
-                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                                const overallProgress = ((completedFiles * 100) + progress) / totalFiles;
-                                setUploadProgress(Math.round(overallProgress));
-                            },
-                            reject,
-                            async () => {
-                                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-                                fileUrls.push(downloadUrl);
+                        await new Promise<void>((resolve, reject) => {
+                            uploadTask.on('state_changed',
+                                (snapshot) => {
+                                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                    const overallProgress = ((completedNewFiles * 100) + progress) / totalNewFiles;
+                                    setUploadProgress(Math.round(overallProgress));
+                                },
+                                reject,
+                                async () => {
+                                    const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                                    finalFileUrls.push(downloadUrl);
 
-                                if (featuredImageUrl === blobUrl) {
-                                    finalFeaturedUrl = downloadUrl;
+                                    if (featuredImageUrl === blobUrl) {
+                                        finalFeaturedUrl = downloadUrl;
+                                    }
+
+                                    completedNewFiles++;
+                                    resolve();
                                 }
-
-                                completedFiles++;
-                                resolve();
-                            }
-                        );
-                    });
+                            );
+                        });
+                    }
                 }
             }
 
@@ -635,7 +693,7 @@ export default function EditItem() {
 
             const updatedData: Partial<ArchiveItem> = {
                 item_type: itemType,
-                file_urls: fileUrls,
+                file_urls: finalFileUrls,
                 accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
@@ -681,6 +739,7 @@ export default function EditItem() {
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
                 museum_location: formData.get('museum_location') as string || "",
+                accession_date: formData.get('accession_date') as string || "",
                 // Figure Specific Biographics
                 full_name: formData.get('full_name') as string || "",
                 also_known_as: formData.get('also_known_as') as string || "",
@@ -916,12 +975,11 @@ export default function EditItem() {
                                 <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider">Archive Gallery / Media</label>
                                 <div className="flex items-center gap-2">
                                     <GoogleDrivePicker onFilesSelected={handleDriveFiles} onError={setError} />
-                                    {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
+                                    {mediaItems.length > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                setExistingFileUrls([]);
-                                                setSelectedFiles([]);
+                                                setMediaItems([]);
                                                 setFeaturedImageUrl(null);
                                             }}
                                             className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
@@ -967,67 +1025,98 @@ export default function EditItem() {
                                 </div>
                             )}
 
-                            {/* Image Grid: Existing and New */}
-                            {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
+                            {/* Image Grid: Unified Ordered Media */}
+                            {mediaItems.length > 0 && (
                                 <div className="space-y-4 mb-6">
                                     <div className="grid grid-cols-4 gap-2">
-                                        {/* Existing Files */}
-                                        {existingFileUrls.map((url, idx) => (
-                                            <div key={`existing-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
-                                                <img src={url} className="w-full h-full object-cover" alt="existing" />
-                                                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                        {mediaItems.map((item, idx) => {
+                                            if (item.type === 'existing') {
+                                                const url = item.value as string;
+                                                return (
+                                                    <div key={item.id} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
+                                                        <img src={url} className="w-full h-full object-cover" alt="existing" />
+                                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFeaturedImageUrl(url)}
+                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                    title="Set as Featured"
+                                                                >
+                                                                    <CheckCircle size={14} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        cropExistingImage(url);
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
+                                                                    title="Edit & Rotate"
+                                                                >
+                                                                    <RotateCw size={12} />
+                                                                    Edit / Rotate
+                                                                </button>
+                                                                <div className="flex gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={idx === 0}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            moveMediaItem(idx, 'left');
+                                                                        }}
+                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                        title="Move Left"
+                                                                    >
+                                                                        <ChevronLeft size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={idx === mediaItems.length - 1}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            moveMediaItem(idx, 'right');
+                                                                        }}
+                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                        title="Move Right"
+                                                                    >
+                                                                        <ChevronRight size={14} />
+                                                                    </button>
+                                                                </div>
+                                                        </div>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setFeaturedImageUrl(url)}
-                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Set as Featured"
+                                                            onClick={() => removeMediaItem(item.id)}
+                                                            className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
+                                                            title="Remove from Record"
                                                         >
-                                                            <CheckCircle size={14} />
+                                                            <X size={10} />
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                cropExistingImage(url);
-                                                            }}
-                                                            className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
-                                                            title="Edit & Rotate"
-                                                        >
-                                                            <RotateCw size={12} />
-                                                            Edit / Rotate
-                                                        </button>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeExistingFile(url)}
-                                                    className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
-                                                    title="Remove from Record"
-                                                >
-                                                    <X size={10} />
-                                                </button>
-                                                {featuredImageUrl === url && (
-                                                    <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                        <CheckCircle size={10} />
+                                                        {featuredImageUrl === url && (
+                                                            <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                                <CheckCircle size={10} />
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        {/* New Pending Files */}
-                                        {selectedFiles.map((file, idx) => {
-                                            const url = fileObjectURLs.get(file) || '';
-                                            return (
-                                                <PendingFilePreview
-                                                    key={`new-${idx}-${file.name}`}
-                                                    file={file}
-                                                    url={url}
-                                                    isFeatured={featuredImageUrl === url}
-                                                    onSetFeatured={(url) => setFeaturedImageUrl(url)}
-                                                    onRemove={() => removeNewFile(idx)}
-                                                    onCrop={() => setCroppingImageIndex(idx)}
-                                                    onZoom={(url) => setZoomedImage(url)}
-                                                />
-                                            );
+                                                );
+                                            } else {
+                                                const file = item.value as File;
+                                                const url = fileObjectURLs.get(file) || '';
+                                                return (
+                                                    <PendingFilePreview
+                                                        key={item.id}
+                                                        file={file}
+                                                        url={url}
+                                                        isFeatured={featuredImageUrl === url}
+                                                        onSetFeatured={(url) => setFeaturedImageUrl(url)}
+                                                        onRemove={() => removeMediaItem(item.id)}
+                                                        onCrop={() => setCroppingImageIndex(idx)}
+                                                        onZoom={(url) => setZoomedImage(url)}
+                                                        onMove={(dir) => moveMediaItem(idx, dir)}
+                                                        isFirst={idx === 0}
+                                                        isLast={idx === mediaItems.length - 1}
+                                                    />
+                                                );
+                                            }
                                         })}
                                     </div>
                                     <p className="text-[10px] text-charcoal/40 italic flex items-center gap-1">
@@ -1439,6 +1528,10 @@ export default function EditItem() {
                         <div>
                             <label htmlFor="donor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Donor / Contributor</label>
                             <input type="text" name="donor" id="donor" defaultValue={item.donor ?? undefined} placeholder="Donated by" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                        </div>
+                        <div>
+                            <label htmlFor="accession_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Accession Date</label>
+                            <input type="text" name="accession_date" id="accession_date" defaultValue={item.accession_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Tags (Comma Separated)</label>

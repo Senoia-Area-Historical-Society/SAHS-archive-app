@@ -178,6 +178,10 @@ export function BrowseArchive() {
 
     const headerText = getHeaderText();
 
+    useEffect(() => {
+        document.title = `${headerText.title} | SAHS Digital Archive`;
+    }, [headerText.title]);
+
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;
     }

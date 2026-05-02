@@ -39,6 +39,7 @@ export function Home() {
     };
 
     useEffect(() => {
+        document.title = "Home | SAHS Digital Archive";
         const timer = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % BACKGROUND_IMAGES.length);
         }, 8000); // 8 seconds for a slow, non-distracting change

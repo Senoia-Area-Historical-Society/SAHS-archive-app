@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { useSearchParams } from 'react-router-dom';
 import { collection, addDoc, getDocs, query } from 'firebase/firestore';
@@ -213,6 +213,25 @@ export function AddItem() {
         fetchInitialData();
     }, []);
 
+
+    const moveFile = (index: number, direction: 'left' | 'right') => {
+        const newFiles = [...selectedFiles];
+        const newIndex = direction === 'left' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= newFiles.length) return;
+        
+        // Swap files
+        [newFiles[index], newFiles[newIndex]] = [newFiles[newIndex], newFiles[index]];
+        
+        // Update featured index if it was one of the swapped files
+        if (featuredImageIndex === index) {
+            setFeaturedImageIndex(newIndex);
+        } else if (featuredImageIndex === newIndex) {
+            setFeaturedImageIndex(index);
+        }
+        
+        setSelectedFiles(newFiles);
+    };
 
     const processFiles = async (files: FileList | File[]) => {
         const fileArray = Array.from(files);
@@ -450,6 +469,7 @@ export function AddItem() {
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
                 museum_location: formData.get('museum_location') as string || "",
+                accession_date: formData.get('accession_date') as string || "",
             };
 
             await addDoc(collection(db, 'archive_items'), itemData);
@@ -755,6 +775,32 @@ export function AddItem() {
                                                         >
                                                             <X size={12} />
                                                         </button>
+                                                        <div className="flex gap-1">
+                                                            <button
+                                                                type="button"
+                                                                disabled={idx === 0}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    moveFile(idx, 'left');
+                                                                }}
+                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                title="Move Left"
+                                                            >
+                                                                <ChevronLeft size={12} />
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={idx === selectedFiles.length - 1}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    moveFile(idx, 'right');
+                                                                }}
+                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                title="Move Right"
+                                                            >
+                                                                <ChevronRight size={12} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     {featuredImageIndex === idx && (
                                                         <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
@@ -1159,6 +1205,10 @@ export function AddItem() {
                             <div>
                                 <label htmlFor="donor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Donor</label>
                                 <input type="text" name="donor" id="donor" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                            </div>
+                            <div>
+                                <label htmlFor="accession_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Accession Date</label>
+                                <input type="text" name="accession_date" id="accession_date" placeholder="MM/DD/YYYY" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
                             </div>
                             {(itemType !== 'Historic Figure' && itemType !== 'Historic Organization') && (
                                 <div className="md:col-span-2">
