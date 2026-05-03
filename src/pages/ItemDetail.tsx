@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Box, Lock, Maximize2, Camera } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Box, Lock, Maximize2, Camera, Link2, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
@@ -287,7 +287,7 @@ export function ItemDetail() {
                             }}
                             className="p-3 bg-white/10 backdrop-blur-md hover:bg-red-500/40 rounded-full text-white transition-all border border-white/20 shadow-2xl group"
                         >
-                            <X size={28} className="group-hover:rotate-90 transition-transform duration-300" />
+                            <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
                         </button>
                     </div>
 
@@ -303,7 +303,7 @@ export function ItemDetail() {
                                 className="fixed left-6 md:left-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-charcoal/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
                                 title="Previous Page"
                             >
-                                <ChevronLeft size={40} strokeWidth={3} className="group-hover/nav:-translate-x-1 transition-transform" />
+                                <ChevronLeft size={32} strokeWidth={3} className="group-hover/nav:-translate-x-1 transition-transform" />
                             </button>
                             <button 
                                 type="button"
@@ -314,7 +314,7 @@ export function ItemDetail() {
                                 className="fixed right-6 md:right-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-charcoal/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
                                 title="Next Page"
                             >
-                                <ChevronRight size={40} strokeWidth={3} className="group-hover/nav:translate-x-1 transition-transform" />
+                                <ChevronRight size={32} strokeWidth={3} className="group-hover/nav:translate-x-1 transition-transform" />
                             </button>
                             
                             <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-charcoal/80 backdrop-blur-xl px-8 py-3 rounded-full border border-white/20 text-white font-black tracking-[0.4em] uppercase text-sm z-[2100] shadow-2xl">
@@ -466,7 +466,7 @@ export function ItemDetail() {
                                                 }}
                                                 className="absolute left-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-charcoal transition-all hover:bg-tan hover:text-white hover:scale-110 z-30 border border-tan-light/50 active:scale-95"
                                             >
-                                                <ChevronLeft size={28} strokeWidth={3} />
+                                                <ChevronLeft size={20} strokeWidth={3} />
                                             </button>
                                             <button 
                                                 type="button"
@@ -476,7 +476,7 @@ export function ItemDetail() {
                                                 }}
                                                 className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center text-charcoal transition-all hover:bg-tan hover:text-white hover:scale-110 z-30 border border-tan-light/50 active:scale-95"
                                             >
-                                                <ChevronRight size={28} strokeWidth={3} />
+                                                <ChevronRight size={20} strokeWidth={3} />
                                             </button>
 
                                             {/* Page Indicator — always visible */}
@@ -521,7 +521,7 @@ export function ItemDetail() {
                     <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
                         <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-4 mb-8">
-                            <FileText className="text-tan" size={24} />
+                            <FileText className="text-tan" size={32} />
                             {item.item_type === 'Historic Figure' ? 'Biography' : 'Description'}
                         </h3>
                         <div className="prose prose-lg md:prose-xl max-w-none text-charcoal/90 font-sans leading-relaxed whitespace-pre-wrap">
@@ -532,8 +532,8 @@ export function ItemDetail() {
                     {/* Biography Sources Block */}
                     {item.biography_sources && (
                         <div className="mb-10 bg-tan-light/10 border border-tan-light/50 rounded-xl p-6 md:p-8 shadow-sm">
-                            <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-3 mb-4">
-                                <BookOpen className="text-tan" size={20} />
+                            <h3 className="text-3xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-3 mb-4">
+                                <BookOpen className="text-tan" size={28} />
                                 {item.item_type === 'Historic Figure' ? 'Biography Sources' : 'Description Sources'}
                             </h3>
                             <div className="font-sans text-[15px] text-charcoal/80 leading-relaxed whitespace-pre-wrap">
@@ -545,619 +545,367 @@ export function ItemDetail() {
                     {/* SEAMLESS INFORMATION SECTION */}
                     <div className="mb-12">
                         <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-4 mb-8">
-                            <Info className="text-tan" size={24} />
+                            <Info className="text-tan" size={32} />
                             Information & Archival Details
                         </h3>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
-                            {/* Personal / Type Facts */}
-                            <div className="space-y-6">
-                                {item.item_type === 'Historic Figure' && (
-                                    <>
-                                        {item.full_name && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Full Name</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.full_name}</p>
-                                            </div>
-                                        )}
-                                        {(item.birth_date || item.death_date) && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    {item.birth_date && (
-                                                        <div>
-                                                            <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-0.5">Birth</span>
-                                                            <p className="text-lg font-serif text-charcoal">{item.birth_date}</p>
-                                                        </div>
-                                                    )}
-                                                    {item.death_date && (
-                                                        <div className={item.birth_date ? "border-l border-tan/20 pl-4" : ""}>
-                                                            <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-0.5">Death</span>
-                                                            <p className="text-lg font-serif text-charcoal">{item.death_date}</p>
-                                                        </div>
-                                                    )}
+                        {item.item_type === 'Historic Figure' ? (
+                            <div className={`grid grid-cols-1 ${!!(item.artifact_id || item.archive_reference || item.identifier) ? "md:grid-cols-2" : ""} gap-x-16 gap-y-12`}>
+                                {/* Column 1: Identity & Life */}
+                                <div className="space-y-8">
+                                    <div>
+                                        <h4 className="text-[11px] font-black text-tan uppercase tracking-[0.3em] mb-6 pb-2 border-b border-tan/10">Personal Identity</h4>
+                                        <div className="space-y-6">
+                                            {item.full_name && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Full Name</p>
+                                                    <p className="text-xl font-serif text-charcoal leading-tight">{item.full_name}</p>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {item.item_type === 'Historic Organization' && (
-                                    <>
-                                        {item.org_name && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Official Name</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.org_name}</p>
-                                            </div>
-                                        )}
-                                        {(item.founding_date || item.dissolved_date) && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Organization Lifespan</p>
-                                                <p className="text-lg font-serif text-charcoal">
-                                                    {item.founding_date || '?'} — {item.dissolved_date || 'Present'}
-                                                </p>
-                                            </div>
-                                        )}
-                                        {item.alternative_names && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Alternative / Former Names</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.alternative_names}</p>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {!['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
-                                        <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
-                                        {item.category && item.item_type !== 'Artifact' && (
-                                            <span className="inline-block bg-tan/10 text-tan px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-tan/20 mt-2 capitalize font-sans">
-                                                {item.category}
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                                    {collectionsData.length > 0 && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
-                                            <div className="flex flex-col gap-2">
-                                                {collectionsData.map(col => (
-                                                    <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
-                                                        <BookOpen size={16} />
-                                                        {col.title}
-                                                    </Link>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                {item.condition && item.item_type !== 'Historic Figure' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Condition</p>
-                                        <span className="inline-block bg-tan-light/10 text-charcoal/80 px-2.5 py-0.5 rounded-full text-[12px] font-bold border border-tan-light/30 mt-1 font-sans">
-                                            {item.condition}
-                                        </span>
-                                    </div>
-                                )}
-                                {item.date && item.item_type !== 'Historic Figure' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Origin Date</p>
-                                        <p className="text-lg font-serif text-charcoal">{item.date}</p>
-                                    </div>
-                                )}
-                                {item.creator && item.item_type !== 'Historic Organization' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Creator / Author</p>
-                                        <p className="text-lg font-serif text-charcoal">{item.creator}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Column 2: Secondary Context / Bio Details */}
-                            <div className="space-y-6">
-                                {item.item_type === 'Historic Organization' && (
-                                    <>
-
-                                        {item.creator && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Media / Data Contributor</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.creator}</p>
-                                            </div>
-                                        )}
-                                        {item.historical_address && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
-                                                    <MapPin size={12} className="text-tan" /> Historical Address
-                                                </p>
-                                                <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {item.item_type === 'Historic Figure' && (
-                                    <>
-                                        {item.occupation && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Primary Occupation</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.occupation}</p>
-                                            </div>
-                                        )}
-                                        {item.birthplace && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Birthplace</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.birthplace}</p>
-                                            </div>
-                                        )}
-                                        {item.historical_address && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
-                                                    <MapPin size={12} className="text-tan" /> Historical Address
-                                                </p>
-                                                <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {item.item_type === 'Artifact' && (
-                                    <>
-                                        {item.donor && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Original Donor</p>
-                                                <p className="text-lg font-serif text-charcoal">{item.donor}</p>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                                {/* Shifted Archival Meta for Figures/Orgs */}
-                                {(item.item_type === 'Historic Figure' || item.item_type === 'Historic Organization') && (
-                                    <div className="pt-4 space-y-6 border-t border-tan-light/20">
-                                        {item.artifact_id && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
-                                                <p className="text-lg font-serif font-bold text-tan">{item.artifact_id}</p>
-                                            </div>
-                                        )}
-                                        {(item.archive_reference || item.identifier) && (
-                                            <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
-                                                <p className="text-sm font-sans text-charcoal/80 leading-relaxed font-medium">
-                                                    {item.archive_reference}
-                                                    {item.identifier && <span className="block italic opacity-60 mt-0.5">{item.identifier}</span>}
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Archival Tracking */}
-                            <div className="space-y-6">
-                                {item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
-                                        <p className="text-lg font-serif font-bold text-tan">{item.artifact_id}</p>
-                                    </div>
-                                )}
-                                {(item.archive_reference || item.identifier) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
-                                        <p className="text-sm font-sans text-charcoal/80 leading-relaxed font-medium">
-                                            {item.archive_reference}
-                                            {item.identifier && <span className="block italic opacity-60 mt-0.5">{item.identifier}</span>}
-                                        </p>
-                                    </div>
-                                )}
-                                {item.physical_location && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
-                                            <MapPin size={12} className="text-tan" /> Origin / Location
-                                        </p>
-                                        <p className="text-[15px] font-sans text-charcoal leading-snug">{item.physical_location}</p>
-                                    </div>
-                                )}
-                                {item.historical_address && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
-                                    <div>
-                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
-                                            <MapPin size={12} className="text-tan" /> Historical Address
-                                        </p>
-                                        <p className="text-[15px] font-sans text-charcoal leading-snug">{item.historical_address}</p>
-                                    </div>
-                                )}
-                                {(item.museum_location_id || item.museum_location || isSAHSUser) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
-                                    <div>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] font-sans">Physical Museum Shelf/Box</p>
-                                            {isSAHSUser && !isEditingLocation && (
-                                                <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors">
-                                                    <Edit2 size={10} /> Link
-                                                </button>
+                                            )}
+                                            {(item.birth_date || item.death_date) && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
+                                                    <div className="flex flex-wrap gap-x-10 gap-y-4">
+                                                        {item.birth_date && (
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-1">Birth</span>
+                                                                <p className="text-lg font-serif text-charcoal">{item.birth_date}</p>
+                                                            </div>
+                                                        )}
+                                                        {item.death_date && (
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-1">Death</span>
+                                                                <p className="text-lg font-serif text-charcoal">{item.death_date}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {item.birthplace && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Birthplace</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.birthplace}</p>
+                                                </div>
+                                            )}
+                                            {item.occupation && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Primary Occupation</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.occupation}</p>
+                                                </div>
+                                            )}
+                                            {item.historical_address && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                        <MapPin size={12} className="text-tan" /> Historical Address
+                                                    </p>
+                                                    <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
+                                                </div>
                                             )}
                                         </div>
-                                        
-                                        {isEditingLocation ? (
-                                            <div className="flex flex-col gap-3 mt-2 bg-cream/30 p-3 rounded-xl border border-tan-light/50">
-                                                <select 
-                                                    value={newLocationId} 
-                                                    onChange={(e) => setNewLocationId(e.target.value)}
-                                                    className="w-full bg-white border border-tan-light/50 p-2.5 rounded-lg text-sm outline-none focus:border-tan font-sans"
-                                                    disabled={isSavingLocation}
-                                                >
-                                                    <option value="">-- No Location (Unassigned) --</option>
-                                                    {[...allLocations].sort((a,b) => a.name.localeCompare(b.name)).map(loc => (
-                                                        <option key={loc.id} value={loc.id}>{loc.name}</option>
-                                                    ))}
-                                                </select>
-                                                <div className="flex gap-2 justify-end">
-                                                    <button onClick={() => setIsEditingLocation(false)} disabled={isSavingLocation} className="text-xs font-bold text-charcoal/50 hover:text-charcoal px-3 py-1.5 transition-colors">Cancel</button>
-                                                    <button onClick={handleSaveLocation} disabled={isSavingLocation} className="text-xs font-bold bg-tan text-white px-4 py-1.5 rounded-lg hover:bg-charcoal transition-colors shadow-sm relative">
-                                                        {isSavingLocation ? 'Saving...' : 'Confirm'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {(item.museum_location_ids && item.museum_location_ids.length > 0) || item.museum_location_id ? (
-                                                    <div className="flex flex-col gap-2">
-                                                        {Array.from(new Set([...(item.museum_location_ids || []), ...(item.museum_location_id ? [item.museum_location_id] : [])])).map(locId => {
-                                                            const locObj = allLocations.find(l => l.id === locId);
-                                                            const displayName = locObj?.name || locId;
-                                                            return (
-                                                                <p key={locId} className="text-[15px] font-sans text-charcoal leading-snug font-bold">
-                                                                    {isSAHSUser ? (
-                                                                        <Link to={`/locations/${locId}`} className="flex items-center gap-1.5 hover:text-tan transition-colors group">
-                                                                            <Box size={16} className="text-tan" /> 
-                                                                            <span className="underline underline-offset-4 decoration-tan/30 group-hover:decoration-tan">{displayName}</span>
-                                                                        </Link>
-                                                                    ) : (
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <Box size={16} className="text-tan" /> 
-                                                                            {displayName}
-                                                                        </span>
-                                                                    )}
-                                                                </p>
-                                                            );
-                                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Column 2: Archival Registry */}
+                                {!!(item.artifact_id || item.archive_reference || item.identifier) && (
+                                    <div className="space-y-8">
+                                        <div>
+                                            <h4 className="text-[11px] font-black text-tan uppercase tracking-[0.3em] mb-6 pb-2 border-b border-tan/10">Archival Registry</h4>
+                                            <div className="space-y-6">
+                                                {item.artifact_id && (
+                                                    <div>
+                                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
+                                                        <p className="text-xl font-serif font-bold text-tan">{item.artifact_id}</p>
                                                     </div>
-                                                ) : (
-                                                    <p className="text-sm font-sans text-charcoal/40 italic leading-snug font-medium">Currently Unassigned</p>
                                                 )}
-                                                {item.museum_location && !item.museum_location_id && (
-                                                    <p className="text-[13px] font-sans text-charcoal leading-snug mt-2 p-2 bg-tan/5 rounded border border-tan/10 text-charcoal/70">
-                                                        Legacy Record: <span className="font-bold">{item.museum_location}</span>
-                                                    </p>
+                                                {(item.archive_reference || item.identifier) && (
+                                                    <div>
+                                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
+                                                        <p className="text-base font-sans text-charcoal/80 leading-relaxed font-medium">
+                                                            {item.archive_reference}
+                                                            {item.identifier && <span className="block italic opacity-60 mt-1">{item.identifier}</span>}
+                                                        </p>
+                                                    </div>
                                                 )}
-                                            </>
-                                        )}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
-
-                        {/* Tags and Source footer */}
-                        <div className="mt-12 pt-8 border-t border-tan-light/30 grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {item.tags && item.tags.length > 0 && (
-                                <div>
-                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-3 font-sans">System Keywords</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {item.tags.map(tag => (
-                                            <span key={tag} className="text-[9px] bg-charcoal/5 text-charcoal/60 px-2.5 py-1 rounded-md font-bold uppercase tracking-[0.1em] border border-charcoal/10 hover:bg-tan/10 hover:text-tan transition-colors cursor-default">
-                                                {tag}
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
+                                {/* Personal / Type Facts */}
+                                <div className="space-y-6">
+                                    {item.item_type === 'Historic Organization' && (
+                                        <>
+                                            {item.org_name && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Official Name</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.org_name}</p>
+                                                </div>
+                                            )}
+                                            {(item.founding_date || item.dissolved_date) && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Organization Lifespan</p>
+                                                    <p className="text-lg font-serif text-charcoal">
+                                                        {item.founding_date || '?'} — {item.dissolved_date || 'Present'}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {item.alternative_names && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Alternative / Former Names</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.alternative_names}</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                    {!['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
+                                            {item.category && item.item_type !== 'Artifact' && (
+                                                <span className="inline-block bg-tan/10 text-tan px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-tan/20 mt-2 capitalize font-sans">
+                                                    {item.category}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                        {collectionsData.length > 0 && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                            <div>
+                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
+                                                <div className="flex flex-col gap-2">
+                                                    {collectionsData.map(col => (
+                                                        <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
+                                                            <BookOpen size={16} />
+                                                            {col.title}
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    {item.condition && item.item_type !== 'Historic Figure' && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Condition</p>
+                                            <span className="inline-block bg-tan-light/10 text-charcoal/80 px-2.5 py-0.5 rounded-full text-[12px] font-bold border border-tan-light/30 mt-1 font-sans">
+                                                {item.condition}
                                             </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            {item.source && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
-                                <div className="md:text-right">
-                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Collection Source</p>
-                                    <p className="text-[13px] italic text-charcoal/60 font-serif leading-relaxed">
-                                        {item.source}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Extended Archival Metadata */}
-                    {(item.publisher || item.contributor || item.rights || item.relation || item.format || item.language || item.type || item.coverage) && (
-                        <div className="mb-12 bg-white border border-tan-light/50 rounded-xl overflow-hidden shadow-sm">
-                            <button
-                                type="button"
-                                onClick={() => setShowAdvancedDC(!showAdvancedDC)}
-                                className="w-full px-6 py-4 bg-cream/30 flex justify-between items-center text-charcoal font-medium hover:bg-cream transition-colors border-b border-tan-light/50"
-                            >
-                                <span className="font-serif font-bold text-lg flex items-center gap-2">
-                                    <BookOpen className="text-tan" size={18} />
-                                    Extended Archival Metadata (Dublin Core)
-                                </span>
-                                {showAdvancedDC ? <ChevronUp size={20} className="text-charcoal/50" /> : <ChevronDown size={20} className="text-charcoal/50" />}
-                            </button>
-                            {showAdvancedDC && (
-                                <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-8 gap-x-6 bg-white">
-                                    {item.publisher && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Publisher</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.publisher}</p>
                                         </div>
                                     )}
-                                    {item.contributor && (
+                                    {item.date && item.item_type !== 'Historic Figure' && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Contributor</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.contributor}</p>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Origin Date</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.date}</p>
                                         </div>
                                     )}
-                                    {item.rights && (
+                                    {item.creator && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Rights</p>
-                                            <p className="text-[15px] font-sans text-charcoal font-medium">{item.rights}</p>
-                                        </div>
-                                    )}
-                                    {item.relation && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Relation</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.relation}</p>
-                                        </div>
-                                    )}
-                                    {item.format && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Format</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.format}</p>
-                                        </div>
-                                    )}
-                                    {item.language && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Language</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.language}</p>
-                                        </div>
-                                    )}
-                                    {item.type && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Type (DC)</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.type}</p>
-                                        </div>
-                                    )}
-                                    {item.coverage && (
-                                        <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Coverage</p>
-                                            <p className="text-[15px] font-sans text-charcoal">{item.coverage}</p>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Creator / Author</p>
+                                            <p className="text-lg font-serif text-charcoal">{item.creator}</p>
                                         </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    )}
 
-
-                    {/* Transcription Block */}
-                    {item.transcription && (
-                        <div className="mb-10 bg-tan-light/10 border border-tan-light/50 rounded-xl p-6 md:p-8 shadow-sm">
-                            <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-3 mb-4">
-                                <FileText className="text-tan" size={20} />
-                                Transcription
-                            </h3>
-                            <div className="font-mono text-sm text-charcoal/80 leading-relaxed whitespace-pre-wrap">
-                                {item.transcription}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Google Map Display */}
-                    {item.coordinates && (
-                        <div className="mb-10 bg-white border border-tan-light/50 rounded-xl overflow-hidden shadow-sm h-[400px]">
-                            <h3 className="text-lg font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 p-4 bg-tan-light/10 m-0">
-                                <MapPin className="text-tan" size={20} />
-                                Geographic Location Map
-                            </h3>
-                            <div className="h-[400px] w-full rounded-2xl overflow-hidden border border-tan-light shadow-sm">
-                                <ArchiveMap items={[item]} />
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Bottom Full-Width Section: Relationships & Media */}
-            <div className="flex flex-col gap-10 mt-12 pt-8 border-t border-tan-light/50">
-                {/* Linked Documents for Figures / Artifacts */}
-                {relatedDocumentItems.length > 0 && (
-                    <div className="bg-cream/30 border border-tan-light/50 rounded-2xl overflow-hidden shadow-sm">
-                        <button 
-                            onClick={() => setShowLinkedItems(!showLinkedItems)}
-                            className="w-full px-6 md:px-8 py-6 flex items-center justify-between hover:bg-cream/50 transition-all group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-tan/10 flex items-center justify-center text-tan group-hover:scale-110 transition-transform">
-                                    <BookOpen size={20} />
+                                {/* Column 2: Context / Donor Details */}
+                                <div className="space-y-6">
+                                    {item.item_type === 'Artifact' && (
+                                        <>
+                                            {item.donor && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Original Donor</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.donor}</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                    {item.item_type === 'Historic Organization' && (
+                                        <>
+                                            {item.creator && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Media / Data Contributor</p>
+                                                    <p className="text-lg font-serif text-charcoal">{item.creator}</p>
+                                                </div>
+                                            )}
+                                            {item.historical_address && (
+                                                <div>
+                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                        <MapPin size={12} className="text-tan" /> Historical Address
+                                                    </p>
+                                                    <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
-                                <div className="text-left">
-                                    <h3 className="text-xl font-serif font-bold text-charcoal">
-                                        Linked Documents & Artifacts
-                                    </h3>
-                                    <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mt-0.5">
-                                        {relatedDocumentItems.length} {relatedDocumentItems.length === 1 ? 'associated item' : 'associated items'}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className={`w-10 h-10 rounded-full bg-white border border-tan-light/50 flex items-center justify-center text-charcoal/40 transition-all ${showLinkedItems ? 'rotate-180 bg-tan text-white border-tan' : 'group-hover:border-tan group-hover:text-tan'}`}>
-                                <ChevronDown size={20} strokeWidth={3} />
-                            </div>
-                        </button>
-                        
-                        {showLinkedItems && (
-                            <div className="p-6 md:p-8 pt-0 border-t border-tan-light/20 bg-white/50 animate-in slide-in-from-top-4 duration-300">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
-                                    {relatedDocumentItems.map(doc => (
-                                        <DocumentCard key={doc.id} item={doc} galleryIds={relatedDocumentItems.map(d => d.id || '')} />
-                                    ))}
+
+                                {/* Archival Tracking */}
+                                <div className="space-y-6">
+                                    {item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
+                                            <p className="text-lg font-serif font-bold text-tan">{item.artifact_id}</p>
+                                        </div>
+                                    )}
+                                    {(item.archive_reference || item.identifier) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
+                                            <p className="text-sm font-sans text-charcoal/80 leading-relaxed font-medium">
+                                                {item.archive_reference}
+                                                {item.identifier && <span className="block italic opacity-60 mt-0.5">{item.identifier}</span>}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {item.physical_location && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                <MapPin size={12} className="text-tan" /> Origin / Location
+                                            </p>
+                                            <p className="text-[15px] font-sans text-charcoal leading-snug">{item.physical_location}</p>
+                                        </div>
+                                    )}
+                                    {item.historical_address && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                <MapPin size={12} className="text-tan" /> Historical Address
+                                            </p>
+                                            <p className="text-[15px] font-sans text-charcoal leading-snug">{item.historical_address}</p>
+                                        </div>
+                                    )}
+                                    {(item.museum_location_id || item.museum_location || isSAHSUser) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] font-sans">Physical Museum Shelf/Box</p>
+                                                {isSAHSUser && !isEditingLocation && (
+                                                    <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors">
+                                                        <Edit2 size={10} /> Link
+                                                    </button>
+                                                )}
+                                            </div>
+                                            
+                                            {isEditingLocation ? (
+                                                <div className="flex flex-col gap-3 mt-2 bg-cream/30 p-3 rounded-xl border border-tan-light/50">
+                                                    <select 
+                                                        value={newLocationId} 
+                                                        onChange={(e) => setNewLocationId(e.target.value)}
+                                                        className="w-full bg-white border border-tan-light/50 p-2.5 rounded-lg text-sm outline-none focus:border-tan font-sans"
+                                                        disabled={isSavingLocation}
+                                                    >
+                                                        <option value="">-- No Location (Unassigned) --</option>
+                                                        {[...allLocations].sort((a,b) => a.name.localeCompare(b.name)).map(loc => (
+                                                            <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="flex gap-2 justify-end">
+                                                        <button onClick={() => setIsEditingLocation(false)} disabled={isSavingLocation} className="text-xs font-bold text-charcoal/50 hover:text-charcoal px-3 py-1.5 transition-colors">Cancel</button>
+                                                        <button onClick={handleSaveLocation} disabled={isSavingLocation} className="text-xs font-bold bg-tan text-white px-4 py-1.5 rounded-lg hover:bg-charcoal transition-colors shadow-sm relative">
+                                                            {isSavingLocation ? 'Saving...' : 'Confirm'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {(item.museum_location_ids && item.museum_location_ids.length > 0) || item.museum_location_id ? (
+                                                        <div className="flex flex-col gap-2">
+                                                            {Array.from(new Set([...(item.museum_location_ids || []), ...(item.museum_location_id ? [item.museum_location_id] : [])])).map(locId => {
+                                                                const locObj = allLocations.find(l => l.id === locId);
+                                                                return (
+                                                                    <Link key={locId} to={`/location/${locId}`} className="text-lg font-serif text-tan hover:underline flex items-center gap-2">
+                                                                        <MapPin size={18} />
+                                                                        {locObj?.name || 'Loading location...'}
+                                                                    </Link>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-lg font-serif text-charcoal/40 italic">Not currently placed on museum blueprint</p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
-                )}
-
-                {/* Related Figures */}
-                {relatedFigureItems.length > 0 && (
-                    <div>
-                        <h3 className="text-xl font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
-                            <Users className="text-tan" size={24} />
-                            Associated Historic Figures
-                        </h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-6">
-                            {relatedFigureItems.map(fig => (
-                                <Link key={fig.id} to={`/items/${fig.id}`} state={{ galleryIds: relatedFigureItems.map(f => f.id || '') }} className="group block text-center">
-                                    <div className="aspect-square bg-cream rounded-full overflow-hidden border-2 border-tan-light/50 mb-3 group-hover:border-tan transition-colors shadow-sm max-w-[150px] mx-auto">
-                                        {fig.featured_image_url || fig.file_urls?.[0] ? (
-                                            <img src={(fig.featured_image_url || fig.file_urls?.[0])!} alt={fig.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-tan/20 font-serif text-3xl">{fig.title.charAt(0)}</div>
-                                        )}
-                                    </div>
-                                    <p className="font-serif font-bold text-charcoal group-hover:text-tan transition-colors">{fig.title}</p>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Related Organizations */}
-                {relatedOrganizationItems.length > 0 && (
-                    <div className="pt-4">
-                        <h3 className="text-xl font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
-                            <BookOpen className="text-tan" size={24} />
-                            Associated Organizations
-                        </h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
-                            {relatedOrganizationItems.map(org => (
-                                <Link key={org.id} to={`/items/${org.id}`} state={{ galleryIds: relatedOrganizationItems.map(o => o.id || '') }} className="group block text-center">
-                                    <div className="aspect-[4/3] bg-cream rounded-xl overflow-hidden border border-tan-light/50 mb-3 group-hover:border-tan transition-colors shadow-sm">
-                                        {org.featured_image_url || org.file_urls?.[0] ? (
-                                            <img src={(org.featured_image_url || org.file_urls?.[0])!} alt={org.title} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-tan/20 font-serif text-3xl">{org.title ? org.title.charAt(0) : "O"}</div>
-                                        )}
-                                    </div>
-                                    <p className="font-serif font-bold text-charcoal group-hover:text-tan transition-colors">{org.title}</p>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Thumbnail Strip — click to jump to image in left viewer */}
-                {file_urls && file_urls.length > 1 && (
-                    <div className="pt-4">
-                        <h2 className="text-xl font-serif font-bold text-charcoal mb-4">All Pages / Media</h2>
-                        <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 gap-3">
-                            {file_urls.map((url, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setCurrentImageIndex(idx)}
-                                    title={`Page ${idx + 1}`}
-                                    className={`group relative aspect-[3/4] bg-tan-light/20 rounded-lg overflow-hidden border transition-all ${
-                                        idx === currentImageIndex 
-                                            ? 'border-tan ring-2 ring-tan/30 shadow-md' 
-                                            : 'border-tan-light/50 hover:border-tan/50 shadow-sm opacity-60 hover:opacity-100'
-                                    }`}
-                                >
-                                    <img 
-                                        src={url} 
-                                        alt={`Page ${idx + 1}`} 
-                                        loading="lazy" 
-                                        decoding="async"
-                                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                                    />
-                                    <div className="absolute bottom-0 inset-x-0 bg-charcoal/60 text-white text-[9px] font-bold text-center py-0.5">
-                                        {idx + 1}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Additional Media (Video/Audio) - Visible to everyone */}
-                {item.additional_media_urls && item.additional_media_urls.length > 0 && (
-                    <div className="pt-8 border-t border-tan-light/30">
-                        <h3 className="text-xl font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
-                            <Camera className="text-tan" size={24} />
-                            Additional Media & Recordings
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {item.additional_media_urls.map((url, idx) => {
-                                const isAudio = url.toLowerCase().includes('.mp3') || url.toLowerCase().includes('.wav') || url.toLowerCase().includes('.m4a');
-                                return (
-                                    <div key={idx} className="bg-white border border-tan-light/50 rounded-xl overflow-hidden shadow-sm">
-                                        <div className="p-4 bg-tan-light/10 border-b border-tan-light/30 flex items-center justify-between">
-                                            <span className="text-xs font-black text-tan uppercase tracking-widest">Media Track {idx + 1}</span>
-                                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-tan hover:text-charcoal transition-colors">
-                                                <Maximize2 size={14} />
-                                            </a>
-                                        </div>
-                                        <div className="p-6 flex flex-col items-center justify-center min-h-[150px] bg-indigo-50/20">
-                                            {isAudio ? (
-                                                <div className="w-full space-y-4 flex flex-col items-center">
-                                                    <div className="w-16 h-16 bg-tan/20 rounded-full flex items-center justify-center text-tan animate-pulse">
-                                                        <Camera size={32} />
-                                                    </div>
-                                                    <audio controls className="w-full">
-                                                        <source src={url} />
-                                                        Your browser does not support the audio element.
-                                                    </audio>
-                                                </div>
-                                            ) : (
-                                                <video controls className="w-full rounded-lg shadow-md max-h-[300px]">
-                                                    <source src={url} />
-                                                    Your browser does not support the video element.
-                                                </video>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Accessioning Paperwork - Admin/Curator ONLY */}
-                {isSAHSUser && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && item.accession_paperwork_urls && item.accession_paperwork_urls.length > 0 && (
-                    <div className="mt-16 pt-12 border-t-2 border-dashed border-tan-light/50 bg-tan/5 rounded-3xl p-8 md:p-12">
-                        <div className="flex items-center justify-between mb-8">
-                            <div>
-                                <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
-                                    <Lock className="text-tan" size={24} />
-                                    Accessioning Paperwork
-                                </h3>
-                                <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mt-1">Internal Archival Documentation</p>
-                            </div>
-                            <span className="bg-charcoal text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">Restricted Access</span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                            {item.accession_paperwork_urls.map((url, idx) => (
-                                <div key={idx} className="group relative">
-                                    <div 
-                                        className="aspect-[3/4] bg-white rounded-xl overflow-hidden border-2 border-tan-light/30 shadow-sm group-hover:border-tan transition-all cursor-zoom-in"
-                                        onClick={() => setZoomedImage(url)}
-                                    >
-                                        <img 
-                                            src={url} 
-                                            alt={`Paperwork ${idx + 1}`} 
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        />
-                                        <div className="absolute inset-0 bg-charcoal/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <ZoomIn size={24} className="text-white" />
-                                        </div>
-                                    </div>
-                                    <div className="mt-3 flex items-center justify-between px-1">
-                                        <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest">Page {idx + 1}</span>
-                                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-tan hover:text-charcoal transition-colors">
-                                            <Maximize2 size={12} />
-                                        </a>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                
+                    
+                    
+                </div>
             </div>
+{/* RELATED ITEMS DROP TAB */}
+                    {(relatedFigureItems.length > 0 || relatedDocumentItems.length > 0 || relatedOrganizationItems.length > 0) && (
+                        <div className="mt-16">
+                            <button 
+                                onClick={() => setShowLinkedItems(!showLinkedItems)}
+                                className="w-full flex items-center justify-center gap-4 py-4 border-t border-tan-light/30 group hover:bg-tan-light/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Link2 className="text-tan" size={28} />
+                                    <span className="text-3xl font-serif font-bold text-charcoal">Connected Archive Items</span>
+                                    <span className="bg-tan/10 text-tan text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest font-sans">
+                                        {relatedFigureItems.length + relatedDocumentItems.length + relatedOrganizationItems.length} Records
+                                    </span>
+                                </div>
+                                <div className={`transition-transform duration-300 ${showLinkedItems ? 'rotate-180' : ''}`}>
+                                    <ChevronDown className="text-tan" size={32} />
+                                </div>
+                            </button>
+
+                            {showLinkedItems && (
+                                <div className="py-10 animate-in slide-in-from-top-4 fade-in duration-300 space-y-12">
+                                    {relatedDocumentItems.length > 0 && (
+                                        <div>
+                                            <h4 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-6 flex items-center justify-center gap-2 font-sans">
+                                                <FileText size={14} /> Documents & Artifacts
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                {relatedDocumentItems.map(relItem => (
+                                                    <DocumentCard 
+                                                        key={relItem.id} 
+                                                        item={relItem} 
+                                                        galleryIds={relatedDocumentItems.map(i => i.id || '')} 
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {relatedOrganizationItems.length > 0 && (
+                                        <div>
+                                            <h4 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-6 flex items-center justify-center gap-2 font-sans">
+                                                <Users size={14} /> Related Organizations
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                {relatedOrganizationItems.map(relItem => (
+                                                    <DocumentCard 
+                                                        key={relItem.id} 
+                                                        item={relItem} 
+                                                        galleryIds={relatedOrganizationItems.map(i => i.id || '')} 
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {relatedFigureItems.length > 0 && (
+                                        <div>
+                                            <h4 className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-6 flex items-center justify-center gap-2 font-sans">
+                                                <User size={14} /> Related Historical Figures
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                                {relatedFigureItems.map(relItem => (
+                                                    <DocumentCard 
+                                                        key={relItem.id} 
+                                                        item={relItem} 
+                                                        galleryIds={relatedFigureItems.map(i => i.id || '')} 
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
             {/* Keep Exploring Section */}
             {exploreItems.length > 0 && (
@@ -1178,6 +926,7 @@ export function ItemDetail() {
                         ))}
                     </div>
                 </div>
+
             )}
         </div>
     );
