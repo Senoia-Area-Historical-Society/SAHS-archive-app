@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { useSearchParams } from 'react-router-dom';
-import { collection, addDoc, getDocs, query } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, where } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { ItemType, Collection, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -427,6 +427,23 @@ export function AddItem() {
     - [x] Verify UI/UX matches reference site aesthetics (Premium layout)
             */
 
+            let final_historical_address = historical_address;
+            let final_coordinates = coordinates;
+
+            if (itemType !== 'Historic Organization' && !final_historical_address && selectedRelatedOrgs.length > 0) {
+                for (const org of selectedRelatedOrgs) {
+                    const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                    if (orgDoc.exists()) {
+                        const orgData = orgDoc.data();
+                        if (orgData.historical_address) {
+                            final_historical_address = orgData.historical_address;
+                            final_coordinates = orgData.coordinates || null;
+                            break;
+                        }
+                    }
+                }
+            }
+
             const itemData: Omit<ArchiveItem, 'id'> = {
                 item_type: itemType,
                 file_urls: fileUrls,
@@ -456,8 +473,8 @@ export function AddItem() {
                 // SAHS Specific
                 condition: (formData.get('condition') as any) || null,
                 physical_location: (formData.get('physical_location') as any) || null,
-                historical_address: historical_address,
-                coordinates: coordinates,
+                historical_address: final_historical_address,
+                coordinates: final_coordinates,
                 related_figures: selectedRelatedFigures.map(f => f.id),
                 related_documents: selectedRelatedDocs.map(d => d.id),
                 related_organizations: selectedRelatedOrgs.map(o => o.id),
@@ -496,6 +513,25 @@ export function AddItem() {
             };
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
+
+            if (itemType === 'Historic Organization' && final_historical_address) {
+                const new_address = final_historical_address;
+                const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
+                for (const artId of allLinkedIds) {
+                    const artDoc = await getDoc(doc(db, 'archive_items', artId));
+                    if (artDoc.exists()) {
+                        const artData = artDoc.data();
+                        const artAddr = artData.historical_address || "";
+                        if (artAddr === "") {
+                            await updateDoc(doc(db, 'archive_items', artId), {
+                                historical_address: new_address,
+                                coordinates: final_coordinates
+                            });
+                        }
+                    }
+                }
+            }
+
             setCreatedItemId(docRef.id);
             setSuccess(true);
         } catch (err: any) {

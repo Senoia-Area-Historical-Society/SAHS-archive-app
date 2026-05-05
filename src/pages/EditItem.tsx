@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
@@ -735,7 +735,7 @@ export default function EditItem() {
                 accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
-                collection_id: item.collection_id || null,
+        collection_id: item.collection_id || null,
                 collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
                 is_private: isPrivate,
 
@@ -797,7 +797,57 @@ export default function EditItem() {
                 updated_by_name: user?.displayName || null,
             };
 
+            let final_historical_address = historical_address;
+            let final_coordinates = coordinates;
+
+            // Scenario B: Editing an Artifact and address is blank, but we linked an Org
+            if (itemType !== 'Historic Organization' && !final_historical_address && selectedRelatedOrgs.length > 0) {
+                for (const org of selectedRelatedOrgs) {
+                    const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                    if (orgDoc.exists()) {
+                        const orgData = orgDoc.data();
+                        if (orgData.historical_address) {
+                            final_historical_address = orgData.historical_address;
+                            final_coordinates = orgData.coordinates || null;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            updatedData.historical_address = final_historical_address;
+            updatedData.coordinates = final_coordinates;
+
             await updateDoc(doc(db, 'archive_items', id), updatedData);
+
+            // Scenario A: Editing an Organization, address changed, push to artifacts
+            if (itemType === 'Historic Organization') {
+                const old_address = item.historical_address || "";
+                const new_address = final_historical_address || "";
+                
+                if (old_address !== new_address) {
+                    const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
+                    const linkedDocsQuery = query(collection(db, 'archive_items'), where('related_organizations', 'array-contains', id));
+                    const linkedDocsSnap = await getDocs(linkedDocsQuery);
+                    linkedDocsSnap.docs.forEach(d => allLinkedIds.add(d.id));
+
+                    for (const artId of allLinkedIds) {
+                        const artDoc = await getDoc(doc(db, 'archive_items', artId));
+                        if (artDoc.exists()) {
+                            const artData = artDoc.data();
+                            const artAddr = artData.historical_address || "";
+                            // Only update if it's blank OR it matches the old address
+                            if (artAddr === "" || artAddr === old_address) {
+                                await updateDoc(doc(db, 'archive_items', artId), {
+                                    historical_address: new_address,
+                                    coordinates: final_coordinates
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
             setSuccess(true);
         } catch (err: any) {
             console.error("Error updating item: ", err);
