@@ -508,7 +508,7 @@ export function AuditDashboard() {
                         <h4 className="text-xl font-serif font-bold text-charcoal mb-2">Inventory Strategy</h4>
                         <p className="text-charcoal/60 leading-relaxed text-sm">
                             Focusing on <strong>Physical Locations</strong> ensures every artifact is accounted for in the museum's digital twin. 
-                            Use the <em>Tagging Hub</em> or the <em>Blueprint Editor</em> to quickly place these unassigned items onto their corresponding shelves and boxes.
+                            Use the <em>Tagging Hub</em> or the <em>Interactive Map</em> to quickly place these unassigned items onto their corresponding shelves and boxes.
                         </p>
                     </div>
                 </div>

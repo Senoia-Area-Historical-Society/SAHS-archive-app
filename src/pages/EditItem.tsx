@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
+import { convertHeicToPng } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
@@ -31,6 +32,7 @@ function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
 const PendingFilePreview = ({
     file,
     url,
+    caption,
     isFeatured,
     onSetFeatured,
     onRemove,
@@ -38,10 +40,12 @@ const PendingFilePreview = ({
     onZoom,
     onMove,
     isFirst,
-    isLast
+    isLast,
+    onCaptionChange
 }: {
     file: File,
     url: string,
+    caption?: string,
     isFeatured: boolean,
     onSetFeatured: (url: string) => void,
     onRemove: () => void,
@@ -49,12 +53,14 @@ const PendingFilePreview = ({
     onZoom: (url: string) => void,
     onMove: (direction: 'left' | 'right') => void,
     isFirst: boolean,
-    isLast: boolean
+    isLast: boolean,
+    onCaptionChange: (caption: string) => void
 }) => {
     const isImage = file.type.startsWith('image/');
 
     return (
-        <div className={`relative aspect-square rounded-lg overflow-hidden border-2 border-dashed transition-all group/thumb ${isFeatured ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-indigo-200'}`}>
+        <div className="flex flex-col gap-1">
+            <div className={`relative aspect-square rounded-lg overflow-hidden border-2 border-dashed transition-all group/thumb ${isFeatured ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-indigo-200'}`}>
             {isImage ? (
                 <img src={url} className="w-full h-full object-cover cursor-zoom-in" alt="new" onClick={() => onCrop ? null : onZoom(url)} />
             ) : (
@@ -126,6 +132,15 @@ const PendingFilePreview = ({
                 </div>
             )}
         </div>
+        <input
+            type="text"
+            value={caption || ''}
+            onChange={(e) => onCaptionChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Add caption..."
+            className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+        />
+        </div>
     );
 };
 
@@ -144,10 +159,10 @@ export default function EditItem() {
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-    const [mediaItems, setMediaItems] = useState<{ id: string, type: 'existing' | 'new', value: string | File }[]>([]);
+    const [mediaItems, setMediaItems] = useState<{ id: string, type: 'existing' | 'new', value: string | File, caption?: string }[]>([]);
     
     // Derived states for backward compatibility and simpler logic in some places
-    const existingFileUrls = useMemo(() => mediaItems.filter(m => m.type === 'existing').map(m => m.value as string), [mediaItems]);
+    
     const selectedFiles = useMemo(() => mediaItems.filter(m => m.type === 'new').map(m => m.value as File), [mediaItems]);
     const [accessionFiles, setAccessionFiles] = useState<File[]>([]);
     const [existingAccessionUrls, setExistingAccessionUrls] = useState<string[]>([]);
@@ -158,6 +173,7 @@ export default function EditItem() {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+    
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -193,6 +209,10 @@ export default function EditItem() {
             [next[index], next[newIndex]] = [next[newIndex], next[index]];
             return next;
         });
+    };
+
+    const updateMediaCaption = (id: string, caption: string) => {
+        setMediaItems(prev => prev.map(m => m.id === id ? { ...m, caption } : m));
     };
 
     const removeNewAccession = (index: number) => {
@@ -410,7 +430,12 @@ export default function EditItem() {
                     const rawType = data.item_type || 'Document';
             setItemType(rawType.trim() as ItemType);
                     setFeaturedImageUrl(data.featured_image_url || null);
-                    setMediaItems((data.file_urls || []).map(url => ({ id: url, type: 'existing', value: url })));
+                    setMediaItems((data.file_urls || []).map((url, idx) => ({ 
+                        id: url, 
+                        type: 'existing', 
+                        value: url,
+                        caption: data.file_captions ? data.file_captions[idx] : ''
+                    })));
                     setExistingAccessionUrls(data.accession_paperwork_urls || []);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
@@ -511,25 +536,35 @@ export default function EditItem() {
 
     const processFiles = async (files: FileList | File[]) => {
         const fileArray = Array.from(files);
-        const finalFiles: File[] = [];
+        
         
         const hasPdf = fileArray.some(f => f.type === 'application/pdf');
+        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
+        
         if (hasPdf) {
             setIsConvertingPdf(true);
             setPdfConvertProgress(0);
         }
+        if (hasHeic) {
+        }
 
         try {
-            const newItems: { id: string, type: 'new', value: File }[] = [];
+            const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
             for (let i = 0; i < fileArray.length; i++) {
-                const file = fileArray[i];
+                let file = fileArray[i];
+                
+                // HEIC Conversion
+                if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    file = await convertHeicToPng(file);
+                }
+
                 if (file.type === 'application/pdf') {
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
-                    newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f })));
+                    newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f, caption: '' })));
                 } else {
-                    newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file });
+                    newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file, caption: '' });
                 }
             }
             setMediaItems(prev => [...prev, ...newItems]);
@@ -618,6 +653,7 @@ export default function EditItem() {
             }
 
             let finalFileUrls: string[] = [];
+            let finalFileCaptions: string[] = [];
             let finalFeaturedUrl = featuredImageUrl;
 
             if (mediaItems.length > 0) {
@@ -627,6 +663,7 @@ export default function EditItem() {
 
                 for (let i = 0; i < mediaItems.length; i++) {
                     const item = mediaItems[i];
+                    finalFileCaptions.push(item.caption || '');
                     if (item.type === 'existing') {
                         finalFileUrls.push(item.value as string);
                     } else {
@@ -694,6 +731,7 @@ export default function EditItem() {
             const updatedData: Partial<ArchiveItem> = {
                 item_type: itemType,
                 file_urls: finalFileUrls,
+                file_captions: finalFileCaptions,
                 accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
@@ -1033,69 +1071,79 @@ export default function EditItem() {
                                             if (item.type === 'existing') {
                                                 const url = item.value as string;
                                                 return (
-                                                    <div key={item.id} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
-                                                        <img src={url} className="w-full h-full object-cover" alt="existing" />
-                                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setFeaturedImageUrl(url)}
-                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                                    title="Set as Featured"
-                                                                >
-                                                                    <CheckCircle size={14} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        cropExistingImage(url);
-                                                                    }}
-                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
-                                                                    title="Edit & Rotate"
-                                                                >
-                                                                    <RotateCw size={12} />
-                                                                    Edit / Rotate
-                                                                </button>
-                                                                <div className="flex gap-1">
+                                                    <div key={item.id} className="flex flex-col gap-1">
+                                                        <div className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
+                                                            <img src={url} className="w-full h-full object-cover" alt="existing" />
+                                                            <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                                                                     <button
                                                                         type="button"
-                                                                        disabled={idx === 0}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            moveMediaItem(idx, 'left');
-                                                                        }}
-                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
-                                                                        title="Move Left"
+                                                                        onClick={() => setFeaturedImageUrl(url)}
+                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                        title="Set as Featured"
                                                                     >
-                                                                        <ChevronLeft size={14} />
+                                                                        <CheckCircle size={14} />
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        disabled={idx === mediaItems.length - 1}
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
-                                                                            moveMediaItem(idx, 'right');
+                                                                            cropExistingImage(url);
                                                                         }}
-                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
-                                                                        title="Move Right"
+                                                                        className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
+                                                                        title="Edit & Rotate"
                                                                     >
-                                                                        <ChevronRight size={14} />
+                                                                        <RotateCw size={12} />
+                                                                        Edit / Rotate
                                                                     </button>
-                                                                </div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeMediaItem(item.id)}
-                                                            className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
-                                                            title="Remove from Record"
-                                                        >
-                                                            <X size={10} />
-                                                        </button>
-                                                        {featuredImageUrl === url && (
-                                                            <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                                <CheckCircle size={10} />
+                                                                    <div className="flex gap-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={idx === 0}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                moveMediaItem(idx, 'left');
+                                                                            }}
+                                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                            title="Move Left"
+                                                                        >
+                                                                            <ChevronLeft size={14} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={idx === mediaItems.length - 1}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                moveMediaItem(idx, 'right');
+                                                                            }}
+                                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                            title="Move Right"
+                                                                        >
+                                                                            <ChevronRight size={14} />
+                                                                        </button>
+                                                                    </div>
                                                             </div>
-                                                        )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeMediaItem(item.id)}
+                                                                className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
+                                                                title="Remove from Record"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                            {featuredImageUrl === url && (
+                                                                <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                                    <CheckCircle size={10} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={item.caption || ''}
+                                                            onChange={(e) => updateMediaCaption(item.id, e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            placeholder="Add caption..."
+                                                            className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+                                                        />
                                                     </div>
                                                 );
                                             } else {
@@ -1106,6 +1154,7 @@ export default function EditItem() {
                                                         key={item.id}
                                                         file={file}
                                                         url={url}
+                                                        caption={item.caption}
                                                         isFeatured={featuredImageUrl === url}
                                                         onSetFeatured={(url) => setFeaturedImageUrl(url)}
                                                         onRemove={() => removeMediaItem(item.id)}
@@ -1114,6 +1163,7 @@ export default function EditItem() {
                                                         onMove={(dir) => moveMediaItem(idx, dir)}
                                                         isFirst={idx === 0}
                                                         isLast={idx === mediaItems.length - 1}
+                                                        onCaptionChange={(cap) => updateMediaCaption(item.id, cap)}
                                                     />
                                                 );
                                             }

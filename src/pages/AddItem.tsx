@@ -8,6 +8,7 @@ import type { ItemType, Collection, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
+import { convertHeicToPng } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
@@ -33,6 +34,7 @@ export function AddItem() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [createdItemId, setCreatedItemId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [accessionFiles, setAccessionFiles] = useState<File[]>([]);
@@ -41,7 +43,9 @@ export function AddItem() {
     const [additionalMediaFiles, setAdditionalMediaFiles] = useState<File[]>([]);
     const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
+    const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+    const [isConvertingHeic, setIsConvertingHeic] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -184,8 +188,8 @@ export function AddItem() {
                 allItemsData.forEach(item => {
                     if (item.tags) item.tags.forEach((t: string) => tags.add(t));
                     
-                    // Collect numeric artifact IDs for suggestion logic
-                    if (item.artifact_id) {
+                    // Collect numeric artifact IDs for suggestion logic (ignoring figures and organizations)
+                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
                         const num = parseInt(item.artifact_id, 10);
                         if (!isNaN(num) && num > 0) {
                             artifactIds.add(num);
@@ -223,6 +227,11 @@ export function AddItem() {
         // Swap files
         [newFiles[index], newFiles[newIndex]] = [newFiles[newIndex], newFiles[index]];
         
+        // Swap captions
+        const newCaptions = [...fileCaptions];
+        [newCaptions[index], newCaptions[newIndex]] = [newCaptions[newIndex], newCaptions[index]];
+        setFileCaptions(newCaptions);
+        
         // Update featured index if it was one of the swapped files
         if (featuredImageIndex === index) {
             setFeaturedImageIndex(newIndex);
@@ -238,14 +247,25 @@ export function AddItem() {
         const finalFiles: File[] = [];
         
         const hasPdf = fileArray.some(f => f.type === 'application/pdf');
+        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
+        
         if (hasPdf) {
             setIsConvertingPdf(true);
             setPdfConvertProgress(0);
         }
+        if (hasHeic) {
+            setIsConvertingHeic(true);
+        }
 
         try {
             for (let i = 0; i < fileArray.length; i++) {
-                const file = fileArray[i];
+                let file = fileArray[i];
+                
+                // HEIC Conversion
+                if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    file = await convertHeicToPng(file);
+                }
+
                 if (file.type === 'application/pdf') {
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
@@ -256,11 +276,13 @@ export function AddItem() {
                 }
             }
             setSelectedFiles(prev => [...prev, ...finalFiles]);
+            setFileCaptions(prev => [...prev, ...Array(finalFiles.length).fill('')]);
         } catch (error) {
             console.error("Failed to process files:", error);
             alert("Failed to read or convert one or more files.");
         } finally {
             setIsConvertingPdf(false);
+            setIsConvertingHeic(false);
             setPdfConvertProgress(0);
         }
     };
@@ -408,6 +430,7 @@ export function AddItem() {
             const itemData: Omit<ArchiveItem, 'id'> = {
                 item_type: itemType,
                 file_urls: fileUrls,
+                file_captions: fileCaptions,
                 featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : null),
                 accession_paperwork_urls: accessionUrls,
                 additional_media_urls: additionalMediaUrls,
@@ -472,7 +495,8 @@ export function AddItem() {
                 accession_date: formData.get('accession_date') as string || "",
             };
 
-            await addDoc(collection(db, 'archive_items'), itemData);
+            const docRef = await addDoc(collection(db, 'archive_items'), itemData);
+            setCreatedItemId(docRef.id);
             setSuccess(true);
         } catch (err: any) {
             console.error("Error adding item: ", err);
@@ -535,10 +559,21 @@ export function AddItem() {
                 </div>
                 <h2 className="text-3xl font-serif font-bold text-charcoal mb-2">Item Archived</h2>
                 <p className="text-charcoal/70 mb-8 text-center max-w-md">The item has been successfully preserved in the archive database.</p>
-                <button
-                    onClick={() => {
-                        setSuccess(false);
-                        setSelectedFiles([]);
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {createdItemId && (
+                        <Link 
+                            to={`/items/${createdItemId}`}
+                            className="bg-white text-tan border-2 border-tan px-6 py-3 rounded-lg font-medium hover:bg-tan hover:text-white transition-colors text-center"
+                        >
+                            View Archived Item
+                        </Link>
+                    )}
+                    <button
+                        onClick={() => {
+                            setSuccess(false);
+                            setCreatedItemId(null);
+                            setSelectedFiles([]);
+                        setFileCaptions([]);
                         setAccessionFiles([]);
                         setAdditionalMediaFiles([]);
                         setCurrentTags([]);
@@ -557,7 +592,7 @@ export function AddItem() {
                                 
                                 const artifactIds = new Set<number>();
                                 allItemsData.forEach(item => {
-                                    if (item.artifact_id) {
+                                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
                                         const num = parseInt(item.artifact_id, 10);
                                         if (!isNaN(num) && num > 0) artifactIds.add(num);
                                     }
@@ -582,7 +617,8 @@ export function AddItem() {
                     className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors"
                 >
                     Archive Another Item
-                </button>
+                    </button>
+                </div>
             </div>
         )
     }
@@ -688,7 +724,7 @@ export function AddItem() {
                                     {selectedFiles.length > 0 && (
                                         <button
                                             type="button"
-                                            onClick={() => { setSelectedFiles([]); setFeaturedImageIndex(0); }}
+                                            onClick={() => { setSelectedFiles([]); setFileCaptions([]); setFeaturedImageIndex(0); }}
                                             className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
                                         >
                                             <X size={10} /> Clear
@@ -715,7 +751,13 @@ export function AddItem() {
                                     }}
                                 />
                                 {/* Image Grid */}
-                                {isConvertingPdf ? (
+                                {isConvertingHeic ? (
+                                    <div className="flex flex-col items-center gap-3 mt-4">
+                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
+                                        <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                    </div>
+                                ) : isConvertingPdf ? (
                                     <div className="flex flex-col items-center gap-3 mt-4">
                                         <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                         <p className="font-bold text-charcoal">Converting Extracted PDF Pages...</p>
@@ -729,84 +771,99 @@ export function AddItem() {
                                             const url = fileObjectURLs.get(file) || '';
                                             const isImage = file.type.startsWith('image/');
                                             return (
-                                                <div key={`pending-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageIndex === idx ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30 hover:border-tan-light'}`}>
-                                                    {isImage ? (
-                                                        <img src={url} className="w-full h-full object-cover" alt="preview" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-cream/50 text-tan/40">
-                                                            <FileText size={16} />
-                                                        </div>
-                                                    )}
-                                                    <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setFeaturedImageIndex(idx);
-                                                            }}
-                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Set as Featured"
-                                                        >
-                                                            <CheckCircle size={12} />
-                                                        </button>
-                                                        {isImage && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setCroppingImageIndex(idx);
-                                                                }}
-                                                                className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
-                                                                title="Edit & Rotate"
-                                                            >
-                                                                 <RotateCw size={12} />
-                                                                 Edit / Rotate
-                                                            </button>
+                                                <div key={`pending-${idx}`} className="flex flex-col gap-1">
+                                                    <div className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageIndex === idx ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30 hover:border-tan-light'}`}>
+                                                        {isImage ? (
+                                                            <img src={url} className="w-full h-full object-cover" alt="preview" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-cream/50 text-tan/40">
+                                                                <FileText size={16} />
+                                                            </div>
                                                         )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
-                                                                if (featuredImageIndex === idx) setFeaturedImageIndex(0);
-                                                            }}
-                                                            className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Remove File"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                        <div className="flex gap-1">
+                                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                                                             <button
                                                                 type="button"
-                                                                disabled={idx === 0}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    moveFile(idx, 'left');
+                                                                    setFeaturedImageIndex(idx);
                                                                 }}
-                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                                                                title="Move Left"
+                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                title="Set as Featured"
                                                             >
-                                                                <ChevronLeft size={12} />
+                                                                <CheckCircle size={12} />
                                                             </button>
+                                                            {isImage && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setCroppingImageIndex(idx);
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
+                                                                    title="Edit & Rotate"
+                                                                >
+                                                                     <RotateCw size={12} />
+                                                                     Edit / Rotate
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 type="button"
-                                                                disabled={idx === selectedFiles.length - 1}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    moveFile(idx, 'right');
+                                                                    setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+                                                                    setFileCaptions(prev => prev.filter((_, i) => i !== idx));
+                                                                    if (featuredImageIndex === idx) setFeaturedImageIndex(0);
                                                                 }}
-                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                                                                title="Move Right"
+                                                                className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                title="Remove File"
                                                             >
-                                                                <ChevronRight size={12} />
+                                                                <X size={12} />
                                                             </button>
+                                                            <div className="flex gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={idx === 0}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        moveFile(idx, 'left');
+                                                                    }}
+                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                    title="Move Left"
+                                                                >
+                                                                    <ChevronLeft size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={idx === selectedFiles.length - 1}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        moveFile(idx, 'right');
+                                                                    }}
+                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                    title="Move Right"
+                                                                >
+                                                                    <ChevronRight size={12} />
+                                                                </button>
+                                                            </div>
                                                         </div>
+                                                        {featuredImageIndex === idx && (
+                                                            <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                                <CheckCircle size={8} />
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {featuredImageIndex === idx && (
-                                                        <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                            <CheckCircle size={8} />
-                                                        </div>
-                                                    )}
+                                                    <input
+                                                        type="text"
+                                                        value={fileCaptions[idx] || ''}
+                                                        onChange={(e) => {
+                                                            const newCaptions = [...fileCaptions];
+                                                            newCaptions[idx] = e.target.value;
+                                                            setFileCaptions(newCaptions);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        placeholder="Add caption..."
+                                                        className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+                                                    />
                                                 </div>
                                             );
                                         })}

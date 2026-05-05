@@ -68,6 +68,7 @@ export interface ArchiveItem {
     tags: string[];
     category?: string | null;
     file_urls: string[]; // For documents, scans, or portraits
+    file_captions?: string[]; // Corresponding captions for file_urls
     created_at: string;
     uploaded_by_email?: string | null;
     uploaded_by_name?: string | null;

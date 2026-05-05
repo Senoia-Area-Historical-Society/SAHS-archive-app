@@ -1,3 +1,4 @@
+import heic2any from 'heic2any';
 export const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image()
@@ -98,3 +99,51 @@ export default async function getCroppedImg(
     }, 'image/jpeg')
   })
 }
+
+
+/**
+ * Converts a HEIC/HEIF file to PNG.
+ * If the file is not HEIC, it returns the original file.
+ */
+export const convertHeicToPng = async (file: File): Promise<File> => {
+    const fileName = file.name.toLowerCase();
+    
+    // Check if it's a HEIC/HEIF file
+    if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+        try {
+            console.log(`Converting ${file.name} to PNG...`);
+            
+            const blob = await heic2any({
+                blob: file,
+                toType: 'image/png',
+                quality: 0.9
+            });
+            
+            // heic2any can return an array if the HEIC has multiple images
+            const resultBlob = Array.isArray(blob) ? blob[0] : blob;
+            
+            // Create a new file name with .png extension
+            const newFileName = file.name.replace(/\.(heic|heif)$/i, '.png');
+            
+            return new File([resultBlob], newFileName, {
+                type: 'image/png',
+                lastModified: new Date().getTime()
+            });
+        } catch (error) {
+            console.error('HEIC conversion failed:', error);
+            return file; // Return original if conversion fails
+        }
+    }
+    
+    return file;
+};
+
+/**
+ * Processes an array of files, converting any HEIC files to PNG.
+ */
+export const processFilesForUpload = async (files: File[]): Promise<File[]> => {
+    const processedFiles = await Promise.all(
+        files.map(file => convertHeicToPng(file))
+    );
+    return processedFiles;
+};

@@ -1,12 +1,11 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Box, Lock, Maximize2, Camera, Link2, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
-import { ArchiveMap } from '../components/ArchiveMap';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -31,7 +30,7 @@ export function ItemDetail() {
     const [zoomScale, setZoomScale] = useState(1);
     const [collectionsData, setCollectionsData] = useState<{id: string, title: string, is_private?: boolean}[]>([]);
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
-    const [showAdvancedDC, setShowAdvancedDC] = useState(false);
+    
     const [showLinkedItems, setShowLinkedItems] = useState(false);
 
     // Inline Location Editing State
@@ -205,6 +204,14 @@ export function ItemDetail() {
                     
                     eItems = eItems.sort(() => 0.5 - Math.random()).slice(0, 4);
                     setExploreItems(eItems);
+
+                    // Fetch locations to resolve location IDs to names
+                    try {
+                        const locSnap = await getDocs(collection(db, 'locations'));
+                        setAllLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() } as MuseumLocation)));
+                    } catch (err) {
+                        console.error("Could not fetch locations", err);
+                    }
                 }
 
             } catch (error) {
@@ -316,11 +323,20 @@ export function ItemDetail() {
                             >
                                 <ChevronRight size={32} strokeWidth={3} className="group-hover/nav:translate-x-1 transition-transform" />
                             </button>
-                            
-                            <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-charcoal/80 backdrop-blur-xl px-8 py-3 rounded-full border border-white/20 text-white font-black tracking-[0.4em] uppercase text-sm z-[2100] shadow-2xl">
-                                Page {currentImageIndex + 1} / {file_urls.length}
-                            </div>
                         </>
+                    )}
+                    
+                    {file_urls && (file_urls.length > 1 || (item.file_captions && item.file_captions[0])) && (
+                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-charcoal/80 backdrop-blur-xl px-8 py-3 rounded-2xl border border-white/20 text-white font-black tracking-[0.4em] uppercase text-sm z-[2100] shadow-2xl text-center min-w-[200px] max-w-[80vw]">
+                            {file_urls.length > 1 && (
+                                <div>Page {currentImageIndex + 1} / {file_urls.length}</div>
+                            )}
+                            {item.file_captions && item.file_captions[currentImageIndex] && (
+                                <div className={`text-[11px] font-medium tracking-normal normal-case text-white/90 ${file_urls.length > 1 ? 'mt-2 border-t border-white/20 pt-2' : ''}`}>
+                                    {item.file_captions[currentImageIndex]}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     <div 
@@ -479,17 +495,23 @@ export function ItemDetail() {
                                                 <ChevronRight size={20} strokeWidth={3} />
                                             </button>
 
-                                            {/* Page Indicator — always visible */}
-                                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-charcoal/70 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase z-10">
+                                            {/* Page Indicator */}
+                                            <div className={`absolute ${item.file_captions && item.file_captions[currentImageIndex] ? 'top-4 left-4' : 'bottom-4 left-1/2 -translate-x-1/2'} bg-charcoal/70 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase z-20 transition-all`}>
                                                 Page {currentImageIndex + 1} of {file_urls.length}
                                             </div>
                                         </>
                                     )}
 
-                                    <div className="absolute inset-x-0 bottom-0 top-3/4 bg-gradient-to-t from-charcoal/40 to-transparent pointer-events-none" />
-                                    <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                    <div className="absolute inset-x-0 bottom-0 top-3/4 bg-gradient-to-t from-charcoal/40 to-transparent pointer-events-none z-0" />
+                                    <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-md p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                                         <ZoomIn size={16} className="text-white" />
                                     </div>
+                                    
+                                    {item.file_captions && item.file_captions[currentImageIndex] && (
+                                        <div className="absolute bottom-0 left-0 right-0 bg-charcoal/80 backdrop-blur-md text-white/90 px-4 py-3 text-xs leading-relaxed z-10 border-t border-white/10 max-h-32 overflow-y-auto no-scrollbar font-sans font-medium">
+                                            {item.file_captions[currentImageIndex]}
+                                        </div>
+                                    )}
                                 </>
                             ) : (
                                 <div className="absolute inset-0 flex items-center justify-center text-tan-light bg-charcoal/5">
@@ -516,7 +538,7 @@ export function ItemDetail() {
                 </div>
 
                 {/* Right Side: Biography & Related Docs */}
-                <div className="flex-1 flex flex-col">
+                <div className="flex-1 block lg:overflow-x-hidden lg:overflow-y-auto lg:pr-6 lg:pb-8" style={{ maxHeight: '80vh' }}>
                     {/* Main Narrative Block */}
                     <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
@@ -524,7 +546,7 @@ export function ItemDetail() {
                             <FileText className="text-tan" size={32} />
                             {item.item_type === 'Historic Figure' ? 'Biography' : 'Description'}
                         </h3>
-                        <div className="prose prose-lg md:prose-xl max-w-none text-charcoal/90 font-sans leading-relaxed whitespace-pre-wrap">
+                        <div className="prose prose-lg md:prose-xl max-w-none text-charcoal/90 font-sans leading-relaxed whitespace-pre-wrap break-words">
                             {item.description}
                         </div>
                     </div>
@@ -536,7 +558,7 @@ export function ItemDetail() {
                                 <BookOpen className="text-tan" size={28} />
                                 {item.item_type === 'Historic Figure' ? 'Biography Sources' : 'Description Sources'}
                             </h3>
-                            <div className="font-sans text-[15px] text-charcoal/80 leading-relaxed whitespace-pre-wrap">
+                            <div className="font-sans text-[15px] text-charcoal/80 leading-relaxed whitespace-pre-wrap break-words">
                                 {item.biography_sources}
                             </div>
                         </div>
@@ -598,7 +620,7 @@ export function ItemDetail() {
                                                     <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                         <MapPin size={12} className="text-tan" /> Historical Address
                                                     </p>
-                                                    <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
+                                                    <p className="text-lg font-serif text-charcoal leading-snug break-words">{item.historical_address}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -675,15 +697,15 @@ export function ItemDetail() {
                                                 <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
                                                 <div className="flex flex-col gap-2">
                                                     {collectionsData.map(col => (
-                                                        <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline inline-flex items-center gap-1.5 align-top">
-                                                            <BookOpen size={16} />
-                                                            {col.title}
+                                                        <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline block break-words leading-snug">
+                                                            <BookOpen size={16} className="inline-block mr-1.5 -mt-1 shrink-0" />
+                                                            <span>{col.title}</span>
                                                         </Link>
                                                     ))}
                                                 </div>
                                             </div>
                                         )}
-                                    {item.condition && item.item_type !== 'Historic Figure' && (
+                                    {item.condition && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Condition</p>
                                             <span className="inline-block bg-tan-light/10 text-charcoal/80 px-2.5 py-0.5 rounded-full text-[12px] font-bold border border-tan-light/30 mt-1 font-sans">
@@ -691,7 +713,7 @@ export function ItemDetail() {
                                             </span>
                                         </div>
                                     )}
-                                    {item.date && item.item_type !== 'Historic Figure' && (
+                                    {item.date && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Origin Date</p>
                                             <p className="text-lg font-serif text-charcoal">{item.date}</p>
@@ -730,7 +752,7 @@ export function ItemDetail() {
                                                     <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                         <MapPin size={12} className="text-tan" /> Historical Address
                                                     </p>
-                                                    <p className="text-lg font-serif text-charcoal leading-snug">{item.historical_address}</p>
+                                                    <p className="text-lg font-serif text-charcoal leading-snug break-words">{item.historical_address}</p>
                                                 </div>
                                             )}
                                         </>
@@ -739,13 +761,13 @@ export function ItemDetail() {
 
                                 {/* Archival Tracking */}
                                 <div className="space-y-6">
-                                    {item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                    {item.artifact_id && item.item_type !== 'Historic Organization' && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
                                             <p className="text-lg font-serif font-bold text-tan">{item.artifact_id}</p>
                                         </div>
                                     )}
-                                    {(item.archive_reference || item.identifier) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                    {(item.archive_reference || item.identifier) && item.item_type !== 'Historic Organization' && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
                                             <p className="text-sm font-sans text-charcoal/80 leading-relaxed font-medium">
@@ -754,12 +776,12 @@ export function ItemDetail() {
                                             </p>
                                         </div>
                                     )}
-                                    {item.physical_location && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                    {item.physical_location && item.item_type !== 'Historic Organization' && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                 <MapPin size={12} className="text-tan" /> Origin / Location
                                             </p>
-                                            <p className="text-[15px] font-sans text-charcoal leading-snug">{item.physical_location}</p>
+                                            <p className="text-[15px] font-sans text-charcoal leading-snug break-words">{item.physical_location}</p>
                                         </div>
                                     )}
                                     {item.historical_address && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
@@ -767,15 +789,15 @@ export function ItemDetail() {
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                 <MapPin size={12} className="text-tan" /> Historical Address
                                             </p>
-                                            <p className="text-[15px] font-sans text-charcoal leading-snug">{item.historical_address}</p>
+                                            <p className="text-[15px] font-sans text-charcoal leading-snug break-words">{item.historical_address}</p>
                                         </div>
                                     )}
-                                    {(item.museum_location_id || item.museum_location || isSAHSUser) && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization' && (
+                                    {(item.museum_location_id || item.museum_location || isSAHSUser) && item.item_type !== 'Historic Organization' && (
                                         <div>
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] font-sans">Physical Museum Shelf/Box</p>
+                                            <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2 mb-2">
+                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] font-sans flex-1 min-w-[120px]">Physical Museum Shelf/Box</p>
                                                 {isSAHSUser && !isEditingLocation && (
-                                                    <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors">
+                                                    <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 transition-colors shrink-0">
                                                         <Edit2 size={10} /> Link
                                                     </button>
                                                 )}
@@ -808,9 +830,9 @@ export function ItemDetail() {
                                                             {Array.from(new Set([...(item.museum_location_ids || []), ...(item.museum_location_id ? [item.museum_location_id] : [])])).map(locId => {
                                                                 const locObj = allLocations.find(l => l.id === locId);
                                                                 return (
-                                                                    <Link key={locId} to={`/location/${locId}`} className="text-lg font-serif text-tan hover:underline flex items-center gap-2">
-                                                                        <MapPin size={18} />
-                                                                        {locObj?.name || 'Loading location...'}
+                                                                    <Link key={locId} to={`/locations/${locId}`} className="text-lg font-serif text-tan hover:underline block break-words leading-snug">
+                                                                        <MapPin size={18} className="inline-block mr-1.5 -mt-1 shrink-0" />
+                                                                        <span>{locObj?.name || 'Loading location...'}</span>
                                                                     </Link>
                                                                 );
                                                             })}
