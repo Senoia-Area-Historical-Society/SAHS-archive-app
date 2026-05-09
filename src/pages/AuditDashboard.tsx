@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import type { ArchiveItem, Collection, ItemType } from '../types/database';
 import { 
     ShieldAlert, 
@@ -18,7 +18,8 @@ import {
     ArrowUpDown,
     LayoutGrid,
     Tag,
-    FolderOpen
+    FolderOpen,
+    RotateCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -200,6 +201,147 @@ export function AuditDashboard() {
         });
     }, [auditData.processedItems, searchTerm, activeIssue, selectedType, selectedCollection, sortBy]);
 
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const runRetroactiveSync = async () => {
+        if (!confirm("Run retroactive two-way sync? This will process the entire database.")) return;
+        setIsSyncing(true);
+        try {
+            const allItemsRef = collection(db, 'archive_items');
+            const snap = await getDocs(query(allItemsRef));
+            const allItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
+
+            const updates = new Map<string, any>(); // Map of id -> updates
+            
+            // Build the graph
+            for (const item of allItems) {
+                const id = item.id;
+                const type = item.item_type?.trim();
+                
+                const processArray = (arr: string[] | undefined, targetField: string) => {
+                    if (!arr) return;
+                    for (const targetId of arr) {
+                        if (!updates.has(targetId)) updates.set(targetId, {});
+                        const currentUpdates = updates.get(targetId);
+                        if (!currentUpdates[targetField]) currentUpdates[targetField] = [];
+                        if (!currentUpdates[targetField].includes(id)) {
+                            currentUpdates[targetField].push(id);
+                        }
+                    }
+                };
+
+                // If I am an Org, my related_documents should point back to me via related_organizations
+                if (type === 'Historic Organization') {
+                    processArray(item.related_documents, 'related_organizations');
+                } else if (type === 'Historic Figure') {
+                    processArray(item.related_documents, 'related_figures');
+                } else {
+                    processArray(item.related_documents, 'related_documents');
+                    processArray(item.related_organizations, 'related_documents');
+                    processArray(item.related_figures, 'related_documents');
+                }
+            }
+
+            // Also do address cascade
+            for (const item of allItems) {
+                const type = item.item_type?.trim();
+                if (type !== 'Historic Organization' && type !== 'Historic Figure' && !item.historical_address) {
+                    let newAddress = null;
+                    let newCoords = null;
+                    
+                    // Check its related orgs
+                    const myOrgs = item.related_organizations || [];
+                    const updatedOrgs = updates.get(item.id)?.related_organizations || [];
+                    const allLinkedOrgs = Array.from(new Set([...myOrgs, ...updatedOrgs]));
+                    
+                    for (const orgId of allLinkedOrgs) {
+                        const org = allItems.find(o => o.id === orgId);
+                        if (org && org.historical_address) {
+                            newAddress = org.historical_address;
+                            newCoords = org.coordinates || null;
+                            break;
+                        }
+                    }
+                    
+                    if (!newAddress) {
+                        const myFigs = item.related_figures || [];
+                        const updatedFigs = updates.get(item.id)?.related_figures || [];
+                        const allLinkedFigs = Array.from(new Set([...myFigs, ...updatedFigs]));
+                        
+                        for (const figId of allLinkedFigs) {
+                            const fig = allItems.find(o => o.id === figId);
+                            if (fig && fig.historical_address) {
+                                newAddress = fig.historical_address;
+                                newCoords = fig.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (newAddress) {
+                        if (!updates.has(item.id)) updates.set(item.id, {});
+                        const currentUpdates = updates.get(item.id);
+                        currentUpdates.historical_address = newAddress;
+                        currentUpdates.coordinates = newCoords;
+                    }
+                }
+            }
+
+            let numUpdated = 0;
+            // Execute updates
+            for (const [docId, updateData] of updates.entries()) {
+                const originalItem = allItems.find(i => i.id === docId);
+                if (!originalItem) continue;
+                
+                const finalPayload: any = {};
+                let changed = false;
+                
+                if (updateData.related_organizations) {
+                    const existing = originalItem.related_organizations || [];
+                    const merged = Array.from(new Set([...existing, ...updateData.related_organizations]));
+                    if (merged.length !== existing.length) {
+                        finalPayload.related_organizations = merged;
+                        changed = true;
+                    }
+                }
+                if (updateData.related_figures) {
+                    const existing = originalItem.related_figures || [];
+                    const merged = Array.from(new Set([...existing, ...updateData.related_figures]));
+                    if (merged.length !== existing.length) {
+                        finalPayload.related_figures = merged;
+                        changed = true;
+                    }
+                }
+                if (updateData.related_documents) {
+                    const existing = originalItem.related_documents || [];
+                    const merged = Array.from(new Set([...existing, ...updateData.related_documents]));
+                    if (merged.length !== existing.length) {
+                        finalPayload.related_documents = merged;
+                        changed = true;
+                    }
+                }
+                if (updateData.historical_address) {
+                    finalPayload.historical_address = updateData.historical_address;
+                    finalPayload.coordinates = updateData.coordinates;
+                    changed = true;
+                }
+
+                if (changed) {
+                    await updateDoc(doc(db, 'archive_items', docId), finalPayload);
+                    numUpdated++;
+                }
+            }
+            
+            alert(`Sync complete! Updated ${numUpdated} items.`);
+            window.location.reload();
+        } catch (error) {
+            console.error("Sync error:", error);
+            alert("Sync failed.");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="max-w-7xl mx-auto h-[60vh] flex flex-col items-center justify-center gap-6">
@@ -224,7 +366,15 @@ export function AuditDashboard() {
                         <span className="text-[10px] font-black uppercase tracking-widest">System Integrity Audit</span>
                     </div>
                     <h1 className="text-6xl font-serif font-bold text-charcoal tracking-tight mb-4">Archive Health Dashboard</h1>
-                    <p className="text-charcoal-light text-xl max-w-2xl leading-relaxed">System-wide audit for identification of metadata gaps, preservation issues, and data inconsistency.</p>
+                    <p className="text-charcoal-light text-xl max-w-2xl leading-relaxed mb-6">System-wide audit for identification of metadata gaps, preservation issues, and data inconsistency.</p>
+                    <button 
+                        onClick={runRetroactiveSync} 
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 bg-tan text-white px-6 py-3 rounded-full font-bold text-sm hover:bg-charcoal transition-colors disabled:opacity-50"
+                    >
+                        <RotateCw size={16} className={isSyncing ? "animate-spin" : ""} />
+                        {isSyncing ? "Running Global Sync..." : "Run Retroactive Two-Way Sync"}
+                    </button>
                 </div>
                 
                 <div className="bg-white p-7 rounded-[2rem] border border-tan-light shadow-xl shadow-tan/5 flex items-center gap-8 min-w-[320px]">

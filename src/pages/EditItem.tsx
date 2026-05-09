@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
@@ -800,16 +800,32 @@ export default function EditItem() {
             let final_historical_address = historical_address;
             let final_coordinates = coordinates;
 
-            // Scenario B: Editing an Artifact and address is blank, but we linked an Org
-            if (itemType !== 'Historic Organization' && !final_historical_address && selectedRelatedOrgs.length > 0) {
-                for (const org of selectedRelatedOrgs) {
-                    const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
-                    if (orgDoc.exists()) {
-                        const orgData = orgDoc.data();
-                        if (orgData.historical_address) {
-                            final_historical_address = orgData.historical_address;
-                            final_coordinates = orgData.coordinates || null;
-                            break;
+            // Scenario B: Editing an Artifact and address is blank, but we linked an Org or Figure
+            if (itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && !final_historical_address) {
+                if (selectedRelatedOrgs.length > 0) {
+                    for (const org of selectedRelatedOrgs) {
+                        const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                        if (orgDoc.exists()) {
+                            const orgData = orgDoc.data();
+                            if (orgData.historical_address) {
+                                final_historical_address = orgData.historical_address;
+                                final_coordinates = orgData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!final_historical_address && selectedRelatedFigures.length > 0) {
+                    for (const fig of selectedRelatedFigures) {
+                        const figDoc = await getDoc(doc(db, 'archive_items', fig.id));
+                        if (figDoc.exists()) {
+                            const figData = figDoc.data();
+                            if (figData.historical_address) {
+                                final_historical_address = figData.historical_address;
+                                final_coordinates = figData.coordinates || null;
+                                break;
+                            }
                         }
                     }
                 }
@@ -820,14 +836,69 @@ export default function EditItem() {
 
             await updateDoc(doc(db, 'archive_items', id), updatedData);
 
-            // Scenario A: Editing an Organization, address changed, push to artifacts
-            if (itemType === 'Historic Organization') {
+            // --- Two-Way Linking Synchronization ---
+            const oldOrgs = item.related_organizations || [];
+            const newOrgs = selectedRelatedOrgs.map(o => o.id);
+            const addedOrgs = newOrgs.filter(orgId => !oldOrgs.includes(orgId));
+            const removedOrgs = oldOrgs.filter(orgId => !newOrgs.includes(orgId));
+
+            for (const orgId of addedOrgs) {
+                await updateDoc(doc(db, 'archive_items', orgId), {
+                    related_documents: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const orgId of removedOrgs) {
+                await updateDoc(doc(db, 'archive_items', orgId), {
+                    related_documents: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+
+            const oldFigs = item.related_figures || [];
+            const newFigs = selectedRelatedFigures.map(f => f.id);
+            const addedFigs = newFigs.filter(figId => !oldFigs.includes(figId));
+            const removedFigs = oldFigs.filter(figId => !newFigs.includes(figId));
+
+            for (const figId of addedFigs) {
+                await updateDoc(doc(db, 'archive_items', figId), {
+                    related_documents: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const figId of removedFigs) {
+                await updateDoc(doc(db, 'archive_items', figId), {
+                    related_documents: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+
+            const oldDocs = item.related_documents || [];
+            const newDocs = selectedRelatedDocs.map(d => d.id);
+            const addedDocs = newDocs.filter(docId => !oldDocs.includes(docId));
+            const removedDocs = oldDocs.filter(docId => !newDocs.includes(docId));
+
+            for (const docId of addedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', docId), {
+                    [arrayField]: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const docId of removedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', docId), {
+                    [arrayField]: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+            // ----------------------------------------
+
+            // Scenario A: Editing an Organization or Figure, address changed, push to artifacts
+            if (itemType === 'Historic Organization' || itemType === 'Historic Figure') {
                 const old_address = item.historical_address || "";
                 const new_address = final_historical_address || "";
                 
                 if (old_address !== new_address) {
                     const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
-                    const linkedDocsQuery = query(collection(db, 'archive_items'), where('related_organizations', 'array-contains', id));
+                    
+                    const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : 'related_figures';
+                    const linkedDocsQuery = query(collection(db, 'archive_items'), where(arrayField, 'array-contains', id));
+                    
                     const linkedDocsSnap = await getDocs(linkedDocsQuery);
                     linkedDocsSnap.docs.forEach(d => allLinkedIds.add(d.id));
 
@@ -1640,10 +1711,7 @@ export default function EditItem() {
                         <div>
                             {/* Handled by the conditional rendering logic */}
                         </div>
-                        <div>
-                            <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Address (For Map)</label>
-                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
+                        {/* Duplicate historical_address input removed */}
                         {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                             <div className="md:col-span-2">
                                 <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>

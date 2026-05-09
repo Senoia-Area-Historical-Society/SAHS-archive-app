@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { useSearchParams } from 'react-router-dom';
-import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, where, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { ItemType, Collection, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -430,15 +430,31 @@ export function AddItem() {
             let final_historical_address = historical_address;
             let final_coordinates = coordinates;
 
-            if (itemType !== 'Historic Organization' && !final_historical_address && selectedRelatedOrgs.length > 0) {
-                for (const org of selectedRelatedOrgs) {
-                    const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
-                    if (orgDoc.exists()) {
-                        const orgData = orgDoc.data();
-                        if (orgData.historical_address) {
-                            final_historical_address = orgData.historical_address;
-                            final_coordinates = orgData.coordinates || null;
-                            break;
+            if (itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && !final_historical_address) {
+                if (selectedRelatedOrgs.length > 0) {
+                    for (const org of selectedRelatedOrgs) {
+                        const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                        if (orgDoc.exists()) {
+                            const orgData = orgDoc.data();
+                            if (orgData.historical_address) {
+                                final_historical_address = orgData.historical_address;
+                                final_coordinates = orgData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!final_historical_address && selectedRelatedFigures.length > 0) {
+                    for (const fig of selectedRelatedFigures) {
+                        const figDoc = await getDoc(doc(db, 'archive_items', fig.id));
+                        if (figDoc.exists()) {
+                            const figData = figDoc.data();
+                            if (figData.historical_address) {
+                                final_historical_address = figData.historical_address;
+                                final_coordinates = figData.coordinates || null;
+                                break;
+                            }
                         }
                     }
                 }
@@ -514,7 +530,28 @@ export function AddItem() {
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
 
-            if (itemType === 'Historic Organization' && final_historical_address) {
+            // --- Two-Way Linking Synchronization (Add Item) ---
+            for (const org of selectedRelatedOrgs) {
+                await updateDoc(doc(db, 'archive_items', org.id), {
+                    related_documents: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            
+            for (const fig of selectedRelatedFigures) {
+                await updateDoc(doc(db, 'archive_items', fig.id), {
+                    related_documents: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            
+            for (const d of selectedRelatedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', d.id), {
+                    [arrayField]: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            // ----------------------------------------
+
+            if ((itemType === 'Historic Organization' || itemType === 'Historic Figure') && final_historical_address) {
                 const new_address = final_historical_address;
                 const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
                 for (const artId of allLinkedIds) {
