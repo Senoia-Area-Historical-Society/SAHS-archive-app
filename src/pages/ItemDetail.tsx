@@ -377,14 +377,17 @@ export function ItemDetail() {
                                 cursor: isDragging ? 'grabbing' : (zoomScale > 1 ? 'grab' : 'zoom-in'),
                                 transition: isDragging ? 'none' : 'transform 200ms ease-out'
                             }}
+                            onClick={(e) => {
+                                e.stopPropagation(); // Stop the click from bubbling up to the closing background
+                                if (zoomScale === 1) {
+                                    setZoomScale(2.5);
+                                }
+                            }}
                             onMouseDown={(e) => {
                                 if (zoomScale > 1) {
                                     e.preventDefault();
                                     setIsDragging(true);
                                     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-                                } else {
-                                    e.stopPropagation();
-                                    setZoomScale(2.5);
                                 }
                             }}
                             onMouseMove={(e) => {
