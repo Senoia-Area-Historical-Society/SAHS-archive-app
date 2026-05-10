@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, updateDoc, doc, arrayUnion } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
 import type { ArchiveItem, Collection, ItemType } from '../types/database';
 import { 
     ShieldAlert, 
