@@ -15,3 +15,12 @@
 .react-transform-wrapper {
   @apply w-full h-full;
 }
+
+/* Ensure Google Drive Picker dialog renders above all application elements */
+.picker-dialog-bg {
+  z-index: 99990 !important;
+}
+
+.picker-dialog {
+  z-index: 99991 !important;
+}
