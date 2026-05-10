@@ -8,7 +8,7 @@ import type { ItemType, Collection, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
-import { convertHeicToPng } from '../utils/imageUtils';
+import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
@@ -264,6 +264,9 @@ export function AddItem() {
                 // HEIC Conversion
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     file = await convertHeicToPng(file);
+                    file = await compressImage(file);
+                } else if (file.type.startsWith('image/')) {
+                    file = await compressImage(file);
                 }
 
                 if (file.type === 'application/pdf') {

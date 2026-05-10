@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Lock, X } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { OptimizedImage } from './OptimizedImage';
 
 export function DocumentCard({ 
     item, 
@@ -24,11 +25,10 @@ export function DocumentCard({
         >
             <div className="aspect-[4/3] bg-tan-light/20 flex flex-col p-4 relative overflow-hidden">
                 {imageUrl ? (
-                    <img
+                    <OptimizedImage
                         src={imageUrl}
                         alt={item.title}
-                        loading="lazy"
-                        decoding="async"
+                        optimizedWidth={400}
                         className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
                     />
                 ) : (

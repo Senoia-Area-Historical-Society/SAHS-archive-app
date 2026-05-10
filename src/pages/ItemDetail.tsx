@@ -2,6 +2,8 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
+import { QRGenerator } from '../components/QRGenerator';
+import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -464,9 +466,10 @@ export function ItemDetail() {
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
                             {file_urls && file_urls.length > 0 ? (
                                 <>
-                                    <img
+                                    <OptimizedImage
                                         src={file_urls[currentImageIndex]}
                                         alt={item.title}
+                                        optimizedWidth={1200}
                                         className="w-full h-full transition-all duration-500 cursor-zoom-in object-cover group-hover:scale-105"
                                         onClick={() => setZoomedImage(file_urls[currentImageIndex])}
                                     />
