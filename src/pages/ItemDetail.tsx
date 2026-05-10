@@ -29,6 +29,9 @@ export function ItemDetail() {
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [zoomScale, setZoomScale] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [collectionsData, setCollectionsData] = useState<{id: string, title: string, is_private?: boolean}[]>([]);
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
     
@@ -265,13 +268,20 @@ export function ItemDetail() {
                     onClick={() => {
                         setZoomedImage(null);
                         setZoomScale(1);
+                        setPan({ x: 0, y: 0 });
                     }}
                 >
                     {/* Controls Overlay */}
                     <div className="absolute top-8 right-8 flex items-center gap-4 z-[2100]" onClick={e => e.stopPropagation()}>
                         <div className="flex bg-white/10 backdrop-blur-md rounded-full border border-white/20 p-1 shadow-2xl">
                             <button 
-                                onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.25))}
+                                onClick={() => {
+                                    setZoomScale(prev => {
+                                        const newScale = Math.max(0.5, prev - 0.25);
+                                        if (newScale <= 1) setPan({ x: 0, y: 0 });
+                                        return newScale;
+                                    });
+                                }}
                                 className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
                                 title="Zoom Out"
                             >
@@ -292,6 +302,7 @@ export function ItemDetail() {
                             onClick={() => {
                                 setZoomedImage(null);
                                 setZoomScale(1);
+                                setPan({ x: 0, y: 0 });
                             }}
                             className="p-3 bg-white/10 backdrop-blur-md hover:bg-red-500/40 rounded-full text-white transition-all border border-white/20 shadow-2xl group"
                         >
@@ -346,20 +357,55 @@ export function ItemDetail() {
                             if (e.target === e.currentTarget) {
                                 setZoomedImage(null);
                                 setZoomScale(1);
+                                setPan({ x: 0, y: 0 });
+                            }
+                        }}
+                        onWheel={(e) => {
+                            if (zoomScale > 1) {
+                                setPan(prev => ({
+                                    x: prev.x - e.deltaX,
+                                    y: prev.y - e.deltaY
+                                }));
                             }
                         }}
                     >
                         <div 
-                            className="relative transition-transform duration-200 ease-out flex items-center justify-center"
+                            className="relative flex items-center justify-center"
                             style={{ 
-                                transform: `scale(${zoomScale})`,
+                                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoomScale})`,
                                 transformOrigin: 'center center',
-                                cursor: zoomScale > 1 ? 'grab' : 'zoom-in'
+                                cursor: isDragging ? 'grabbing' : (zoomScale > 1 ? 'grab' : 'zoom-in'),
+                                transition: isDragging ? 'none' : 'transform 200ms ease-out'
                             }}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setZoomScale(prev => prev === 1 ? 2.5 : 1);
+                            onMouseDown={(e) => {
+                                if (zoomScale > 1) {
+                                    e.preventDefault();
+                                    setIsDragging(true);
+                                    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+                                } else {
+                                    e.stopPropagation();
+                                    setZoomScale(2.5);
+                                }
                             }}
+                            onMouseMove={(e) => {
+                                if (isDragging && zoomScale > 1) {
+                                    setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                                }
+                            }}
+                            onMouseUp={() => setIsDragging(false)}
+                            onMouseLeave={() => setIsDragging(false)}
+                            onTouchStart={(e) => {
+                                if (zoomScale > 1 && e.touches.length === 1) {
+                                    setIsDragging(true);
+                                    setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+                                }
+                            }}
+                            onTouchMove={(e) => {
+                                if (isDragging && zoomScale > 1 && e.touches.length === 1) {
+                                    setPan({ x: e.touches[0].clientX - dragStart.x, y: e.touches[0].clientY - dragStart.y });
+                                }
+                            }}
+                            onTouchEnd={() => setIsDragging(false)}
                         >
                             <img
                                 src={file_urls[currentImageIndex]}
