@@ -498,12 +498,12 @@ export function ItemDetail() {
                         {item.title}
                     </h1>
                     {item.is_private && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md lg:translate-y-[-4px]">
                             <Lock size={14} /> Private Item
                         </div>
                     )}
                     {isCollectionPrivate && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md lg:translate-y-[-4px]">
                             <Lock size={14} /> Private Collection
                         </div>
                     )}
@@ -516,7 +516,7 @@ export function ItemDetail() {
             <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
                 {/* Left Side: Image Viewer (all item types) */}
                 <div className="w-full md:w-80 lg:w-[420px] shrink-0">
-                    <div className="sticky top-8 space-y-4">
+                    <div className="lg:sticky lg:top-8 space-y-4">
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
                             {file_urls && file_urls.length > 0 ? (
                                 <>
@@ -597,7 +597,7 @@ export function ItemDetail() {
                 {/* Right Side: Biography & Related Docs */}
                 <div className="lg:flex-1 block lg:max-h-[80vh] lg:overflow-y-auto lg:pr-6 lg:pb-8">
                     {/* Main Narrative Block */}
-                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-6 md:p-12 shadow-sm relative overflow-hidden">
+                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-6 md:p-12 shadow-sm relative">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
                         <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-4 mb-8">
                             <FileText className="text-tan" size={32} />
@@ -642,9 +642,9 @@ export function ItemDetail() {
                                                 </div>
                                             )}
                                             {(item.birth_date || item.death_date) && (
-                                                <div>
+                                                <div className="mb-8">
                                                     <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
-                                                    <div className="flex flex-wrap gap-x-10 gap-y-4">
+                                                    <div className="flex flex-col sm:flex-row gap-8 sm:gap-12">
                                                         {item.birth_date && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-1">Birth</span>
