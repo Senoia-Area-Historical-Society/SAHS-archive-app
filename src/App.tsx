@@ -9,22 +9,21 @@ import { BrowseArchive } from './pages/BrowseArchive';
 import { ItemDetail } from './pages/ItemDetail';
 import { Collections } from './pages/Collections';
 import { CollectionDetail } from './pages/CollectionDetail';
-
-const AddItem = lazy(() => import('./pages/AddItem').then(m => ({ default: m.AddItem })));
-const EditItem = lazy(() => import('./pages/EditItem'));
-const AddCollection = lazy(() => import('./pages/AddCollection').then(m => ({ default: m.AddCollection })));
-const EditCollection = lazy(() => import('./pages/EditCollection').then(m => ({ default: m.EditCollection })));
-const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const SearchArchive = lazy(() => import('./pages/SearchArchive').then(m => ({ default: m.SearchArchive })));
-const AdminSettings = lazy(() => import('./pages/AdminSettings').then(m => ({ default: m.AdminSettings })));
-const ManageLocations = lazy(() => import('./pages/ManageLocations').then(m => ({ default: m.ManageLocations })));
-const ManageRoomLocations = lazy(() => import('./pages/ManageRoomLocations').then(m => ({ default: m.ManageRoomLocations })));
-const TaggingHub = lazy(() => import('./pages/TaggingHub').then(m => ({ default: m.TaggingHub })));
-const LocationDetail = lazy(() => import('./pages/LocationDetail').then(m => ({ default: m.LocationDetail })));
-const RoomDetail = lazy(() => import('./pages/RoomDetail').then(m => ({ default: m.RoomDetail })));
-const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ default: m.InteractiveMap })));
-const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
-const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
+import { AddItem } from './pages/AddItem';
+import EditItem from './pages/EditItem';
+import { AddCollection } from './pages/AddCollection';
+import { EditCollection } from './pages/EditCollection';
+import { Login } from './pages/Login';
+import { SearchArchive } from './pages/SearchArchive';
+import { AdminSettings } from './pages/AdminSettings';
+import { ManageLocations } from './pages/ManageLocations';
+import { ManageRoomLocations } from './pages/ManageRoomLocations';
+import { TaggingHub } from './pages/TaggingHub';
+import { LocationDetail } from './pages/LocationDetail';
+import { RoomDetail } from './pages/RoomDetail';
+import { InteractiveMap } from './pages/InteractiveMap';
+import { AuditDashboard } from './pages/AuditDashboard';
+import { BrowseMap } from './pages/BrowseMap';
 
 
 
