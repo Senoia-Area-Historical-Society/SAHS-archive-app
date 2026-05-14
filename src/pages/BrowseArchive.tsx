@@ -186,6 +186,13 @@ export function BrowseArchive() {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;
     }
 
+    const [itemsToShow, setItemsToShow] = useState(24);
+    const visibleItems = useMemo(() => sortedItems.slice(0, itemsToShow), [sortedItems, itemsToShow]);
+
+    useEffect(() => {
+        setItemsToShow(24);
+    }, [search, selectedType, selectedCollection, sortBy]);
+
     return (
         <div className="max-w-full mx-auto h-full flex flex-col">
             <div className="mb-10">
@@ -193,7 +200,7 @@ export function BrowseArchive() {
                 <p className="text-charcoal-light text-xl">{headerText.description}</p>
             </div>
 
-            <div className="bg-white p-3 rounded-xl border border-tan-light flex flex-col md:flex-row gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.04)] mb-10">
+            <div className="bg-white p-3 rounded-xl border border-tan-light flex flex-col md:flex-row gap-3 shadow-[0_2px_8_rgba(0,0,0,0.04)] mb-10">
                 <div className="flex-1 relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={20} />
                     <input
@@ -268,10 +275,23 @@ export function BrowseArchive() {
             <div className="flex-1">
                 {sortedItems.length > 0 ? (
                     viewMode === 'grid' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
-                            {sortedItems.map(item => (
-                                <DocumentCard key={item.id} item={item} galleryIds={sortedItems.map(i => i.id || '')} />
-                            ))}
+                        <div className="space-y-12">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
+                                {visibleItems.map(item => (
+                                    <DocumentCard key={item.id} item={item} galleryIds={sortedItems.map(i => i.id || '')} />
+                                ))}
+                            </div>
+                            
+                            {itemsToShow < sortedItems.length && (
+                                <div className="flex justify-center pt-8 pb-12">
+                                    <button
+                                        onClick={() => setItemsToShow(prev => prev + 24)}
+                                        className="px-8 py-3 bg-white border border-tan-light text-tan font-serif font-bold text-lg rounded-full hover:bg-tan hover:text-white transition-all shadow-sm hover:shadow-md active:scale-95"
+                                    >
+                                        Load More Items
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <ArchiveMap items={sortedItems} />

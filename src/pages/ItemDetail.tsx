@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 
@@ -98,14 +98,13 @@ export function ItemDetail() {
                     const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     if (cIds.length > 0) {
                         try {
-                            const colls = [];
-                            for (const cid of cIds) {
-                                const collRef = doc(db, 'collections', cid);
-                                const collSnap = await getDoc(collRef);
-                                if (collSnap.exists()) {
-                                    colls.push({ id: collSnap.id, ...collSnap.data() } as any);
-                                }
-                            }
+                            const collSnaps = await Promise.all(
+                                cIds.map(cid => getDoc(doc(db, 'collections', cid)))
+                            );
+                            const colls = collSnaps
+                                .filter(snap => snap.exists())
+                                .map(snap => ({ id: snap.id, ...snap.data() } as any));
+                            
                             setCollectionsData(colls);
                             setIsCollectionPrivate(colls.some(c => c.is_private === true));
                         } catch (err) {
@@ -181,7 +180,7 @@ export function ItemDetail() {
                     const cards = uniqueLinked.filter(i => i.item_type !== 'Historic Figure' && i.item_type !== 'Historic Organization');
                     setRelatedDocumentItems(cards);
 
-                    // --- Fetch "Keep Exploring" items ---
+                    // --- Fetch "Keep Exploring" items (Limited to 12 for performance) ---
                     let exploreQuery;
                     const cIdsExplore = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     if (cIdsExplore.length > 0) {
@@ -190,10 +189,15 @@ export function ItemDetail() {
                             or(
                                 where('collection_ids', 'array-contains-any', cIdsExplore),
                                 where('collection_id', 'in', cIdsExplore)
-                            )
+                            ),
+                            limit(12)
                         );
                     } else {
-                        exploreQuery = query(collection(db, 'archive_items'), where('item_type', '==', data.item_type));
+                        exploreQuery = query(
+                            collection(db, 'archive_items'), 
+                            where('item_type', '==', data.item_type),
+                            limit(12)
+                        );
                     }
                     
                     const exploreSnap = await getDocs(exploreQuery);
@@ -208,14 +212,6 @@ export function ItemDetail() {
                     
                     eItems = eItems.sort(() => 0.5 - Math.random()).slice(0, 4);
                     setExploreItems(eItems);
-
-                    // Fetch locations to resolve location IDs to names
-                    try {
-                        const locSnap = await getDocs(collection(db, 'locations'));
-                        setAllLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() } as MuseumLocation)));
-                    } catch (err) {
-                        console.error("Could not fetch locations", err);
-                    }
                 }
 
             } catch (error) {
@@ -517,7 +513,7 @@ export function ItemDetail() {
                                     <OptimizedImage
                                         src={file_urls[currentImageIndex]}
                                         alt={item.title}
-                                        optimizedWidth={1200}
+                                        optimizedWidth={800}
                                         className="w-full h-full transition-all duration-500 cursor-zoom-in object-cover group-hover:scale-105"
                                         onClick={() => setZoomedImage(file_urls[currentImageIndex])}
                                     />

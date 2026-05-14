@@ -1,8 +1,3 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
-
 /**
  * Converts a PDF file into an array of PNG File objects, one for each page.
  * @param file The original PDF File object
@@ -13,6 +8,11 @@ export async function convertPdfToPngs(
     file: File, 
     onProgress?: (progress: number) => void
 ): Promise<File[]> {
+    // Dynamic import to keep large PDF library out of main bundle
+    const pdfjsLib = await import('pdfjs-dist');
+    const pdfWorker = (await import('pdfjs-dist/build/pdf.worker.mjs?url')).default;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     const pdf = await pdfjsLib.getDocument({ data: uint8Array }).promise;

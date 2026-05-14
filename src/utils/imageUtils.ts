@@ -1,4 +1,4 @@
-import heic2any from 'heic2any';
+
 export const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image()
@@ -113,6 +113,7 @@ export const convertHeicToPng = async (file: File): Promise<File> => {
         try {
             console.log(`Converting ${file.name} to PNG...`);
             
+            const heic2any = (await import('heic2any')).default;
             const blob = await heic2any({
                 blob: file,
                 toType: 'image/png',
