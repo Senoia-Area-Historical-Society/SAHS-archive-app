@@ -1,5 +1,6 @@
-import React, { lazy, Suspense, ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
+import React, { lazy, Suspense } from 'react';
+import type { ReactNode } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -25,10 +26,6 @@ const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ 
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 
-function ItemDetailWithKey() {
-  const { id } = useParams<{ id: string }>();
-  return <ItemDetail key={id} />;
-}
 
 function PageWrapper() {
   return (
