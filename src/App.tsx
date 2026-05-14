@@ -42,6 +42,26 @@ function LoadingFallback() {
     );
 }
 
+class ErrorBoundary extends React.Component<{children: ReactNode}, {hasError: boolean}> {
+  constructor(props: {children: ReactNode}) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center bg-cream">
+          <h1 className="text-3xl font-serif text-charcoal mb-4">Something went wrong.</h1>
+          <p className="text-charcoal/60 mb-8 max-w-md">The application encountered an unexpected error. This often happens after an update.</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-tan text-white rounded-full font-bold hover:bg-charcoal transition-all">Refresh Page</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, isSAHSUser, realIsAdmin, loading } = useAuth();
   const location = useLocation();
@@ -71,40 +91,42 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Home />} />
 
-              <Route element={<PageWrapper />}>
-                <Route path="archive" element={<BrowseArchive />} />
-                <Route path="collections" element={<Collections />} />
-                <Route path="collections/:id" element={<CollectionDetail />} />
+                <Route element={<PageWrapper />}>
+                  <Route path="archive" element={<BrowseArchive />} />
+                  <Route path="collections" element={<Collections />} />
+                  <Route path="collections/:id" element={<CollectionDetail />} />
 
-                {/* Authentication and Admin routes */}
-                <Route path="items/:id" element={<ItemDetail />} />
-                <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
-                <Route path="search" element={<SearchArchive />} />
-                <Route path="map" element={<BrowseMap />} />
-                <Route path="login" element={<Login />} />
+                  {/* Authentication and Admin routes */}
+                  <Route path="items/:id" element={<ItemDetail />} />
+                  <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
+                  <Route path="search" element={<SearchArchive />} />
+                  <Route path="map" element={<BrowseMap />} />
+                  <Route path="login" element={<Login />} />
 
-                {/* Protected Curator Routes */}
-                <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-                <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
-                <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
-                <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
-                <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
-                <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
-                <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
-                <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
-                <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
-                <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
-                <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
-                <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
+                  {/* Protected Curator Routes */}
+                  <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+                  <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
+                  <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+                  <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
+                  <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+                  <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
+                  <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
+                  <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
+                  <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
+                  <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
+                  <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
+                  <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
+                </Route>
               </Route>
-            </Route>
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   );
