@@ -44,18 +44,21 @@ function LoadingFallback() {
     );
 }
 
-class ErrorBoundary extends React.Component<{children: ReactNode}, {hasError: boolean}> {
+class ErrorBoundary extends React.Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
   constructor(props: {children: ReactNode}) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError() { return { hasError: true }; }
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
   render() {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen p-8 text-center bg-cream">
           <h1 className="text-3xl font-serif text-charcoal mb-4">Something went wrong.</h1>
-          <p className="text-charcoal/60 mb-8 max-w-md">The application encountered an unexpected error. This often happens after an update.</p>
+          <p className="text-charcoal/60 mb-2 max-w-md">The application encountered an unexpected error.</p>
+          <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-8 max-w-lg text-left overflow-auto font-mono text-xs">
+            {this.state.error?.toString()}
+          </div>
           <button onClick={() => window.location.reload()} className="px-6 py-2 bg-tan text-white rounded-full font-bold hover:bg-charcoal transition-all">Refresh Page</button>
         </div>
       );
