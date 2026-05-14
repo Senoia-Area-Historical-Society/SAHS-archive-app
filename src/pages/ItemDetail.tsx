@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 
@@ -76,23 +76,6 @@ export function ItemDetail() {
     };
 
     useEffect(() => {
-        // Reset ALL states when the ID changes to ensure a clean slate
-        setItem(null);
-        setRelatedFigureItems([]);
-        setRelatedDocumentItems([]);
-        setRelatedOrganizationItems([]);
-        setExploreItems([]);
-        setLoading(true);
-        setCurrentImageIndex(0);
-        setZoomScale(1);
-        setPan({ x: 0, y: 0 });
-        setCollectionsData([]);
-        setIsCollectionPrivate(false);
-        setShowLinkedItems(false);
-        setIsEditingLocation(false);
-    }, [id]);
-
-    useEffect(() => {
         if (item && item.file_urls && item.featured_image_url) {
             const index = item.file_urls.indexOf(item.featured_image_url);
             if (index !== -1) {
@@ -115,27 +98,16 @@ export function ItemDetail() {
                     const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     if (cIds.length > 0) {
                         try {
-                            const validCIds = cIds.filter(Boolean);
-                            const collSnaps = await Promise.all(
-                                validCIds.map(cid => getDoc(doc(db, 'collections', cid)))
-                            );
+                            // Parallelize collection fetching to avoid sequential waterfall latency
+                            const collSnaps = await Promise.all(cIds.map(cid => getDoc(doc(db, 'collections', cid))));
                             const colls = collSnaps
-                                .filter(snap => snap.exists())
-                                .map(snap => ({ id: snap.id, ...snap.data() } as any));
-                            
+                                .filter(s => s.exists())
+                                .map(s => ({ id: s.id, ...s.data() } as any));
                             setCollectionsData(colls);
                             setIsCollectionPrivate(colls.some(c => c.is_private === true));
                         } catch (err) {
                             console.error("Error fetching collection details:", err);
                         }
-                    }
-
-                    // Fetch locations to resolve names
-                    try {
-                        const locSnap = await getDocs(collection(db, 'locations'));
-                        setAllLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() } as MuseumLocation)));
-                    } catch (err) {
-                        console.error("Could not fetch locations", err);
                     }
 
 
@@ -206,23 +178,22 @@ export function ItemDetail() {
                     const cards = uniqueLinked.filter(i => i.item_type !== 'Historic Figure' && i.item_type !== 'Historic Organization');
                     setRelatedDocumentItems(cards);
 
-                    // --- Fetch "Keep Exploring" items (Limited to 12 for performance) ---
+                    // --- Fetch "Keep Exploring" items ---
                     let exploreQuery;
-                    const cIdsExplore = (data.collection_ids && data.collection_ids.length > 0) 
-                        ? data.collection_ids.filter(Boolean) 
-                        : (data.collection_id ? [data.collection_id] : []);
-                        
+                    const cIdsExplore = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     if (cIdsExplore.length > 0) {
-                        // Use a simpler query to avoid complex 'or' limits
                         exploreQuery = query(
                             collection(db, 'archive_items'), 
-                            where('collection_ids', 'array-contains-any', cIdsExplore.slice(0, 10)),
-                            limit(12)
+                            or(
+                                where('collection_ids', 'array-contains-any', cIdsExplore),
+                                where('collection_id', 'in', cIdsExplore)
+                            ),
+                            limit(12) // Critical: Limit fetching to avoid downloading entire collections
                         );
                     } else {
                         exploreQuery = query(
                             collection(db, 'archive_items'), 
-                            where('item_type', '==', data.item_type || 'Document'),
+                            where('item_type', '==', data.item_type),
                             limit(12)
                         );
                     }
@@ -239,6 +210,24 @@ export function ItemDetail() {
                     
                     eItems = eItems.sort(() => 0.5 - Math.random()).slice(0, 4);
                     setExploreItems(eItems);
+
+                    // Fetch only required locations to resolve names
+                    const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
+                    if (locIds.length > 0) {
+                        try {
+                            const locSnaps = await Promise.all(locIds.map(lid => getDoc(doc(db, 'locations', lid))));
+                            const locs = locSnaps
+                                .filter(s => s.exists())
+                                .map(s => ({ id: s.id, ...s.data() } as MuseumLocation));
+                            setAllLocations(prev => {
+                                const newMap = new Map(prev.map(l => [l.id, l]));
+                                locs.forEach(l => newMap.set(l.id, l));
+                                return Array.from(newMap.values());
+                            });
+                        } catch (err) {
+                            console.error("Could not fetch specific locations", err);
+                        }
+                    }
                 }
 
             } catch (error) {
@@ -284,7 +273,7 @@ export function ItemDetail() {
     const { file_urls } = item;
 
     return (
-        <div className="flex flex-col min-h-screen max-w-full mx-auto animate-in fade-in duration-500 pb-12">
+        <div className="flex flex-col h-full max-w-full mx-auto animate-in fade-in duration-500 pb-12">
             {zoomedImage && (
                 <div
                     className="fixed inset-0 z-[2000] bg-charcoal/95 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden animate-in fade-in duration-300"
@@ -511,16 +500,16 @@ export function ItemDetail() {
 
             <div className="mb-12 max-w-6xl">
                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                    <h1 className="text-3xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
+                    <h1 className="text-5xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
                         {item.title}
                     </h1>
                     {item.is_private && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md lg:translate-y-[-4px]">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                             <Lock size={14} /> Private Item
                         </div>
                     )}
                     {isCollectionPrivate && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md lg:translate-y-[-4px]">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                             <Lock size={14} /> Private Collection
                         </div>
                     )}
@@ -533,7 +522,7 @@ export function ItemDetail() {
             <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
                 {/* Left Side: Image Viewer (all item types) */}
                 <div className="w-full md:w-80 lg:w-[420px] shrink-0">
-                    <div className="lg:sticky lg:top-8 space-y-4">
+                    <div className="sticky top-8 space-y-4">
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
                             {file_urls && file_urls.length > 0 ? (
                                 <>
@@ -612,9 +601,9 @@ export function ItemDetail() {
                 </div>
 
                 {/* Right Side: Biography & Related Docs */}
-                <div className="lg:flex-1 block lg:max-h-[80vh] lg:overflow-y-auto lg:pr-6 lg:pb-8">
+                <div className="flex-1 block lg:overflow-x-hidden lg:overflow-y-auto lg:pr-6 lg:pb-8" style={{ maxHeight: '80vh' }}>
                     {/* Main Narrative Block */}
-                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-6 md:p-12 shadow-sm relative">
+                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
                         <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-4 mb-8">
                             <FileText className="text-tan" size={32} />
@@ -659,9 +648,9 @@ export function ItemDetail() {
                                                 </div>
                                             )}
                                             {(item.birth_date || item.death_date) && (
-                                                <div className="mb-8">
+                                                <div>
                                                     <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
-                                                    <div className="flex flex-col sm:flex-row gap-8 sm:gap-12">
+                                                    <div className="flex flex-wrap gap-x-10 gap-y-4">
                                                         {item.birth_date && (
                                                             <div>
                                                                 <span className="text-[10px] font-bold text-tan uppercase tracking-widest block mb-1">Birth</span>
@@ -755,7 +744,7 @@ export function ItemDetail() {
                                             )}
                                         </>
                                     )}
-                                    {item.item_type && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                    {!['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
                                             <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
@@ -929,15 +918,15 @@ export function ItemDetail() {
             </div>
 {/* RELATED ITEMS DROP TAB */}
                     {(relatedFigureItems.length > 0 || relatedDocumentItems.length > 0 || relatedOrganizationItems.length > 0) && (
-                        <div className="mt-8 border border-tan-light/50 rounded-2xl bg-white shadow-sm overflow-hidden fade-in duration-300">
+                        <div className="mt-16">
                             <button 
                                 onClick={() => setShowLinkedItems(!showLinkedItems)}
                                 className="w-full flex items-center justify-center gap-4 py-4 border-t border-tan-light/30 group hover:bg-tan-light/5 transition-colors"
                             >
                                 <div className="flex items-center gap-3">
-                                    <Link2 className="text-tan" size={24} />
-                                    <span className="text-xl md:text-3xl font-serif font-bold text-charcoal">Connected Archive Items</span>
-                                    <span className="bg-tan/10 text-tan text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest font-sans">
+                                    <Link2 className="text-tan" size={28} />
+                                    <span className="text-3xl font-serif font-bold text-charcoal">Connected Archive Items</span>
+                                    <span className="bg-tan/10 text-tan text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest font-sans">
                                         {relatedFigureItems.length + relatedDocumentItems.length + relatedOrganizationItems.length} Records
                                     </span>
                                 </div>
@@ -1005,10 +994,10 @@ export function ItemDetail() {
 
             {/* Keep Exploring Section */}
             {exploreItems.length > 0 && (
-                <div className="mt-12 md:mt-16 pt-8 md:pt-12 border-t border-tan-light/50">
+                <div className="mt-16 pt-12 border-t border-tan-light/50">
                     <div className="mb-8 text-center">
-                        <h2 className="text-2xl md:text-3xl font-serif font-bold text-charcoal mb-3">Keep Exploring</h2>
-                        <p className="text-charcoal/60 font-sans max-w-2xl mx-auto px-4 text-sm md:text-base">
+                        <h2 className="text-3xl font-serif font-bold text-charcoal mb-3">Keep Exploring</h2>
+                        <p className="text-charcoal/60 font-sans max-w-2xl mx-auto">
                             Discover more from our archives that share similar themes or origins with this item.
                         </p>
                     </div>

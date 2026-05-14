@@ -1,3 +1,5 @@
+// pdfjs-dist is dynamically imported below to reduce initial bundle size
+
 /**
  * Converts a PDF file into an array of PNG File objects, one for each page.
  * @param file The original PDF File object
@@ -8,7 +10,7 @@ export async function convertPdfToPngs(
     file: File, 
     onProgress?: (progress: number) => void
 ): Promise<File[]> {
-    // Dynamic import to keep large PDF library out of main bundle
+    // Dynamic imports to keep PDF processing out of the main bundle
     const pdfjsLib = await import('pdfjs-dist');
     const pdfWorker = (await import('pdfjs-dist/build/pdf.worker.mjs?url')).default;
     pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;

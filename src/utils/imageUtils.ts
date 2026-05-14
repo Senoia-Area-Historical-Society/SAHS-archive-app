@@ -1,4 +1,4 @@
-
+// heic2any is dynamically imported below to reduce initial bundle size
 export const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const image = new Image()
@@ -113,7 +113,9 @@ export const convertHeicToPng = async (file: File): Promise<File> => {
         try {
             console.log(`Converting ${file.name} to PNG...`);
             
+            // Dynamic import to keep this heavy library out of the main bundle
             const heic2any = (await import('heic2any')).default;
+            
             const blob = await heic2any({
                 blob: file,
                 toType: 'image/png',
