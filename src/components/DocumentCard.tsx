@@ -1,3 +1,4 @@
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, X } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';

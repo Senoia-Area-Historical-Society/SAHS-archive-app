@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, limit } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 
@@ -98,8 +98,9 @@ export function ItemDetail() {
                     const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     if (cIds.length > 0) {
                         try {
+                            const validCIds = cIds.filter(Boolean);
                             const collSnaps = await Promise.all(
-                                cIds.map(cid => getDoc(doc(db, 'collections', cid)))
+                                validCIds.map(cid => getDoc(doc(db, 'collections', cid)))
                             );
                             const colls = collSnaps
                                 .filter(snap => snap.exists())
@@ -110,6 +111,14 @@ export function ItemDetail() {
                         } catch (err) {
                             console.error("Error fetching collection details:", err);
                         }
+                    }
+
+                    // Fetch locations to resolve names
+                    try {
+                        const locSnap = await getDocs(collection(db, 'locations'));
+                        setAllLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() } as MuseumLocation)));
+                    } catch (err) {
+                        console.error("Could not fetch locations", err);
                     }
 
 
@@ -182,20 +191,21 @@ export function ItemDetail() {
 
                     // --- Fetch "Keep Exploring" items (Limited to 12 for performance) ---
                     let exploreQuery;
-                    const cIdsExplore = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
+                    const cIdsExplore = (data.collection_ids && data.collection_ids.length > 0) 
+                        ? data.collection_ids.filter(Boolean) 
+                        : (data.collection_id ? [data.collection_id] : []);
+                        
                     if (cIdsExplore.length > 0) {
+                        // Use a simpler query to avoid complex 'or' limits
                         exploreQuery = query(
                             collection(db, 'archive_items'), 
-                            or(
-                                where('collection_ids', 'array-contains-any', cIdsExplore),
-                                where('collection_id', 'in', cIdsExplore)
-                            ),
+                            where('collection_ids', 'array-contains-any', cIdsExplore.slice(0, 10)),
                             limit(12)
                         );
                     } else {
                         exploreQuery = query(
                             collection(db, 'archive_items'), 
-                            where('item_type', '==', data.item_type),
+                            where('item_type', '==', data.item_type || 'Document'),
                             limit(12)
                         );
                     }
@@ -728,7 +738,7 @@ export function ItemDetail() {
                                             )}
                                         </>
                                     )}
-                                    {!['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
+                                    {item.item_type && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
                                             <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
