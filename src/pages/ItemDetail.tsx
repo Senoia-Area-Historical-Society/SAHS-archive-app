@@ -494,7 +494,7 @@ export function ItemDetail() {
 
             <div className="mb-12 max-w-6xl">
                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                    <h1 className="text-5xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
+                    <h1 className="text-3xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
                         {item.title}
                     </h1>
                     {item.is_private && isSAHSUser && (
@@ -595,9 +595,9 @@ export function ItemDetail() {
                 </div>
 
                 {/* Right Side: Biography & Related Docs */}
-                <div className="flex-1 block lg:max-h-[80vh] lg:overflow-y-auto lg:pr-6 lg:pb-8">
+                <div className="lg:flex-1 block lg:max-h-[80vh] lg:overflow-y-auto lg:pr-6 lg:pb-8">
                     {/* Main Narrative Block */}
-                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
+                    <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-6 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
                         <h3 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2 border-b border-tan-light/50 pb-4 mb-8">
                             <FileText className="text-tan" size={32} />
