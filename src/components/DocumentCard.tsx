@@ -20,7 +20,7 @@ export function DocumentCard({
 
     return (
         <Link
-            to={isEditingMode ? `/edit-item/${item.id}` : `/items/${item.id}`}
+            to={isEditingMode ? `/edit-item/${item.id}` : (item.item_type === 'Historic Figure' ? `/figures/${item.id}` : `/items/${item.id}`)}
             state={{ galleryIds }}
             className="bg-white border-2 border-tan-light/50 rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] hover:border-tan transition-all flex flex-col group cursor-pointer"
         >

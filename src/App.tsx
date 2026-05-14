@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 // Lazy loaded pages
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
 const BrowseArchive = lazy(() => import('./pages/BrowseArchive').then(m => ({ default: m.BrowseArchive })));
-const ItemDetail = lazy(() => import('./pages/ItemDetail').then(m => ({ default: m.ItemDetail })));
+import { ItemDetail } from './pages/ItemDetail';
 const AddItem = lazy(() => import('./pages/AddItem').then(m => ({ default: m.AddItem })));
 const EditItem = lazy(() => import('./pages/EditItem'));
 const Collections = lazy(() => import('./pages/Collections').then(m => ({ default: m.Collections })));
@@ -108,8 +108,8 @@ function App() {
                   <Route path="collections/:id" element={<CollectionDetail />} />
 
                   {/* Authentication and Admin routes */}
-                  <Route path="items/:id" element={<ItemDetailWithKey />} />
-                  <Route path="figures/:id" element={<ItemDetailWithKey />} /> {/* Legacy detail redirect handled later */}
+                  <Route path="items/:id" element={<ItemDetail key={window.location.pathname} />} />
+                  <Route path="figures/:id" element={<ItemDetail key={window.location.pathname} />} />
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />
