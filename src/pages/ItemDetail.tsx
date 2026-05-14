@@ -585,7 +585,7 @@ export function ItemDetail() {
                 </div>
 
                 {/* Right Side: Biography & Related Docs */}
-                <div className="flex-1 block lg:overflow-x-hidden lg:overflow-y-auto lg:pr-6 lg:pb-8" style={{ maxHeight: '80vh' }}>
+                <div className="flex-1 block lg:max-h-[80vh] lg:overflow-y-auto lg:pr-6 lg:pb-8">
                     {/* Main Narrative Block */}
                     <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
@@ -908,9 +908,9 @@ export function ItemDetail() {
                                 className="w-full flex items-center justify-center gap-4 py-4 border-t border-tan-light/30 group hover:bg-tan-light/5 transition-colors"
                             >
                                 <div className="flex items-center gap-3">
-                                    <Link2 className="text-tan" size={28} />
-                                    <span className="text-3xl font-serif font-bold text-charcoal">Connected Archive Items</span>
-                                    <span className="bg-tan/10 text-tan text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest font-sans">
+                                    <Link2 className="text-tan" size={24} />
+                                    <span className="text-xl md:text-3xl font-serif font-bold text-charcoal">Connected Archive Items</span>
+                                    <span className="bg-tan/10 text-tan text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest font-sans">
                                         {relatedFigureItems.length + relatedDocumentItems.length + relatedOrganizationItems.length} Records
                                     </span>
                                 </div>
@@ -978,10 +978,10 @@ export function ItemDetail() {
 
             {/* Keep Exploring Section */}
             {exploreItems.length > 0 && (
-                <div className="mt-16 pt-12 border-t border-tan-light/50">
+                <div className="mt-12 md:mt-16 pt-8 md:pt-12 border-t border-tan-light/50">
                     <div className="mb-8 text-center">
-                        <h2 className="text-3xl font-serif font-bold text-charcoal mb-3">Keep Exploring</h2>
-                        <p className="text-charcoal/60 font-sans max-w-2xl mx-auto">
+                        <h2 className="text-2xl md:text-3xl font-serif font-bold text-charcoal mb-3">Keep Exploring</h2>
+                        <p className="text-charcoal/60 font-sans max-w-2xl mx-auto px-4 text-sm md:text-base">
                             Discover more from our archives that share similar themes or origins with this item.
                         </p>
                     </div>
