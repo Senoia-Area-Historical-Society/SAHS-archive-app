@@ -1,6 +1,6 @@
-import React, { lazy, Suspense } from 'react';
+import React, { Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
