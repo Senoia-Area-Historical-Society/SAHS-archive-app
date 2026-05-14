@@ -1,17 +1,17 @@
 import React, { lazy, Suspense } from 'react';
 import type { ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-// Lazy loaded pages
-const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
-const BrowseArchive = lazy(() => import('./pages/BrowseArchive').then(m => ({ default: m.BrowseArchive })));
+import { Home } from './pages/Home';
+import { BrowseArchive } from './pages/BrowseArchive';
 import { ItemDetail } from './pages/ItemDetail';
+import { Collections } from './pages/Collections';
+import { CollectionDetail } from './pages/CollectionDetail';
+
 const AddItem = lazy(() => import('./pages/AddItem').then(m => ({ default: m.AddItem })));
 const EditItem = lazy(() => import('./pages/EditItem'));
-const Collections = lazy(() => import('./pages/Collections').then(m => ({ default: m.Collections })));
-const CollectionDetail = lazy(() => import('./pages/CollectionDetail').then(m => ({ default: m.CollectionDetail })));
 const AddCollection = lazy(() => import('./pages/AddCollection').then(m => ({ default: m.AddCollection })));
 const EditCollection = lazy(() => import('./pages/EditCollection').then(m => ({ default: m.EditCollection })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -26,6 +26,11 @@ const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ 
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 
+
+function ItemDetailWithKey() {
+  const { id } = useParams<{ id: string }>();
+  return <ItemDetail key={id} />;
+}
 
 function PageWrapper() {
   return (
@@ -57,7 +62,7 @@ class ErrorBoundary extends React.Component<{children: ReactNode}, {hasError: bo
           <h1 className="text-3xl font-serif text-charcoal mb-4">Something went wrong.</h1>
           <p className="text-charcoal/60 mb-2 max-w-md">The application encountered an unexpected error.</p>
           <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-8 max-w-lg text-left overflow-auto font-mono text-xs">
-            {this.state.error?.toString()}
+            {this.state.error ? (this.state.error.message || this.state.error.toString()) : "Unknown Error"}
           </div>
           <button onClick={() => window.location.reload()} className="px-6 py-2 bg-tan text-white rounded-full font-bold hover:bg-charcoal transition-all">Refresh Page</button>
         </div>
@@ -108,8 +113,8 @@ function App() {
                   <Route path="collections/:id" element={<CollectionDetail />} />
 
                   {/* Authentication and Admin routes */}
-                  <Route path="items/:id" element={<ItemDetail key={window.location.pathname} />} />
-                  <Route path="figures/:id" element={<ItemDetail key={window.location.pathname} />} />
+                  <Route path="items/:id" element={<ItemDetailWithKey />} />
+                  <Route path="figures/:id" element={<ItemDetailWithKey />} />
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />
