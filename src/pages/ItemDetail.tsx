@@ -267,7 +267,7 @@ export function ItemDetail() {
     const { file_urls } = item;
 
     return (
-        <div className="flex flex-col h-full max-w-full mx-auto animate-in fade-in duration-500 pb-12">
+        <div className="flex flex-col min-h-screen max-w-full mx-auto animate-in fade-in duration-500 pb-12">
             {zoomedImage && (
                 <div
                     className="fixed inset-0 z-[2000] bg-charcoal/95 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden animate-in fade-in duration-300"
@@ -912,7 +912,7 @@ export function ItemDetail() {
             </div>
 {/* RELATED ITEMS DROP TAB */}
                     {(relatedFigureItems.length > 0 || relatedDocumentItems.length > 0 || relatedOrganizationItems.length > 0) && (
-                        <div className="mt-16">
+                        <div className="mt-8 border border-tan-light/50 rounded-2xl bg-white shadow-sm overflow-hidden fade-in duration-300">
                             <button 
                                 onClick={() => setShowLinkedItems(!showLinkedItems)}
                                 className="w-full flex items-center justify-center gap-4 py-4 border-t border-tan-light/30 group hover:bg-tan-light/5 transition-colors"
