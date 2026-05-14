@@ -273,7 +273,7 @@ export function ItemDetail() {
     const { file_urls } = item;
 
     return (
-        <div className="flex flex-col h-full max-w-full mx-auto animate-in fade-in duration-500 pb-12">
+        <div className="flex flex-col min-h-screen max-w-full mx-auto animate-in fade-in duration-500 pb-12">
             {zoomedImage && (
                 <div
                     className="fixed inset-0 z-[2000] bg-charcoal/95 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden animate-in fade-in duration-300"
@@ -521,8 +521,8 @@ export function ItemDetail() {
 
             <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
                 {/* Left Side: Image Viewer (all item types) */}
-                <div className="w-full md:w-80 lg:w-[420px] shrink-0">
-                    <div className="sticky top-8 space-y-4">
+                <div className="w-full lg:w-[420px] shrink-0">
+                    <div className="lg:sticky lg:top-8 space-y-4">
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
                             {file_urls && file_urls.length > 0 ? (
                                 <>
@@ -601,7 +601,7 @@ export function ItemDetail() {
                 </div>
 
                 {/* Right Side: Biography & Related Docs */}
-                <div className="flex-1 block lg:overflow-x-hidden lg:overflow-y-auto lg:pr-6 lg:pb-8" style={{ maxHeight: '80vh' }}>
+                <div className="flex-1 block lg:overflow-x-hidden lg:overflow-y-auto lg:pr-6 lg:pb-8 lg:max-h-[85vh]">
                     {/* Main Narrative Block */}
                     <div className="mb-10 bg-white border border-tan-light/50 rounded-xl p-8 md:p-12 shadow-sm relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-1.5 h-full bg-tan/40"></div>
