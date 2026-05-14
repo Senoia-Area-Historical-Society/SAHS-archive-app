@@ -27,10 +27,6 @@ const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ 
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 
 
-function ItemDetailWithKey() {
-  const { id } = useParams<{ id: string }>();
-  return <ItemDetail key={id} />;
-}
 
 function PageWrapper() {
   return (
@@ -113,8 +109,8 @@ function App() {
                   <Route path="collections/:id" element={<CollectionDetail />} />
 
                   {/* Authentication and Admin routes */}
-                  <Route path="items/:id" element={<ItemDetailWithKey />} />
-                  <Route path="figures/:id" element={<ItemDetailWithKey />} />
+                  <Route path="items/:id" element={<ItemDetail />} />
+                  <Route path="figures/:id" element={<ItemDetail />} />
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />

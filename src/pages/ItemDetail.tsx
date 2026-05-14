@@ -76,6 +76,23 @@ export function ItemDetail() {
     };
 
     useEffect(() => {
+        // Reset ALL states when the ID changes to ensure a clean slate
+        setItem(null);
+        setRelatedFigureItems([]);
+        setRelatedDocumentItems([]);
+        setRelatedOrganizationItems([]);
+        setExploreItems([]);
+        setLoading(true);
+        setCurrentImageIndex(0);
+        setZoomScale(1);
+        setPan({ x: 0, y: 0 });
+        setCollectionsData([]);
+        setIsCollectionPrivate(false);
+        setShowLinkedItems(false);
+        setIsEditingLocation(false);
+    }, [id]);
+
+    useEffect(() => {
         if (item && item.file_urls && item.featured_image_url) {
             const index = item.file_urls.indexOf(item.featured_image_url);
             if (index !== -1) {
