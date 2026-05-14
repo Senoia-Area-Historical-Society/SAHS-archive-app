@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -24,6 +24,11 @@ const RoomDetail = lazy(() => import('./pages/RoomDetail').then(m => ({ default:
 const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ default: m.InteractiveMap })));
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
+
+function ItemDetailWithKey() {
+  const { id } = useParams<{ id: string }>();
+  return <ItemDetail key={id} />;
+}
 
 function PageWrapper() {
   return (
@@ -90,8 +95,8 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ErrorBoundary>
+      <ErrorBoundary>
+        <AuthProvider>
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               <Route path="/" element={<Layout />}>
@@ -103,8 +108,8 @@ function App() {
                   <Route path="collections/:id" element={<CollectionDetail />} />
 
                   {/* Authentication and Admin routes */}
-                  <Route path="items/:id" element={<ItemDetail />} />
-                  <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
+                  <Route path="items/:id" element={<ItemDetailWithKey />} />
+                  <Route path="figures/:id" element={<ItemDetailWithKey />} /> {/* Legacy detail redirect handled later */}
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />
@@ -126,8 +131,8 @@ function App() {
               </Route>
             </Routes>
           </Suspense>
-        </ErrorBoundary>
-      </AuthProvider>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
