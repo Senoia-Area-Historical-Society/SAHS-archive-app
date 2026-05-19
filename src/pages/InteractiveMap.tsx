@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { Rnd } from 'react-rnd';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, writeBatch, setDoc } from 'firebase/firestore';
-import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass } from 'lucide-react';
-import type { MuseumLocation, Room } from '../types/database';
+import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass, Layers } from 'lucide-react';
+import type { MuseumLocation, Room, MapFloor } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useSearchParams } from 'react-router-dom';
 
 type LayoutHistoryState = {
     rooms: Room[];
     localCoords: Record<string, {x: number, y: number, width: number, height: number, rotation?: number, z_index?: number, display_type?: 'box' | 'pin', scale?: number}>;
-    compassRose?: { x: number, y: number, rotation: number };
+    compassRose?: { x: number, y: number, rotation: number, width?: number, height?: number };
+    floors?: MapFloor[];
 };
 
 const CANVAS_WIDTH = 2400;
@@ -82,6 +83,11 @@ export function InteractiveMap() {
     // Structural Rooms
     const [rooms, setRooms] = useState<Room[]>([]);
     
+    // Floors
+    const [floors, setFloors] = useState<MapFloor[]>([{ id: 'default', name: 'Main Floor', level: 0 }]);
+    const [currentFloorId, setCurrentFloorId] = useState<string>('default');
+    const [showUnderlay, setShowUnderlay] = useState(false);
+    
     // Multi-select and Drag tracking
     const selectedIdsRef = useRef<Set<string>>(new Set());
     const dirtyIdsRef = useRef<Set<string>>(new Set());
@@ -93,14 +99,18 @@ export function InteractiveMap() {
     const [resizingRoomId, setResizingRoomId] = useState<string | null>(null);
     const [activeDimensions, setActiveDimensions] = useState<{ width: number, height: number } | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [groupDragOffset, setGroupDragOffset] = useState<{ x: number, y: number } | null>(null);
 
     // Compass Rose State (Overlay)
-    const [compassRose, setCompassRose] = useState<{ x: number, y: number, rotation: number }>({ x: 32, y: 32, rotation: 0 });
+    const [compassRose, setCompassRose] = useState<{ x: number, y: number, rotation: number, width?: number, height?: number }>({ x: 32, y: 32, rotation: 0 });
+    const [resizingCompassSize, setResizingCompassSize] = useState<number | null>(null);
 
     const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
+    const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
 
     // Pristine state for discarding changes
     const pristineStateRef = useRef<LayoutHistoryState | null>(null);
+    const skipNextClickRef = useRef(false);
 
     // History and Undo tracking
     const [, setHistory] = useState<LayoutHistoryState[]>([]);
@@ -110,7 +120,8 @@ export function InteractiveMap() {
             const next = [...prev, { 
                 rooms: JSON.parse(JSON.stringify(rooms)), 
                 localCoords: JSON.parse(JSON.stringify(localCoords)),
-                compassRose: JSON.parse(JSON.stringify(compassRose))
+                compassRose: JSON.parse(JSON.stringify(compassRose)),
+                floors: JSON.parse(JSON.stringify(floors))
             }];
             if (next.length > 30) return next.slice(next.length - 30);
             return next;
@@ -130,6 +141,7 @@ export function InteractiveMap() {
                         setRooms(lastState.rooms);
                         setLocalCoords(lastState.localCoords);
                         if (lastState.compassRose) setCompassRose(lastState.compassRose);
+                        if (lastState.floors) setFloors(lastState.floors);
                         selectedIdsRef.current.forEach(id => setSelectionDOM(id, false));
                         selectedIdsRef.current.clear();
                     }
@@ -288,14 +300,20 @@ export function InteractiveMap() {
             
             setRooms(roomData);
 
-            // Fetch Compass Rose Settings
+            // Fetch Settings (Compass Rose & Floors)
             try {
                 const settingsDoc = await getDoc(doc(db, 'settings', 'interactive_map'));
-                if (settingsDoc.exists() && settingsDoc.data().compass_rose) {
-                    setCompassRose(settingsDoc.data().compass_rose);
+                if (settingsDoc.exists()) {
+                    const data = settingsDoc.data();
+                    if (data.compass_rose) setCompassRose(data.compass_rose);
+                    if (data.floors && Array.isArray(data.floors) && data.floors.length > 0) {
+                        const sortedFloors = data.floors.sort((a: MapFloor, b: MapFloor) => b.level - a.level);
+                        setFloors(sortedFloors);
+                        setCurrentFloorId(prev => sortedFloors.some((f: MapFloor) => f.id === prev) ? prev : sortedFloors[0].id);
+                    }
                 }
             } catch (err) {
-                console.warn("Map Diagnostics: Failed to fetch compass rose settings.", err);
+                console.warn("Map Diagnostics: Failed to fetch map settings.", err);
             }
         } catch (error) {
             console.error("Error fetching map data:", error);
@@ -373,7 +391,8 @@ export function InteractiveMap() {
                                     ...lCoords,
                                     rotation: lCoords.rotation ?? 0,
                                     display_type: lCoords.display_type || loc.display_type || (loc.map_coordinates?.display_type)
-                                })
+                                }),
+                                floor_id: loc.floor_id || currentFloorId
                             });
                         } else {
                             console.warn(`[SKIP] Location ${id} has invalid coordinates:`, lCoords);
@@ -392,14 +411,16 @@ export function InteractiveMap() {
                             await updateDoc(doc(db, 'rooms', room.docId), { 
                                 geometries: stripUndefined(room.geometries),
                                 map_coordinates: null, // Clear flat coords for merged rooms
-                                display_type: 'room'
+                                display_type: 'room',
+                                floor_id: room.floor_id || currentFloorId
                             });
                         } else if (c && typeof c.x === 'number' && !isNaN(c.x)) {
                             console.log(`[COMMIT] Room: ${room.name} at (${c.x}, ${c.y})`);
                             await updateDoc(doc(db, 'rooms', room.docId), { 
                                 map_coordinates: stripUndefined(c), 
                                 geometries: null,
-                                display_type: 'room'
+                                display_type: 'room',
+                                floor_id: room.floor_id || currentFloorId
                             });
                         } else if (c === null) {
                             console.log(`[COMMIT] Removing/Unplacing Room: ${room.name}`);
@@ -425,11 +446,12 @@ export function InteractiveMap() {
                 }
             });
             
-            // Save Compass Rose to Settings
+            // Save Compass Rose and Floors to Settings
             promises.push(setDoc(doc(db, 'settings', 'interactive_map'), {
-                compass_rose: stripUndefined(compassRose)
+                compass_rose: stripUndefined(compassRose),
+                floors: stripUndefined(floors)
             }, { merge: true }).catch(err => {
-                console.warn("Map Diagnostics: Failed to save compass rose. Database is likely missing settings write permissions.", err);
+                console.warn("Map Diagnostics: Failed to save settings.", err);
             }));
 
             await Promise.all(promises);
@@ -502,6 +524,7 @@ export function InteractiveMap() {
         const startX = Math.round((CANVAS_WIDTH / 2) / 12) * 12;
         const startY = Math.round((CANVAS_HEIGHT / 2) / 12) * 12;
         
+        setLocations(prev => prev.map(l => l.id === selectedLocationForBinding ? { ...l, floor_id: currentFloorId } : l));
         markDirty(selectedLocationForBinding);
         setLocalCoords(prev => ({
             ...prev,
@@ -557,6 +580,7 @@ export function InteractiveMap() {
                 id: 'room_' + Date.now(),
                 name: roomName,
                 created_at: new Date().toISOString(),
+                floor_id: currentFloorId,
                 map_coordinates: {
                     x: startX,
                     y: startY,
@@ -594,6 +618,7 @@ export function InteractiveMap() {
         markDirty(roomDocId);
         setRooms(prev => prev.map(r => r.docId === roomDocId ? {
             ...r,
+            floor_id: currentFloorId,
             map_coordinates: { x: startX, y: startY, width: 200, height: 200 }
         } : r));
 
@@ -621,6 +646,7 @@ export function InteractiveMap() {
                 if (idx !== -1) {
                     updated[idx] = {
                         ...updated[idx],
+                        floor_id: currentFloorId,
                         map_coordinates: { x: nextX, y: nextY, width: 360, height: 360 }
                     };
                     nextX += 400;
@@ -885,10 +911,94 @@ export function InteractiveMap() {
     };
 
     const handleCanvasClick = (e: React.MouseEvent) => {
+        if (skipNextClickRef.current) return;
         if ((e.target as HTMLElement).closest('.react-draggable') || (e.target as HTMLElement).closest('button')) return;
         selectedIdsRef.current.forEach(sid => setSelectionDOM(sid, false));
         selectedIdsRef.current.clear();
         setSelectionTick(t => t + 1);
+    };
+
+    const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        if (!isEditMode) return;
+        if ((e.target as HTMLElement).closest('.react-draggable') || (e.target as HTMLElement).closest('button')) return;
+        
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+        
+        if (!e.shiftKey) {
+            selectedIdsRef.current.forEach(sid => setSelectionDOM(sid, false));
+            selectedIdsRef.current.clear();
+            setSelectionTick(t => t + 1);
+        }
+        
+        setSelectionBox({ startX: x, startY: y, endX: x, endY: y });
+    };
+
+    const handleCanvasMouseMove = (e: React.MouseEvent) => {
+        if (!selectionBox) return;
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+        setSelectionBox(prev => prev ? { ...prev, endX: x, endY: y } : null);
+    };
+
+    const handleCanvasMouseUp = (e: React.MouseEvent) => {
+        if (!selectionBox) return;
+        
+        const left = Math.min(selectionBox.startX, selectionBox.endX);
+        const top = Math.min(selectionBox.startY, selectionBox.endY);
+        const right = Math.max(selectionBox.startX, selectionBox.endX);
+        const bottom = Math.max(selectionBox.startY, selectionBox.endY);
+        
+        if (Math.abs(selectionBox.endX - selectionBox.startX) > 5 || Math.abs(selectionBox.endY - selectionBox.startY) > 5) {
+            skipNextClickRef.current = true;
+            setTimeout(() => { skipNextClickRef.current = false; }, 100);
+            
+            let stateChanged = false;
+
+            // Check Rooms
+            rooms.filter(r => r.name?.toLowerCase() !== 'compass rose' && (r.floor_id || 'default') === currentFloorId).forEach(room => {
+                const geometries = room.geometries || (room.map_coordinates ? [room.map_coordinates] : []);
+                geometries.forEach(g => {
+                    if (g.x < right && (g.x + g.width) > left && g.y < bottom && (g.y + g.height) > top) {
+                        if (!selectedIdsRef.current.has(room.docId!)) {
+                            selectedIdsRef.current.add(room.docId!);
+                            setSelectionDOM(room.docId!, true);
+                            stateChanged = true;
+                        }
+                    }
+                });
+            });
+
+            // Check Locations
+            locations.filter(loc => (loc.floor_id || 'default') === currentFloorId && localCoords[loc.id]).forEach(loc => {
+                const c = localCoords[loc.id];
+                let cLeft = c.x;
+                let cTop = c.y;
+                let cRight = c.x + c.width;
+                let cBottom = c.y + c.height;
+
+                if (c.display_type === 'pin') {
+                    cLeft = c.x - 24;
+                    cTop = c.y - 48;
+                    cRight = c.x + 24;
+                    cBottom = c.y;
+                }
+
+                if (cLeft < right && cRight > left && cTop < bottom && cBottom > top) {
+                    if (!selectedIdsRef.current.has(loc.id)) {
+                        selectedIdsRef.current.add(loc.id);
+                        setSelectionDOM(loc.id, true);
+                        stateChanged = true;
+                    }
+                }
+            });
+
+            if (stateChanged) setSelectionTick(t => t + 1);
+        }
+        
+        setSelectionBox(null);
     };
 
     const handleGroupDragStart = (draggedId: string, _draggedIndex?: number, e?: any) => {
@@ -904,6 +1014,7 @@ export function InteractiveMap() {
         }
 
         setDraggingId(draggedId);
+        setGroupDragOffset({ x: 0, y: 0 });
         dragStartPosRef.current = {};
         
         // Track start position for EVERY selected item (and internal room geometries)
@@ -943,48 +1054,13 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        selectedIdsRef.current.forEach(id => {
-            const isLead = id === draggedId;
-
-            // Handle Node following (Rooms and Pins use the same rnd-node prefix)
-            const node = document.getElementById(`rnd-node-${id}`);
-            const nodeStart = dragStartPosRef.current[id];
-            
-            if (node && nodeStart) {
-                // If it's the lead item, let Rnd handle its own transform, UNLESS we are dragging a sub-geometry
-                if (!isLead || (draggedIndex !== undefined && draggedIndex !== 0)) {
-                    const lCoords = localCoords[id];
-                    const isPin = lCoords?.display_type === 'pin';
-                    const visualX = nodeStart.x + offsetX - (isPin ? 30 : 0);
-                    const visualY = nodeStart.y + offsetY - (isPin ? 50 : 0);
-                    node.style.transform = `translate(${visualX}px, ${visualY}px)`;
-                }
-            }
-
-            // Handle Merged Room Sub-Geometries (Internal Boxes)
-            const room = rooms.find(r => r.id === id || r.docId === id);
-            if (room && room.geometries && room.geometries.length > 1) {
-                room.geometries.forEach((_, gi) => {
-                    if (isLead && gi === draggedIndex) return; // Rnd handles the grabbed one
-
-                    const geomNode = document.getElementById(gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`);
-                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                    if (geomNode && gStart) {
-                        // Interior room boxes never use pin offsets
-                        geomNode.style.transform = `translate(${gStart.x + offsetX}px, ${gStart.y + offsetY}px)`;
-                    }
-                });
-            }
-
-            // Handle Room Label following
-            const labelNode = document.getElementById(`room-label-${id}`);
-            if (labelNode && nodeStart) {
-                labelNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-            }
-        });
+        setGroupDragOffset({ x: offsetX, y: offsetY });
     };
 
     const handleGroupDragStopStateSync = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
+        setGroupDragOffset(null);
+        setDraggingId(null);
+
         const start = draggedIndex !== undefined 
             ? dragStartPosRef.current[`${draggedId}-geom-${draggedIndex}`] 
             : dragStartPosRef.current[draggedId];
@@ -1057,6 +1133,14 @@ export function InteractiveMap() {
                 }
             });
             return hasChanges ? next : prev;
+        });
+        
+        // Clear manual transforms applied during drag
+        selectedIdsRef.current.forEach(id => {
+            const labelNode = document.getElementById(`room-label-${id}`);
+            if (labelNode) {
+                labelNode.style.transform = '';
+            }
         });
         
         setDraggingId(null);
@@ -1203,14 +1287,58 @@ export function InteractiveMap() {
         return () => wrapper.removeEventListener('wheel', onWheel);
     }, []);
 
+    const currentFloorObj = floors.find(f => f.id === currentFloorId);
+    const floorBeneath = currentFloorObj ? floors.filter(f => f.level < currentFloorObj.level).sort((a,b) => b.level - a.level)[0] : null;
+
     return (
         <div className="relative flex flex-col h-full animate-in fade-in duration-500 overflow-hidden bg-cream" onClick={handleCanvasClick}>
             <div className="bg-white border-b border-tan-light/50 p-4 md:px-8 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 z-20 shrink-0">
-                <div>
-                    <h1 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
-                        <MapPin className="text-tan" size={24} /> Museum Blueprint
-                    </h1>
-                    <p className="text-[10px] text-charcoal/40 font-bold uppercase tracking-widest mt-0.5 ml-8">Interactive digital floor plan</p>
+                <div className="flex items-center gap-6">
+                    <div>
+                        <h1 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
+                            <MapPin className="text-tan" size={24} /> Museum Blueprint
+                        </h1>
+                        <p className="text-[10px] text-charcoal/40 font-bold uppercase tracking-widest mt-0.5 ml-8">Interactive digital floor plan</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 border-l border-tan-light/50 pl-6">
+                        <select 
+                            className="bg-cream p-2 rounded-lg border border-tan/20 text-sm font-serif font-bold text-charcoal outline-none focus:ring-1 focus:ring-tan cursor-pointer hover:bg-tan/5 transition-colors"
+                            value={currentFloorId}
+                            onChange={(e) => setCurrentFloorId(e.target.value)}
+                        >
+                            {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                        </select>
+                        {floorBeneath && (
+                            <button
+                                onClick={() => setShowUnderlay(!showUnderlay)}
+                                className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${showUnderlay ? 'bg-blue-500 text-white shadow-inner' : 'bg-tan/10 text-tan hover:bg-tan/20'} ml-1`}
+                                title={`Toggle Underlay (${floorBeneath.name})`}
+                            >
+                                <Layers size={18} />
+                            </button>
+                        )}
+                        {isEditMode && (
+                            <button 
+                                onClick={() => {
+                                    const name = window.prompt("Enter new floor name (e.g. Basement):");
+                                    if (!name) return;
+                                    const levelStr = window.prompt("Enter vertical level number (e.g. -1 for below main, 1 for above):", "1");
+                                    const level = parseInt(levelStr || "0", 10);
+                                    if (isNaN(level)) return;
+                                    
+                                    const newFloor = { id: 'floor_' + Date.now(), name, level };
+                                    saveSnapshot();
+                                    setFloors(prev => [...prev, newFloor].sort((a,b) => b.level - a.level));
+                                    setCurrentFloorId(newFloor.id);
+                                }}
+                                className="p-2 bg-tan/10 text-tan rounded-lg hover:bg-tan hover:text-white transition-colors"
+                                title="Add New Floor"
+                            >
+                                <Plus size={18} />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 
                 <div className="flex items-center gap-4">
@@ -1613,9 +1741,47 @@ export function InteractiveMap() {
 
                 {!loading && (
                     <div className="relative flex-shrink-0 m-auto shadow-2xl bg-white border border-tan-light/30" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
-                                <div className="absolute top-0 left-0 blueprint-grid" onClick={handleCanvasClick} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                <div className="absolute top-0 left-0 blueprint-grid" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                    {/* Render Marquee Selection Box */}
+                                    {selectionBox && (
+                                        <div 
+                                            className="absolute border border-blue-500 bg-blue-500/20 pointer-events-none z-[500]"
+                                            style={{
+                                                left: Math.min(selectionBox.startX, selectionBox.endX),
+                                                top: Math.min(selectionBox.startY, selectionBox.endY),
+                                                width: Math.abs(selectionBox.endX - selectionBox.startX),
+                                                height: Math.abs(selectionBox.endY - selectionBox.startY)
+                                            }}
+                                        />
+                                    )}
+                                    {/* Render Ghost Underlay */}
+                                    {showUnderlay && floorBeneath && rooms.filter(r => r.name?.toLowerCase() !== 'compass rose' && (r.floor_id || 'default') === floorBeneath.id).map(room => {
+                                        const geometries = room.geometries || (room.map_coordinates ? [room.map_coordinates] : []);
+                                        if (geometries.length === 0) return null;
+
+                                        return (
+                                            <Fragment key={`ghost-${room.docId}`}>
+                                                {geometries.map((c, i) => (
+                                                    <div 
+                                                        key={`ghost-${room.docId}-box-${i}`}
+                                                        className="absolute pointer-events-none z-0"
+                                                        style={{ 
+                                                            left: c.x,
+                                                            top: c.y,
+                                                            width: c.width,
+                                                            height: c.height,
+                                                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                                            border: '2px dashed rgba(59, 130, 246, 0.5)',
+                                                            transform: `rotate(${c.rotation || 0}deg)`
+                                                        }}
+                                                    />
+                                                ))}
+                                            </Fragment>
+                                        );
+                                    })}
+
                                     {/* Render Rooms */}
-                                    {rooms.filter(r => r.name?.toLowerCase() !== 'compass rose').map(room => {
+                                    {rooms.filter(r => r.name?.toLowerCase() !== 'compass rose' && (r.floor_id || 'default') === currentFloorId).map(room => {
                                 const geometries = room.geometries || (room.map_coordinates ? [room.map_coordinates] : []);
                                 if (geometries.length === 0) return null;
 
@@ -1696,7 +1862,10 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
+                                        position={draggingId === room.docId && index === 0 ? undefined : { 
+                                            x: c.x + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
+                                            y: c.y + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0) 
+                                        }}
                                         size={{ width: c.width, height: c.height }}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
@@ -1768,8 +1937,8 @@ export function InteractiveMap() {
                                                     key={`${room.docId}-wall-${i}`} 
                                                     style={{ 
                                                         position: 'absolute', 
-                                                        left: c.x, 
-                                                        top: c.y, 
+                                                        left: c.x + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
+                                                        top: c.y + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0), 
                                                         width: c.width, 
                                                         height: c.height,
                                                         backgroundColor: 'rgba(0, 0, 0, 0.01)' // Back to original invisible trigger
@@ -1784,10 +1953,10 @@ export function InteractiveMap() {
                                         {/* Master Room Label (Centered over Anchor) */}
                                         <div 
                                             id={`room-label-${room.docId}`}
-                                            className="absolute pointer-events-none flex items-center justify-center text-center z-[70] transition-transform duration-75"
+                                            className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
                                             style={{ 
-                                                left: anchorX - 60, 
-                                                top: anchorY - 40, 
+                                                left: anchorX - 60 + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
+                                                top: anchorY - 40 + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0), 
                                                 width: 120, 
                                                 height: 80 
                                             }}
@@ -1809,7 +1978,7 @@ export function InteractiveMap() {
                             })}
 
                                     {/* Render Locations (Pins/Blocks) */}
-                                    {locations.filter(l => l.name?.toLowerCase() !== 'compass rose').map(loc => {
+                                    {locations.filter(l => l.name?.toLowerCase() !== 'compass rose' && (l.floor_id || 'default') === currentFloorId).map(loc => {
                                 const c = { ...loc, ...(localCoords[loc.id] || {}) };
                                 if (!localCoords[loc.id]) return null;
                                 const isSelected = selectedIdsRef.current.has(loc.id);
@@ -1836,8 +2005,8 @@ export function InteractiveMap() {
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
                                         position={draggingId === loc.id ? undefined : { 
-                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
-                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y 
+                                            x: (c.display_type === 'pin' ? (c.x - 30) : c.x) + (groupDragOffset && selectedIdsRef.current.has(loc.id) ? groupDragOffset.x : 0), 
+                                            y: (c.display_type === 'pin' ? (c.y - 50) : c.y) + (groupDragOffset && selectedIdsRef.current.has(loc.id) ? groupDragOffset.y : 0) 
                                         }}
                                         size={{ 
                                             width: c.display_type === 'pin' ? 60 : c.width, 
@@ -1970,67 +2139,91 @@ export function InteractiveMap() {
                                     </Rnd>
                                 );
                             })}
+                            
+                            {/* Premium Compass Rose - Now part of the Blueprint Canvas */}
+                            <Rnd
+                                size={{ width: resizingCompassSize || compassRose.width || 240, height: resizingCompassSize || compassRose.height || 240 }}
+                                position={{ x: compassRose.x, y: compassRose.y }}
+                                onDragStop={(_e, d) => {
+                                    saveSnapshot();
+                                    setCompassRose(prev => ({ ...prev, x: d.x, y: d.y }));
+                                }}
+                                scale={scale}
+                                disableDragging={!isEditMode}
+                                enableResizing={isEditMode}
+                                lockAspectRatio={true}
+                                resizeHandleStyles={{
+                                    bottomRight: { width: 12, height: 12, background: '#3b82f6', border: '2px solid white', borderRadius: '50%', bottom: -6, right: -6 },
+                                    bottomLeft: { width: 12, height: 12, background: '#3b82f6', border: '2px solid white', borderRadius: '50%', bottom: -6, left: -6 },
+                                    topRight: { width: 12, height: 12, background: '#3b82f6', border: '2px solid white', borderRadius: '50%', top: -6, right: -6 },
+                                    topLeft: { width: 12, height: 12, background: '#3b82f6', border: '2px solid white', borderRadius: '50%', top: -6, left: -6 }
+                                }}
+                                onResizeStart={() => {
+                                    setResizingCompassSize(compassRose.width || 240);
+                                }}
+                                onResize={(_e, _dir, ref) => {
+                                    setResizingCompassSize(parseInt(ref.style.width, 10));
+                                }}
+                                onResizeStop={(_e, _dir, ref, _delta, pos) => {
+                                    saveSnapshot();
+                                    const newSize = parseInt(ref.style.width, 10);
+                                    setResizingCompassSize(null);
+                                    setCompassRose(prev => ({ ...prev, width: newSize, height: newSize, x: pos.x, y: pos.y }));
+                                }}
+                                className="absolute z-[100]"
+                                dragHandleClassName="compass-drag-handle"
+                            >
+                                <div className={`relative w-full h-full flex items-center justify-center transition-opacity duration-300 ${!isEditMode ? 'opacity-80' : 'opacity-100'} group`}>
+                                    <div className="transform" style={{ transform: `scale(${(resizingCompassSize || compassRose.width || 240) / 120})` }}>
+                                        <div 
+                                            className={`relative p-6 rounded-full ${isEditMode ? 'bg-white/40 border-2 border-dashed border-tan/30 cursor-move compass-drag-handle' : 'pointer-events-none'}`}
+                                            style={{ transform: `rotate(${compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}
+                                        >
+                                            <Compass size={40} className="text-charcoal/80 drop-shadow-sm" strokeWidth={1.5} />
+                                            
+                                            {/* Cardinal Directions */}
+                                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-tan/80 select-none pointer-events-none">
+                                                <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>N</div>
+                                            </div>
+                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                                <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>S</div>
+                                            </div>
+                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                                <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>W</div>
+                                            </div>
+                                            <div className="absolute -right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                                <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>E</div>
+                                            </div>
+                                            
+                                            {/* Decorative cardinal lines */}
+                                            <div className="absolute inset-0 border border-tan/5 rounded-full -m-2 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {isEditMode && (
+                                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-white p-3 rounded-lg shadow-xl border border-tan/30 flex flex-col items-center gap-2 w-48 opacity-0 group-hover:opacity-100 transition-opacity z-[200] cursor-auto">
+                                            <label className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest w-full flex justify-between">
+                                                <span>Rotation</span>
+                                                <span className="text-tan">{compassRose.rotation}°</span>
+                                            </label>
+                                            <input 
+                                                type="range" 
+                                                min="0" 
+                                                max="360" 
+                                                value={compassRose.rotation}
+                                                onChange={(e) => setCompassRose(prev => ({ ...prev, rotation: parseInt(e.target.value, 10) }))}
+                                                onMouseUp={() => saveSnapshot()}
+                                                onTouchEnd={() => saveSnapshot()}
+                                                className="w-full accent-tan h-1.5 bg-tan/10 rounded-lg appearance-none cursor-pointer"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </Rnd>
                         </div>
                     </div>
                 )}
             </div>
-
-            {/* Premium Compass Rose Overlay */}
-            <Rnd
-                size={{ width: 120, height: 120 }}
-                position={{ x: compassRose.x, y: compassRose.y }}
-                onDragStop={(_e, d) => {
-                    saveSnapshot();
-                    setCompassRose(prev => ({ ...prev, x: d.x, y: d.y }));
-                }}
-                disableDragging={!isEditMode}
-                enableResizing={false}
-                className="z-[100]"
-                dragHandleClassName="compass-drag-handle"
-            >
-                <div className={`relative w-full h-full flex items-center justify-center transition-opacity duration-300 ${!isEditMode && compassRose.x === 32 && compassRose.y === 32 ? 'opacity-40 hover:opacity-100' : 'opacity-100'}`}>
-                    <div 
-                        className={`relative p-6 rounded-full ${isEditMode ? 'bg-white/40 border-2 border-dashed border-tan/30 cursor-move compass-drag-handle' : 'pointer-events-none'}`}
-                        style={{ transform: `rotate(${compassRose.rotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}
-                    >
-                        <Compass size={40} className="text-charcoal/80 drop-shadow-sm" strokeWidth={1.5} />
-                        
-                        {/* Cardinal Directions */}
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-tan/80 select-none pointer-events-none">
-                            <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>N</div>
-                        </div>
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
-                            <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>S</div>
-                        </div>
-                        <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
-                            <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>W</div>
-                        </div>
-                        <div className="absolute -right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
-                            <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>E</div>
-                        </div>
-                        
-                        {/* Decorative cardinal lines */}
-                        <div className="absolute inset-0 border border-tan/5 rounded-full -m-2 pointer-events-none" />
-                    </div>
-
-                    {isEditMode && (
-                        <div className="absolute top-0 right-0 flex gap-1 animate-in fade-in zoom-in-50">
-                            <button 
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    const deg = (compassRose.rotation + 90) % 360;
-                                    saveSnapshot();
-                                    setCompassRose(prev => ({ ...prev, rotation: deg }));
-                                }} 
-                                className="bg-white p-1.5 rounded-lg shadow-md border border-tan/20 text-tan hover:bg-tan hover:text-white transition-all transform hover:scale-110 active:scale-95"
-                                title="Rotate Compass (90°)"
-                            >
-                                <RotateCw size={14} />
-                            </button>
-                        </div>
-                    )}
-                </div>
-            </Rnd>
         </div>
     );
 }

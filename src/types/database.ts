@@ -23,6 +23,13 @@ export interface Room {
         display_type?: 'pin' | 'block';
     }>;
     group_id?: string;
+    floor_id?: string;
+}
+
+export interface MapFloor {
+    id: string;
+    name: string;
+    level: number;
 }
 
 export interface Collection {
@@ -54,6 +61,7 @@ export interface MuseumLocation {
         z_index?: number;
         display_type?: 'pin' | 'block';
     } | null;
+    floor_id?: string;
 }
 
 export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization' | 'Artifact';
