@@ -43,6 +43,7 @@ export interface MuseumLocation {
     description?: string;
     created_at: string;
     room_id?: string;
+    parent_location_id?: string; // Links a Box to a parent Shelf/Case Location
     display_type?: 'pin' | 'block';
     map_coordinates?: {
         x: number;

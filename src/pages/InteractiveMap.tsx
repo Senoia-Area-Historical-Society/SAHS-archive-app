@@ -203,12 +203,14 @@ export function InteractiveMap() {
         setLoading(true);
         try {
             const snapshot = await getDocs(collection(db, 'locations'));
-            const data = snapshot.docs.map(doc => ({
+            const rawData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
                 docId: doc.id
             })) as MuseumLocation[];
             
+            // Exclude nested boxes from the map entirely
+            const data = rawData.filter(loc => !loc.parent_location_id);
             setLocations(data);
             
             const coords: Record<string, any> = {};

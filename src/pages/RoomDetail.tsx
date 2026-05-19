@@ -32,7 +32,7 @@ export function RoomDetail() {
                     ...doc.data()
                 })) as MuseumLocation[];
                 
-                setLocations(locData.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })));
+                setLocations(locData);
             } catch (error) {
                 console.error("Error fetching room details:", error);
             } finally {
@@ -62,6 +62,8 @@ export function RoomDetail() {
             </div>
         );
     }
+
+    const topLevelLocations = locations.filter(l => !l.parent_location_id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
     return (
         <div className="min-h-screen bg-cream animate-in fade-in duration-700 pb-20">
@@ -96,7 +98,7 @@ export function RoomDetail() {
                         <div className="flex items-center gap-8">
                             <div className="flex items-center gap-3 px-6 py-3 bg-cream rounded-2xl border border-tan-light/20">
                                 <MapPin size={20} className="text-tan" /> 
-                                <span className="text-sm font-bold text-charcoal tracking-wide">{locations.length} Display Areas</span>
+                                <span className="text-sm font-bold text-charcoal tracking-wide">{topLevelLocations.length} Display Areas</span>
                             </div>
                         </div>
                     </div>
@@ -112,9 +114,11 @@ export function RoomDetail() {
                     <div className="h-px flex-1 bg-tan-light/20 hidden md:block mx-8 mb-4" />
                 </div>
 
-                {locations.length > 0 ? (
+                {topLevelLocations.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        {locations.map(loc => (
+                        {topLevelLocations.map(loc => {
+                            const nestedCount = locations.filter(l => l.parent_location_id === loc.docId || l.parent_location_id === loc.id).length;
+                            return (
                             <Link 
                                 key={loc.docId}
                                 to={`/locations/${loc.id}`}
@@ -139,15 +143,23 @@ export function RoomDetail() {
                                 </div>
 
                                 <div className="flex items-center justify-between pt-8 border-t border-tan-light/10 relative z-10">
-                                    <div className="flex items-center gap-3 text-xs font-black text-charcoal/30 uppercase tracking-[0.2em] group-hover:text-charcoal transition-colors">
-                                        <Box size={16} /> View Collection
+                                    <div className="flex flex-col gap-1 text-xs font-black text-charcoal/30 uppercase tracking-[0.2em] group-hover:text-charcoal transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <Box size={16} /> View Collection
+                                        </div>
+                                        {nestedCount > 0 && (
+                                            <div className="text-tan/60 text-[9px] mt-1 group-hover:text-tan">
+                                                Includes {nestedCount} Nested Box{nestedCount !== 1 ? 'es' : ''}
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="w-10 h-10 rounded-full bg-cream flex items-center justify-center group-hover:bg-tan group-hover:text-white transition-all transform group-hover:translate-x-2">
                                         <ChevronLeft size={20} className="rotate-180" />
                                     </div>
                                 </div>
                             </Link>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="bg-white/50 border-2 border-dashed border-tan-light/30 rounded-[40px] py-32 text-center">

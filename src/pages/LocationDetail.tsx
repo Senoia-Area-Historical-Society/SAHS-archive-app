@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
-import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle } from 'lucide-react';
+import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2 } from 'lucide-react';
 import type { MuseumLocation, ArchiveItem } from '../types/database';
 
 export function LocationDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [locationData, setLocationData] = useState<MuseumLocation | null>(null);
+    const [parentLocation, setParentLocation] = useState<MuseumLocation | null>(null);
+    const [childBoxes, setChildBoxes] = useState<MuseumLocation[]>([]);
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser, user } = useAuth();
@@ -32,21 +35,54 @@ export function LocationDetail() {
     const [conflictedItems, setConflictedItems] = useState<ArchiveItem[]>([]);
     const [currentConflictIndex, setCurrentConflictIndex] = useState(-1);
 
+    // Box Management State
+    const [isAddBoxModalOpen, setIsAddBoxModalOpen] = useState(false);
+    const [newBoxName, setNewBoxName] = useState('');
+    const [newBoxId, setNewBoxId] = useState('');
+    const [isSubmittingBox, setIsSubmittingBox] = useState(false);
+
+    const [isMoveBoxModalOpen, setIsMoveBoxModalOpen] = useState(false);
+    const [newParentShelfId, setNewParentShelfId] = useState('');
+    const [availableShelves, setAvailableShelves] = useState<MuseumLocation[]>([]);
+    const [isMovingBox, setIsMovingBox] = useState(false);
+
     const fetchLocationAndItems = async () => {
         if (!id) return;
         setLoading(true);
+        setChildBoxes([]);
+        setParentLocation(null);
         try {
             // Fetch location details
             const docRef = doc(db, 'locations', id);
             const docSnap = await getDoc(docRef);
             
+            let locDocId = id;
+            let currentLocData: MuseumLocation | null = null;
+            
             if (docSnap.exists()) {
-                setLocationData({ id: docSnap.id, ...docSnap.data() } as MuseumLocation);
+                currentLocData = { id: docSnap.id, docId: docSnap.id, ...docSnap.data() } as MuseumLocation;
+                setLocationData(currentLocData);
             } else {
                 const locQuery = query(collection(db, 'locations'), where('id', '==', id));
                 const locSnap = await getDocs(locQuery);
                 if (!locSnap.empty) {
-                    setLocationData({ id: locSnap.docs[0].id, ...locSnap.docs[0].data() } as MuseumLocation);
+                    locDocId = locSnap.docs[0].id;
+                    currentLocData = { id: locSnap.docs[0].id, docId: locSnap.docs[0].id, ...locSnap.docs[0].data() } as MuseumLocation;
+                    setLocationData(currentLocData);
+                }
+            }
+
+            if (currentLocData) {
+                if (currentLocData.parent_location_id) {
+                    const parentRef = doc(db, 'locations', currentLocData.parent_location_id);
+                    const parentSnap = await getDoc(parentRef);
+                    if (parentSnap.exists()) {
+                        setParentLocation({ id: parentSnap.id, docId: parentSnap.id, ...parentSnap.data() } as MuseumLocation);
+                    }
+                } else if (locDocId) {
+                    const childQ = query(collection(db, 'locations'), where('parent_location_id', '==', locDocId));
+                    const childSnap = await getDocs(childQ);
+                    setChildBoxes(childSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation)));
                 }
             }
 
@@ -319,6 +355,120 @@ export function LocationDetail() {
         }
     };
 
+    const handleCreateBox = async () => {
+        if (!newBoxName || !newBoxId || !locationData?.docId) return;
+        setIsSubmittingBox(true);
+        try {
+            const boxIdSafe = newBoxId.toLowerCase().replace(/\s+/g, '-');
+            const newLoc = {
+                id: boxIdSafe,
+                name: newBoxName,
+                description: `Nested box inside ${locationData.name}`,
+                room_id: locationData.room_id,
+                parent_location_id: locationData.docId,
+                created_at: new Date().toISOString()
+            };
+            const docRef = await addDoc(collection(db, 'locations'), newLoc);
+            setChildBoxes(prev => [...prev, { docId: docRef.id, ...newLoc } as MuseumLocation]);
+            setIsAddBoxModalOpen(false);
+            setNewBoxName('');
+            setNewBoxId('');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to create box');
+        } finally {
+            setIsSubmittingBox(false);
+        }
+    };
+
+    const openMoveBoxModal = async () => {
+        setIsMoveBoxModalOpen(true);
+        if (availableShelves.length === 0) {
+            try {
+                const q = query(collection(db, 'locations'));
+                const snap = await getDocs(q);
+                const shelves = snap.docs
+                    .map(d => ({ docId: d.id, ...d.data() } as MuseumLocation))
+                    .filter(l => !l.parent_location_id && l.docId !== locationData?.docId);
+                setAvailableShelves(shelves);
+            } catch (err) {
+                console.error("Failed to fetch shelves", err);
+            }
+        }
+    };
+
+    const handleRelocateBox = async () => {
+        if (!newParentShelfId || !locationData?.docId) return;
+        setIsMovingBox(true);
+        try {
+            const shelf = availableShelves.find(s => s.docId === newParentShelfId);
+            await updateDoc(doc(db, 'locations', locationData.docId), {
+                parent_location_id: newParentShelfId,
+                room_id: shelf?.room_id || locationData.room_id
+            });
+            
+            setParentLocation(shelf || null);
+            setIsMoveBoxModalOpen(false);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to move box');
+        } finally {
+            setIsMovingBox(false);
+        }
+    };
+
+    const handleDeleteBox = async () => {
+        if (!locationData?.docId || !parentLocation) return;
+        
+        if (!window.confirm(`Are you sure you want to delete "${locationData.name}"?\n\nThe ${items.length} artifacts inside will NOT be deleted, but they will be unassigned from this physical location.`)) {
+            return;
+        }
+
+        setIsMovingBox(true); // Reusing the loading state for convenience during the async operation
+        try {
+            // Unassign all items in this box
+            if (items.length > 0) {
+                const batch = writeBatch(db);
+                const now = new Date().toISOString();
+                const adminEmail = user?.email || 'Admin';
+
+                items.forEach(item => {
+                    const itemRef = doc(db, 'archive_items', item.id!);
+                    const currentIds = item.museum_location_ids || [];
+                    const newIds = currentIds.filter(lid => lid !== locationData.id && lid !== locationData.docId);
+                    
+                    const updates: any = {
+                        museum_location_ids: newIds,
+                        last_tagged_at: now,
+                        last_tagged_by: adminEmail
+                    };
+
+                    if (item.museum_location_id === locationData.id || item.museum_location_id === locationData.docId) {
+                        updates.museum_location_id = null;
+                    }
+                    if (newIds.length === 0) {
+                        updates.stage = 'Unassigned';
+                    }
+
+                    batch.update(itemRef, updates);
+                });
+                
+                await batch.commit();
+            }
+
+            // Delete the box
+            await deleteDoc(doc(db, 'locations', locationData.docId));
+            
+            // Navigate back to parent shelf
+            navigate(`/locations/${parentLocation.id || parentLocation.docId}`);
+        } catch (error) {
+            console.error("Error deleting box:", error);
+            alert("Failed to delete box. Please check your permissions.");
+        } finally {
+            setIsMovingBox(false);
+        }
+    };
+
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading shelf details...</div>;
     }
@@ -404,7 +554,11 @@ export function LocationDetail() {
         )}
 
         <div className="max-w-full mx-auto h-full flex flex-col animate-in fade-in duration-500 pb-16 print:hidden">
-            {locationData.room_id ? (
+            {parentLocation ? (
+                <Link to={`/locations/${parentLocation.id || parentLocation.docId}`} className="inline-flex items-center text-[10px] font-black text-tan uppercase tracking-[0.3em] mb-12 hover:text-charcoal transition-all group">
+                    <ChevronLeft size={14} className="mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Parent Shelf ({parentLocation.name})
+                </Link>
+            ) : locationData.room_id ? (
                 <Link to={`/manage-locations/rooms/${locationData.room_id}`} className="inline-flex items-center text-[10px] font-black text-tan uppercase tracking-[0.3em] mb-12 hover:text-charcoal transition-all group">
                     <ChevronLeft size={14} className="mr-2 group-hover:-translate-x-1 transition-transform" /> Back to Wing
                 </Link>
@@ -428,7 +582,7 @@ export function LocationDetail() {
                 <div className="p-8 md:p-12 lg:p-16 flex-1 flex flex-col justify-center relative z-10">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="h-px w-8 bg-tan/30" />
-                        <span className="text-[10px] font-black text-tan uppercase tracking-[0.4em]">Display Location #{locationData.id}</span>
+                        <span className="text-[10px] font-black text-tan uppercase tracking-[0.4em]">{parentLocation ? `Nested Box in ${parentLocation.name}` : `Display Location #${locationData.id}`}</span>
                     </div>
                     <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold mb-4 text-charcoal tracking-tight leading-[0.95]">
                         {locationData.name}
@@ -453,6 +607,35 @@ export function LocationDetail() {
                 
                 <div className="flex items-center gap-3">
                     {isSAHSUser && (
+                        <div className="flex items-center gap-2">
+                            {!parentLocation && (
+                                <button 
+                                    onClick={() => setIsAddBoxModalOpen(true)}
+                                    className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                >
+                                    <Box size={18} /> Add Nested Box
+                                </button>
+                            )}
+                            <button 
+                                onClick={openMoveBoxModal}
+                                className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                title={parentLocation ? "Relocate Box" : "Move inside a Shelf"}
+                            >
+                                <MapPin size={18} /> {parentLocation ? 'Relocate Box' : 'Make Nested Box'}
+                            </button>
+                            {parentLocation && (
+                                <button 
+                                    onClick={handleDeleteBox}
+                                    disabled={isMovingBox}
+                                    className="flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all shadow-sm justify-center bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                    title="Delete Box"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {isSAHSUser && (
                         <button 
                             onClick={() => setIsSelectMode(!isSelectMode)}
                             className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center ${
@@ -464,7 +647,7 @@ export function LocationDetail() {
                         </button>
                     )}
                     <Link 
-                        to={`/interactive-map?highlight=${id}`}
+                        to={`/interactive-map?highlight=${parentLocation ? (parentLocation.id || parentLocation.docId) : id}`}
                         className="flex items-center gap-2 bg-charcoal text-white px-5 py-3 rounded-lg font-bold hover:bg-tan transition-colors shadow-sm w-full sm:w-auto justify-center"
                     >
                         <MapPin size={18} /> View on Blueprint
@@ -625,6 +808,108 @@ export function LocationDetail() {
                                 </button>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Box Modal */}
+            {isAddBoxModalOpen && (
+                <div className="fixed inset-0 z-[2000] bg-charcoal/90 flex flex-col items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
+                                <Box className="text-tan" size={24}/> Add Nested Box
+                            </h2>
+                            <button onClick={() => setIsAddBoxModalOpen(false)} className="text-charcoal/40 hover:text-charcoal"><X size={24}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Box Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Box 14"
+                                    value={newBoxName}
+                                    onChange={e => setNewBoxName(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. box-14"
+                                    value={newBoxId}
+                                    onChange={e => setNewBoxId(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
+                                />
+                            </div>
+                            <button 
+                                onClick={handleCreateBox}
+                                disabled={isSubmittingBox || !newBoxName || !newBoxId}
+                                className="w-full bg-tan text-white py-3 rounded-xl font-bold shadow-lg shadow-tan/20 hover:bg-charcoal transition-all disabled:opacity-50 mt-4"
+                            >
+                                {isSubmittingBox ? 'Creating...' : 'Create Box'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Move Box Modal */}
+            {isMoveBoxModalOpen && (
+                <div className="fixed inset-0 z-[2000] bg-charcoal/90 flex flex-col items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
+                                <MapPin className="text-tan" size={24}/> Relocate Box
+                            </h2>
+                            <button onClick={() => setIsMoveBoxModalOpen(false)} className="text-charcoal/40 hover:text-charcoal"><X size={24}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Destination Shelf</label>
+                                <select 
+                                    value={newParentShelfId} 
+                                    onChange={e => setNewParentShelfId(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans text-sm"
+                                >
+                                    <option value="">-- Select a Shelf --</option>
+                                    {availableShelves.map(l => (
+                                        <option key={l.docId} value={l.docId}>{l.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button 
+                                onClick={handleRelocateBox}
+                                disabled={isMovingBox || !newParentShelfId}
+                                className="w-full bg-tan text-white py-3 rounded-xl font-bold shadow-lg shadow-tan/20 hover:bg-charcoal transition-all disabled:opacity-50 mt-4"
+                            >
+                                {isMovingBox ? 'Moving...' : 'Move Box & Artifacts'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {childBoxes.length > 0 && (
+                <div className="mb-12">
+                    <h2 className="text-xl font-serif font-bold text-charcoal tracking-tight flex items-center gap-3 mb-6">
+                        Nested Boxes
+                        <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{childBoxes.length}</span>
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        {childBoxes.map(box => (
+                            <Link 
+                                key={box.docId}
+                                to={`/locations/${box.id || box.docId}`}
+                                className="bg-white border border-tan-light/50 rounded-2xl p-4 hover:shadow-lg hover:border-tan/30 transition-all group"
+                            >
+                                <div className="w-10 h-10 bg-tan/10 rounded-xl flex items-center justify-center text-tan mb-3 group-hover:scale-110 transition-transform">
+                                    <Box size={20} />
+                                </div>
+                                <h3 className="font-bold text-charcoal text-sm leading-tight">{box.name}</h3>
+                            </Link>
+                        ))}
                     </div>
                 </div>
             )}

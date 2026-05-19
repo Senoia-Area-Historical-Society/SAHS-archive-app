@@ -218,10 +218,21 @@ export function ItemDetail() {
                             const locSnaps = await Promise.all(locIds.map(lid => getDoc(doc(db, 'locations', lid))));
                             const locs = locSnaps
                                 .filter(s => s.exists())
-                                .map(s => ({ id: s.id, ...s.data() } as MuseumLocation));
+                                .map(s => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+
+                            const parentIds = Array.from(new Set(locs.filter(l => l.parent_location_id).map(l => l.parent_location_id as string)));
+                            if (parentIds.length > 0) {
+                                const parentSnaps = await Promise.all(parentIds.map(pid => getDoc(doc(db, 'locations', pid))));
+                                const parentLocs = parentSnaps.filter(s => s.exists()).map(s => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                                locs.push(...parentLocs);
+                            }
+
                             setAllLocations(prev => {
-                                const newMap = new Map(prev.map(l => [l.id, l]));
-                                locs.forEach(l => newMap.set(l.id, l));
+                                const newMap = new Map(prev.map(l => [l.docId || l.id, l]));
+                                locs.forEach(l => {
+                                    newMap.set(l.docId || l.id, l);
+                                    if (l.id) newMap.set(l.id, l);
+                                });
                                 return Array.from(newMap.values());
                             });
                         } catch (err) {
@@ -891,11 +902,20 @@ export function ItemDetail() {
                                                     {(item.museum_location_ids && item.museum_location_ids.length > 0) || item.museum_location_id ? (
                                                         <div className="flex flex-col gap-2">
                                                             {Array.from(new Set([...(item.museum_location_ids || []), ...(item.museum_location_id ? [item.museum_location_id] : [])])).map(locId => {
-                                                                const locObj = allLocations.find(l => l.id === locId);
+                                                                const locObj = allLocations.find(l => l.id === locId || l.docId === locId);
+                                                                let breadcrumbText = locObj?.name || 'Loading location...';
+                                                                
+                                                                if (locObj?.parent_location_id) {
+                                                                    const parentObj = allLocations.find(l => l.docId === locObj.parent_location_id);
+                                                                    if (parentObj) {
+                                                                        breadcrumbText = `${parentObj.name} > ${locObj.name}`;
+                                                                    }
+                                                                }
+
                                                                 return (
                                                                     <Link key={locId} to={`/locations/${locId}`} className="text-lg font-serif text-tan hover:underline block break-words leading-snug">
                                                                         <MapPin size={18} className="inline-block mr-1.5 -mt-1 shrink-0" />
-                                                                        <span>{locObj?.name || 'Loading location...'}</span>
+                                                                        <span>{breadcrumbText}</span>
                                                                     </Link>
                                                                 );
                                                             })}

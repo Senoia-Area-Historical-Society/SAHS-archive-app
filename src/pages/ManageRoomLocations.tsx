@@ -9,10 +9,12 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 // Reusable Location Card for Admin view
 const LocationCard = ({ 
     loc, 
+    childBoxes,
     handleEditClick, 
     handleDeleteLocation 
 }: { 
     loc: MuseumLocation, 
+    childBoxes: MuseumLocation[],
     handleEditClick: (loc: MuseumLocation) => void, 
     handleDeleteLocation: (docId: string | undefined, name: string) => void 
 }) => {
@@ -77,6 +79,12 @@ const LocationCard = ({
                         >
                             <MapPin size={12} /> View Page
                         </Link>
+
+                        {childBoxes.length > 0 && (
+                            <div className="w-full mt-1 pt-3 border-t border-tan/10 flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-tan/60 px-1">{childBoxes.length} Nested Box{childBoxes.length !== 1 ? 'es' : ''}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -249,12 +257,13 @@ export function ManageRoomLocations() {
                                 }}
                                 rows={3}
                             />
+                            
                             <div className="flex gap-2 pt-2">
                                 <button type="submit" disabled={isSubmitting} className="flex-1 bg-tan text-white py-3 rounded-xl font-bold shadow-lg shadow-tan/20 hover:bg-charcoal transition-all">
                                     {isSubmitting ? '...' : mode === 'add' ? 'Create' : 'Save'}
                                 </button>
                                 {mode === 'edit' && (
-                                    <button onClick={()=>{setMode('add');setNewName('');setNewDesc('');setNewId('');}} className="p-3 bg-cream text-charcoal/40 rounded-xl hover:text-red-500">
+                                    <button onClick={(e)=>{e.preventDefault(); setMode('add');setNewName('');setNewDesc('');setNewId('');}} className="p-3 bg-cream text-charcoal/40 rounded-xl hover:text-red-500">
                                         <X size={20}/>
                                     </button>
                                 )}
@@ -264,8 +273,14 @@ export function ManageRoomLocations() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {locations.map(loc => (
-                        <LocationCard key={loc.docId} loc={loc} handleEditClick={handleEditClick} handleDeleteLocation={handleDelete} />
+                    {locations.filter(l => !l.parent_location_id).map(loc => (
+                        <LocationCard 
+                            key={loc.docId} 
+                            loc={loc} 
+                            childBoxes={locations.filter(child => child.parent_location_id === loc.docId)}
+                            handleEditClick={handleEditClick} 
+                            handleDeleteLocation={handleDelete} 
+                        />
                     ))}
                     
                     {locations.length === 0 && (

@@ -24,3 +24,16 @@
 .picker-dialog {
   z-index: 99991 !important;
 }
+
+/* Global Image Protections */
+img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  /* Standard syntax not fully supported but good for future-proofing */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
