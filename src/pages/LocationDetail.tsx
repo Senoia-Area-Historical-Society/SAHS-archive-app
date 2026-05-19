@@ -616,22 +616,24 @@ export function LocationDetail() {
                                     <Box size={18} /> Add Nested Box
                                 </button>
                             )}
-                            <button 
-                                onClick={openMoveBoxModal}
-                                className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
-                                title={parentLocation ? "Relocate Box" : "Move inside a Shelf"}
-                            >
-                                <MapPin size={18} /> {parentLocation ? 'Relocate Box' : 'Make Nested Box'}
-                            </button>
                             {parentLocation && (
-                                <button 
-                                    onClick={handleDeleteBox}
-                                    disabled={isMovingBox}
-                                    className="flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all shadow-sm justify-center bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
-                                    title="Delete Box"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+                                <>
+                                    <button 
+                                        onClick={handleDeleteBox}
+                                        disabled={isMovingBox}
+                                        className="flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all shadow-sm justify-center bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                        title="Delete Box"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                    <button 
+                                        onClick={openMoveBoxModal}
+                                        className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                        title="Relocate Box"
+                                    >
+                                        <MapPin size={18} /> Relocate Box
+                                    </button>
+                                </>
                             )}
                         </div>
                     )}
