@@ -99,7 +99,6 @@ export function InteractiveMap() {
     const [resizingRoomId, setResizingRoomId] = useState<string | null>(null);
     const [activeDimensions, setActiveDimensions] = useState<{ width: number, height: number } | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
-    const [groupDragOffset, setGroupDragOffset] = useState<{ x: number, y: number } | null>(null);
 
     // Compass Rose State (Overlay)
     const [compassRose, setCompassRose] = useState<{ x: number, y: number, rotation: number, width?: number, height?: number }>({ x: 32, y: 32, rotation: 0 });
@@ -1014,7 +1013,6 @@ export function InteractiveMap() {
         }
 
         setDraggingId(draggedId);
-        setGroupDragOffset({ x: 0, y: 0 });
         dragStartPosRef.current = {};
         
         // Track start position for EVERY selected item (and internal room geometries)
@@ -1054,11 +1052,57 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        setGroupDragOffset({ x: offsetX, y: offsetY });
+        selectedIdsRef.current.forEach(id => {
+            const isLead = id === draggedId;
+
+            // Handle Node following (Rooms and Pins) using inner data attribute selection and closest('.react-draggable') wrapper
+            const innerEl = document.querySelector(`[data-selection-id="${id}"]`);
+            const node = innerEl?.closest('.react-draggable') as HTMLElement | null;
+            const nodeStart = dragStartPosRef.current[id];
+            
+            if (node && nodeStart) {
+                const lCoords = localCoords[id];
+                const isPin = lCoords?.display_type === 'pin';
+                const visualX = nodeStart.x + offsetX - (isPin ? 30 : 0);
+                const visualY = nodeStart.y + offsetY - (isPin ? 50 : 0);
+                node.style.transform = `translate(${visualX}px, ${visualY}px)`;
+            }
+
+            // Handle Merged Room Sub-Geometries (Internal Boxes)
+            const room = rooms.find(r => r.id === id || r.docId === id);
+            if (room && room.geometries && room.geometries.length > 1) {
+                room.geometries.forEach((_, gi) => {
+                    if (gi === 0) return; // Handled by main node logic above
+
+                    const innerGeom = document.querySelector(`[data-geom-id="${id}-geom-${gi}"]`);
+                    const geomNode = innerGeom?.closest('.react-draggable') as HTMLElement | null;
+                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
+                    if (geomNode && gStart) {
+                        // Interior room boxes never use pin offsets
+                        geomNode.style.transform = `translate(${gStart.x + offsetX}px, ${gStart.y + offsetY}px)`;
+                    }
+                });
+            }
+
+            // Handle Room Label following
+            const labelNode = document.getElementById(`room-label-${id}`);
+            if (labelNode && nodeStart) {
+                labelNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            }
+
+            // Handle Ghost Walls
+            if (room && room.geometries) {
+                room.geometries.forEach((_, gi) => {
+                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
+                    if (wallNode) {
+                        wallNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                    }
+                });
+            }
+        });
     };
 
     const handleGroupDragStopStateSync = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
-        setGroupDragOffset(null);
         setDraggingId(null);
 
         const start = draggedIndex !== undefined 
@@ -1862,10 +1906,7 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        position={draggingId === room.docId && index === 0 ? undefined : { 
-                                            x: c.x + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
-                                            y: c.y + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0) 
-                                        }}
+                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
                                         size={{ width: c.width, height: c.height }}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
@@ -1893,6 +1934,7 @@ export function InteractiveMap() {
                                     >
                                         <div 
                                             data-selection-id={room.docId}
+                                            data-geom-id={`${room.docId}-geom-${index}`}
                                             data-selected={isSelected ? "true" : "false"}
                                             className="w-full h-full relative"
                                             style={{ 
@@ -1934,11 +1976,12 @@ export function InteractiveMap() {
                                         >
                                             {geometries.map((c, i) => (
                                                 <div 
+                                                    id={`ghost-wall-${room.docId}-${i}`}
                                                     key={`${room.docId}-wall-${i}`} 
                                                     style={{ 
                                                         position: 'absolute', 
-                                                        left: c.x + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
-                                                        top: c.y + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0), 
+                                                        left: c.x, 
+                                                        top: c.y, 
                                                         width: c.width, 
                                                         height: c.height,
                                                         backgroundColor: 'rgba(0, 0, 0, 0.01)' // Back to original invisible trigger
@@ -1955,8 +1998,8 @@ export function InteractiveMap() {
                                             id={`room-label-${room.docId}`}
                                             className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
                                             style={{ 
-                                                left: anchorX - 60 + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.x : 0), 
-                                                top: anchorY - 40 + (groupDragOffset && selectedIdsRef.current.has(room.docId!) ? groupDragOffset.y : 0), 
+                                                left: anchorX - 60, 
+                                                top: anchorY - 40, 
                                                 width: 120, 
                                                 height: 80 
                                             }}
@@ -2005,8 +2048,8 @@ export function InteractiveMap() {
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
                                         position={draggingId === loc.id ? undefined : { 
-                                            x: (c.display_type === 'pin' ? (c.x - 30) : c.x) + (groupDragOffset && selectedIdsRef.current.has(loc.id) ? groupDragOffset.x : 0), 
-                                            y: (c.display_type === 'pin' ? (c.y - 50) : c.y) + (groupDragOffset && selectedIdsRef.current.has(loc.id) ? groupDragOffset.y : 0) 
+                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
+                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
                                         size={{ 
                                             width: c.display_type === 'pin' ? 60 : c.width, 
@@ -2044,6 +2087,7 @@ export function InteractiveMap() {
                                         <div 
                                             id={`inner-rnd-${loc.id}`} 
                                             data-selection-id={loc.id}
+                                            data-geom-id={`${loc.id}-geom-0`}
                                             data-selected={isSelected ? "true" : "false"}
                                             data-highlighted={activeHighlightId === loc.id ? "true" : "false"}
                                             className="w-full h-full relative" 
