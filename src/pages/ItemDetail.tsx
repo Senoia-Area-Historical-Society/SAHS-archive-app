@@ -1,18 +1,19 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
+import { containsBannedWords } from '../utils/profanityFilter';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isSAHSUser, user } = useAuth();
+    const { isSAHSUser, user, hasResearchAccess, isAdmin, isCurator, isMember, memberData } = useAuth();
 
     const galleryIds = (location.state?.galleryIds as string[]) || [];
     const currentIndex = galleryIds.indexOf(id || '');
@@ -42,6 +43,32 @@ export function ItemDetail() {
     const [allLocations, setAllLocations] = useState<MuseumLocation[]>([]);
     const [newLocationId, setNewLocationId] = useState('');
     const [isSavingLocation, setIsSavingLocation] = useState(false);
+
+    // Bookmarking / Folder Workspace States
+    const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false);
+    const [userFolders, setUserFolders] = useState<{ id: string; name: string; itemIds: string[] }[]>([]);
+    const [loadingFolders, setLoadingFolders] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+
+    // Comments States & Callback Logic
+    const [comments, setComments] = useState<{
+        id: string;
+        authorName: string;
+        authorEmail: string;
+        role: 'Admin' | 'Curator' | 'Member';
+        content: string;
+        createdAt: string;
+        parentId?: string;
+    }[]>([]);
+    const [loadingComments, setLoadingComments] = useState(false);
+    const [newCommentText, setNewCommentText] = useState('');
+    const [isPostingComment, setIsPostingComment] = useState(false);
+    const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState('');
+    const [isPostingReply, setIsPostingReply] = useState(false);
 
     const handleEditLocationClick = async () => {
         setIsEditingLocation(true);
@@ -249,6 +276,255 @@ export function ItemDetail() {
         };
         fetchItemAndRelated();
     }, [id, isSAHSUser]);
+
+    const fetchComments = async () => {
+        if (!id) return;
+        setLoadingComments(true);
+        try {
+            const commentsCol = collection(db, 'archive_items', id, 'comments');
+            const snap = await getDocs(commentsCol);
+            const commentsList = snap.docs.map(docSnap => ({
+                id: docSnap.id,
+                ...docSnap.data()
+            })) as any[];
+            
+            // Sort oldest first
+            commentsList.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+            setComments(commentsList);
+        } catch (err) {
+            console.error("Error loading comments:", err);
+        } finally {
+            setLoadingComments(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchComments();
+    }, [id]);
+
+    const handlePostComment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !id || newCommentText.trim() === '') return;
+
+        if (containsBannedWords(newCommentText)) {
+            showToast("Your comment contains words that are not permitted on this platform. Please edit your comment and try again.");
+            return;
+        }
+
+        setIsPostingComment(true);
+
+        let authorName = user.displayName || '';
+        if (isMember && memberData?.name) {
+            authorName = memberData.name;
+        }
+        if (!authorName) {
+            const prefix = user.email.split('@')[0];
+            authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        }
+
+        let role: 'Admin' | 'Curator' | 'Member' = 'Member';
+        if (isAdmin) role = 'Admin';
+        else if (isCurator) role = 'Curator';
+
+        try {
+            const commentsCol = collection(db, 'archive_items', id, 'comments');
+            const newDocRef = doc(commentsCol);
+            const payload = {
+                id: newDocRef.id,
+                itemId: id,
+                authorName,
+                authorEmail: user.email.toLowerCase(),
+                role,
+                content: newCommentText.trim(),
+                createdAt: new Date().toISOString(),
+                status: 'approved'
+            };
+
+            await setDoc(newDocRef, payload);
+            setComments(prev => [...prev, payload]);
+            setNewCommentText('');
+            showToast("Comment posted successfully!");
+        } catch (err: any) {
+            console.error("Error posting comment:", err);
+            const errMsg = err?.message || '';
+            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+                showToast("Failed: Permission Denied. Check that firestore.rules are published and your account is added.");
+            } else {
+                showToast(`Failed to post comment: ${err?.code || err?.message || 'Unknown Error'}`);
+            }
+        } finally {
+            setIsPostingComment(false);
+        }
+    };
+
+    const handleDeleteComment = async (commentId: string) => {
+        if (!id) return;
+        if (!window.confirm("Are you sure you want to moderate and delete this comment?")) return;
+
+        try {
+            const commentRef = doc(db, 'archive_items', id, 'comments', commentId);
+            await deleteDoc(commentRef);
+            setComments(prev => prev.filter(c => c.id !== commentId));
+            showToast("Comment successfully moderated.");
+        } catch (err: any) {
+            console.error("Error deleting comment:", err);
+            const errMsg = err?.message || '';
+            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+                showToast("Failed: Permission Denied. You do not have curator/admin rights to moderate this comment.");
+            } else {
+                showToast(`Failed to moderate comment: ${err?.code || err?.message || 'Unknown Error'}`);
+            }
+        }
+    };
+
+    const handlePostReply = async (e: React.FormEvent, parentId: string) => {
+        e.preventDefault();
+        if (!user || !user.email || !id || replyText.trim() === '') return;
+
+        if (containsBannedWords(replyText)) {
+            showToast("Your reply contains words that are not permitted on this platform. Please edit your reply and try again.");
+            return;
+        }
+
+        setIsPostingReply(true);
+
+        let authorName = user.displayName || '';
+        if (isMember && memberData?.name) {
+            authorName = memberData.name;
+        }
+        if (!authorName) {
+            const prefix = user.email.split('@')[0];
+            authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        }
+
+        let role: 'Admin' | 'Curator' | 'Member' = 'Member';
+        if (isAdmin) role = 'Admin';
+        else if (isCurator) role = 'Curator';
+
+        try {
+            const commentsCol = collection(db, 'archive_items', id, 'comments');
+            const newDocRef = doc(commentsCol);
+            const payload = {
+                id: newDocRef.id,
+                itemId: id,
+                parentId,
+                authorName,
+                authorEmail: user.email.toLowerCase(),
+                role,
+                content: replyText.trim(),
+                createdAt: new Date().toISOString(),
+                status: 'approved'
+            };
+
+            await setDoc(newDocRef, payload);
+            setComments(prev => [...prev, payload]);
+            setReplyText('');
+            setReplyingToCommentId(null);
+            showToast("Reply posted successfully!");
+        } catch (err: any) {
+            console.error("Error posting reply:", err);
+            const errMsg = err?.message || '';
+            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+                showToast("Failed: Permission Denied. Check your rules and account status.");
+            } else {
+                showToast(`Failed to post reply: ${err?.code || 'Unknown Error'}`);
+            }
+        } finally {
+            setIsPostingReply(false);
+        }
+    };
+
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setTimeout(() => {
+            setToastMessage(null);
+        }, 3000);
+    };
+
+    useEffect(() => {
+        if (!isBookmarkModalOpen) {
+            setSelectedFolderId(null);
+        }
+    }, [isBookmarkModalOpen]);
+
+    useEffect(() => {
+        if (!user || !user.email || !hasResearchAccess || !isBookmarkModalOpen) return;
+        const email = user.email.toLowerCase();
+
+        const fetchUserFolders = async () => {
+            setLoadingFolders(true);
+            try {
+                const foldersCol = collection(db, 'members', email, 'research_folders');
+                const snap = await getDocs(foldersCol);
+                const foldersData = snap.docs.map(doc => ({
+                    id: doc.id,
+                    name: doc.data().name || '',
+                    itemIds: doc.data().itemIds || []
+                }));
+                setUserFolders(foldersData);
+            } catch (err) {
+                console.error("Error fetching research folders", err);
+            } finally {
+                setLoadingFolders(false);
+            }
+        };
+
+        fetchUserFolders();
+    }, [user, hasResearchAccess, isBookmarkModalOpen]);
+
+    const handleToggleBookmark = async (folderId: string, itemIds: string[]) => {
+        if (!user || !user.email || !id) return;
+        const email = user.email.toLowerCase();
+        
+        const isBookmarked = itemIds.includes(id);
+        const updatedItemIds = isBookmarked 
+            ? itemIds.filter(itemId => itemId !== id) 
+            : [...itemIds, id];
+
+        try {
+            const folderRef = doc(db, 'members', email, 'research_folders', folderId);
+            await updateDoc(folderRef, { itemIds: updatedItemIds });
+            
+            setUserFolders(prev => prev.map(f => f.id === folderId ? { ...f, itemIds: updatedItemIds } : f));
+            showToast(isBookmarked ? "Removed from folder" : "Saved to research folder!");
+            setIsBookmarkModalOpen(false);
+        } catch (error) {
+            console.error("Error updating bookmark:", error);
+            showToast("Failed to update bookmark.");
+        }
+    };
+
+    const handleCreateFolder = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !newFolderName.trim() || !id) return;
+        const email = user.email.toLowerCase();
+
+        setIsCreatingFolder(true);
+        try {
+            const foldersCol = collection(db, 'members', email, 'research_folders');
+            const newDocRef = doc(foldersCol);
+            
+            await setDoc(newDocRef, {
+                name: newFolderName.trim(),
+                createdAt: new Date().toISOString(),
+                itemIds: [id]
+            });
+
+            setUserFolders(prev => [...prev, {
+                id: newDocRef.id,
+                name: newFolderName.trim(),
+                itemIds: [id]
+            }]);
+
+            setNewFolderName('');
+            showToast("Created folder and saved item!");
+        } catch (error) {
+            console.error("Error creating folder:", error);
+            showToast("Failed to create folder.");
+        } finally {
+            setIsCreatingFolder(false);
+        }
+    };
 
     const handleDelete = async () => {
         const isOralHistory = item?.item_type === 'Oral History';
@@ -516,30 +792,41 @@ export function ItemDetail() {
                     )}
                 </div>
 
-                {isSAHSUser && (
-                    <div className="flex gap-3">
-                        {item.item_type === 'Artifact' && item.collection_status === 'pending' && (
+                <div className="flex gap-3 items-center">
+                    {hasResearchAccess && (
+                        <button
+                            onClick={() => setIsBookmarkModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-tan to-tan-dark text-white rounded-lg text-sm font-medium hover:from-charcoal hover:to-charcoal transition-all shadow-sm animate-in fade-in duration-300"
+                        >
+                            <BookOpen size={16} /> Save to Folder
+                        </button>
+                    )}
+
+                    {isSAHSUser && (
+                        <div className="flex gap-3">
+                            {item.item_type === 'Artifact' && item.collection_status === 'pending' && (
+                                <button
+                                    onClick={handleAccession}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                                >
+                                    <Check size={16} /> Accession Artifact
+                                </button>
+                            )}
                             <button
-                                onClick={handleAccession}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                                onClick={() => navigate(`/edit-item/${id}`, { state: { collectionId: location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0]) } })}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
                             >
-                                <Check size={16} /> Accession Artifact
+                                <Edit2 size={16} /> Edit
                             </button>
-                        )}
-                        <button
-                            onClick={() => navigate(`/edit-item/${id}`, { state: { collectionId: location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0]) } })}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
-                        >
-                            <Edit2 size={16} /> Edit
-                        </button>
-                        <button
-                            onClick={handleDelete}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 transition-colors shadow-sm"
-                        >
-                            <Trash2 size={16} /> Delete
-                        </button>
-                    </div>
-                )}
+                            <button
+                                onClick={handleDelete}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-100 transition-colors shadow-sm"
+                            >
+                                <Trash2 size={16} /> Delete
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="mb-12 max-w-6xl">
@@ -680,6 +967,8 @@ export function ItemDetail() {
                                 ))}
                             </div>
                         )}
+
+                        <StickyNoteWidget id={id!} user={user} hasResearchAccess={hasResearchAccess} />
                     </div>
                 </div>
 
@@ -1105,6 +1394,399 @@ export function ItemDetail() {
                     </div>
                 </div>
 
+            )}
+
+            {/* Historical Comments & Public Discussions (Full Width) */}
+            <div className="mt-16 pt-12 border-t border-tan-light/50 w-full">
+                <h3 className="text-3xl font-serif font-bold text-charcoal flex items-center gap-3 border-b border-tan-light/50 pb-4 mb-8">
+                    <Users className="text-tan" size={32} />
+                    Historical Discussions
+                    <span className="bg-tan/10 text-tan text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider font-sans animate-in zoom-in duration-300">
+                        {comments.length} Comments
+                    </span>
+                </h3>
+
+                {/* Comments Thread */}
+                {loadingComments ? (
+                    <div className="py-12 text-center font-serif text-charcoal/50 italic flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>
+                        Loading discussions...
+                    </div>
+                ) : comments.length === 0 ? (
+                    <div className="text-center py-12 bg-cream/30 rounded-2xl border border-dashed border-tan-light/50 mb-10 max-w-4xl mx-auto">
+                        <p className="font-serif text-charcoal/50 italic text-base">No comments have been posted yet. Be the first to share an annotation or question!</p>
+                    </div>
+                ) : (
+                    <div className="space-y-8 mb-10 max-w-4xl mx-auto max-h-[600px] overflow-y-auto pr-4 no-scrollbar">
+                        {(() => {
+                            const parentComments = comments.filter(c => !c.parentId);
+                            return parentComments.map(c => {
+                                const isAuthor = user && user.email && user.email.toLowerCase() === c.authorEmail.toLowerCase();
+                                const canDelete = isSAHSUser || isAuthor;
+                                const replies = comments.filter(reply => reply.parentId === c.id);
+
+                                return (
+                                    <div key={c.id} className="space-y-5 border-b border-tan-light/20 pb-6 last:border-0 last:pb-0">
+                                        {/* Parent Comment Card */}
+                                        <div className="bg-white border border-tan-light/40 rounded-xl p-5 md:p-6 shadow-xs flex gap-5 transition-all hover:border-tan-light/70 relative group">
+                                            {/* Monogram Avatar */}
+                                            <div className="w-12 h-12 rounded-full bg-tan/10 border border-tan/20 flex items-center justify-center shrink-0">
+                                                <span className="font-serif font-black text-base text-tan-dark">
+                                                    {c.authorName.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+
+                                            {/* Content Block */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+                                                    <span className="font-serif font-bold text-[15px] text-charcoal truncate">{c.authorName}</span>
+                                                    
+                                                    {/* Role Badge */}
+                                                    {c.role === 'Admin' ? (
+                                                        <span className="bg-red-50 text-red-700 border border-red-200/50 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                                            🌟 Admin
+                                                        </span>
+                                                    ) : c.role === 'Curator' ? (
+                                                        <span className="bg-tan/10 text-tan-dark border border-tan/20 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                                            🌟 Curator
+                                                        </span>
+                                                    ) : (
+                                                        <span className="bg-charcoal/5 text-charcoal/70 border border-charcoal/10 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                                            📜 Member
+                                                        </span>
+                                                    )}
+
+                                                    <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-3">
+                                                        <span>{new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                        
+                                                        {/* Reply Trigger Icon */}
+                                                        {hasResearchAccess && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (replyingToCommentId === c.id) {
+                                                                        setReplyingToCommentId(null);
+                                                                    } else {
+                                                                        setReplyingToCommentId(c.id);
+                                                                        setReplyText('');
+                                                                    }
+                                                                }}
+                                                                className={`p-1 hover:bg-tan/10 rounded-lg text-charcoal/50 hover:text-tan transition-all flex items-center gap-1 ${
+                                                                    replyingToCommentId === c.id ? 'text-tan bg-tan/10' : ''
+                                                                }`}
+                                                                title="Reply to comment"
+                                                            >
+                                                                <CornerUpLeft size={14} />
+                                                            </button>
+                                                        )}
+
+                                                        {canDelete && (
+                                                            <button
+                                                                onClick={() => handleDeleteComment(c.id)}
+                                                                className="p-1 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                                                title={isAuthor ? "Delete comment" : "Moderate comment (Admin)"}
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <p className="text-[15px] font-sans text-charcoal/90 leading-relaxed break-words whitespace-pre-wrap">
+                                                    {c.content}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Nested Threaded Replies */}
+                                        {replies.length > 0 && (
+                                            <div className="pl-10 md:pl-14 border-l-2 border-tan/20 space-y-4 ml-6">
+                                                {replies.map(reply => {
+                                                    const isReplyAuthor = user && user.email && user.email.toLowerCase() === reply.authorEmail.toLowerCase();
+                                                    const canDeleteReply = isSAHSUser || isReplyAuthor;
+
+                                                    return (
+                                                        <div key={reply.id} className="bg-tan-light/5 border border-tan-light/30 rounded-xl p-4 md:p-5 shadow-2xs flex gap-4 transition-all hover:border-tan-light/60 relative group">
+                                                            {/* Monogram Avatar */}
+                                                            <div className="w-10 h-10 rounded-full bg-tan/10 border border-tan/20 flex items-center justify-center shrink-0">
+                                                                <span className="font-serif font-black text-sm text-tan-dark">
+                                                                    {reply.authorName.charAt(0).toUpperCase()}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Content Block */}
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1.5">
+                                                                    <span className="font-serif font-bold text-[14px] text-charcoal truncate">{reply.authorName}</span>
+                                                                    
+                                                                    {/* Role Badge */}
+                                                                    {reply.role === 'Admin' ? (
+                                                                        <span className="bg-red-50 text-red-700 border border-red-200/50 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
+                                                                            🌟 Admin
+                                                                        </span>
+                                                                    ) : reply.role === 'Curator' ? (
+                                                                        <span className="bg-tan/10 text-tan-dark border border-tan/20 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
+                                                                            🌟 Curator
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="bg-charcoal/5 text-charcoal/70 border border-charcoal/10 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
+                                                                            📜 Member
+                                                                        </span>
+                                                                    )}
+
+                                                                    <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-2">
+                                                                        <span>{new Date(reply.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                                        {canDeleteReply && (
+                                                                            <button
+                                                                                onClick={() => handleDeleteComment(reply.id)}
+                                                                                className="p-1 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                                                                title={isReplyAuthor ? "Delete reply" : "Moderate reply (Admin)"}
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="text-[14px] font-sans text-charcoal/80 leading-relaxed break-words whitespace-pre-wrap">
+                                                                    {reply.content}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
+                                        {/* Inline Reply Input Area */}
+                                        {replyingToCommentId === c.id && (
+                                            <div className="pl-10 md:pl-14 ml-6 border-l-2 border-tan/20 animate-in slide-in-from-top-2 duration-300">
+                                                <form onSubmit={(e) => handlePostReply(e, c.id)} className="bg-tan-light/10 p-5 rounded-xl border border-tan-light/50 flex gap-4 items-start">
+                                                    <div className="w-10 h-10 rounded-full bg-charcoal text-cream flex items-center justify-center shrink-0 font-serif font-bold text-sm">
+                                                        {user?.email?.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 flex flex-col gap-3">
+                                                        <textarea
+                                                            value={replyText}
+                                                            onChange={(e) => setReplyText(e.target.value)}
+                                                            placeholder={`Write a reply to ${c.authorName}...`}
+                                                            rows={2}
+                                                            maxLength={500}
+                                                            className="w-full bg-white border border-tan-light/60 p-3 rounded-lg text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-2xs"
+                                                            required
+                                                        />
+                                                        <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
+                                                            <span>💬 Replying as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
+                                                            <div className="flex items-center gap-3">
+                                                                    <span>{replyText.length} / 500 characters</span>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setReplyingToCommentId(null)}
+                                                                        className="px-3 py-1.5 border border-charcoal/20 hover:bg-black/5 text-charcoal font-bold rounded-lg text-xs transition-all"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        type="submit"
+                                                                        disabled={isPostingReply || replyText.trim() === ''}
+                                                                        className="px-4 py-1.5 bg-gradient-to-r from-tan to-tan-dark text-white font-bold rounded-lg text-xs transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                                                    >
+                                                                        {isPostingReply ? 'Replying...' : 'Post Reply'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                )}
+
+                {/* Reply / Post Comment Box */}
+                <div className="max-w-4xl mx-auto">
+                    {hasResearchAccess ? (
+                        <form onSubmit={handlePostComment} className="flex gap-5 items-start bg-tan-light/10 p-6 rounded-2xl border border-tan-light/50">
+                            {/* Avatar */}
+                            <div className="w-12 h-12 rounded-full bg-charcoal text-cream flex items-center justify-center shrink-0 font-serif font-bold text-base">
+                                {user?.email?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 flex flex-col gap-4">
+                                <textarea
+                                    value={newCommentText}
+                                    onChange={(e) => setNewCommentText(e.target.value)}
+                                    placeholder="Share historical context, source leads, or collaborative notes about this record..."
+                                    rows={4}
+                                    maxLength={800}
+                                    className="w-full bg-white border border-tan-light/60 p-4 rounded-xl text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-xs"
+                                    required
+                                />
+                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
+                                    <span>💬 Posting publicly as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
+                                    <div className="flex items-center gap-3">
+                                        <span>{newCommentText.length} / 800 characters</span>
+                                        <button
+                                            type="submit"
+                                            disabled={isPostingComment || newCommentText.trim() === ''}
+                                            className="px-6 py-2.5 bg-gradient-to-r from-tan to-tan-dark text-white font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 disabled:opacity-50"
+                                        >
+                                            {isPostingComment ? 'Posting...' : 'Post Comment'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="bg-gradient-to-br from-cream to-white border border-tan-light rounded-2xl p-8 text-center shadow-xs flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 rounded-full bg-tan/10 flex items-center justify-center text-tan">
+                                <Lock size={20} />
+                            </div>
+                            <h4 className="font-serif font-bold text-lg text-charcoal">Join the Historical Circle</h4>
+                            <p className="text-charcoal/60 font-sans text-xs max-w-sm leading-relaxed">
+                                Only verified, active members of the Senoia Area Historical Society can post comments and contribute transcript annotations. Visitors are welcome to read existing comments.
+                            </p>
+                            <div className="flex gap-4 mt-2">
+                                <Link
+                                    to="/login"
+                                    className="px-6 py-2.5 bg-charcoal hover:bg-tan text-white font-bold rounded-xl text-xs transition-all shadow-sm font-sans"
+                                >
+                                    Log In / Sign Up
+                                </Link>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Bookmark Modal */}
+            {isBookmarkModalOpen && (
+                <div className="fixed inset-0 z-[2200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div 
+                        className="bg-cream border border-tan/30 w-full max-w-md rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col gap-6 animate-in zoom-in duration-300"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center border-b border-tan/20 pb-4">
+                            <div className="flex items-center gap-2">
+                                <BookOpen className="text-tan" size={24} />
+                                <h3 className="font-serif font-bold text-xl text-charcoal">Save to My Research</h3>
+                            </div>
+                            <button 
+                                onClick={() => setIsBookmarkModalOpen(false)}
+                                className="p-2 hover:bg-black/5 rounded-full text-charcoal/60 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* List Existing Folders */}
+                        <div className="flex-1 max-h-[250px] overflow-y-auto pr-2 no-scrollbar space-y-3">
+                            <p className="text-[11px] font-black text-tan uppercase tracking-[0.2em] mb-2 font-sans">Select a Research Folder</p>
+                            {loadingFolders ? (
+                                <div className="py-6 text-center text-charcoal/60 font-serif italic">Loading folders...</div>
+                            ) : userFolders.length === 0 ? (
+                                <div className="py-6 text-center text-charcoal/40 text-sm font-sans italic border border-dashed border-tan/30 rounded-xl">
+                                    No folders created yet. Create one below to begin organizing your research.
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {userFolders.map(folder => {
+                                        const isBookmarked = folder.itemIds.includes(id || '');
+                                        const isSelected = folder.id === selectedFolderId;
+                                        return (
+                                            <button
+                                                key={folder.id}
+                                                onClick={() => setSelectedFolderId(isSelected ? null : folder.id)}
+                                                className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-left transition-all ${
+                                                    isSelected
+                                                        ? 'bg-tan/10 border-tan text-tan font-bold'
+                                                        : 'bg-white hover:bg-tan-light/10 border-tan-light/40 text-charcoal hover:border-tan/40'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-lg">📁</span>
+                                                    <div>
+                                                        <p className="font-serif leading-snug">
+                                                            {folder.name}
+                                                            {isBookmarked && (
+                                                                <span className="ml-2 text-[9px] bg-tan/20 text-tan-dark px-1.5 py-0.5 rounded font-sans uppercase font-black tracking-wider">
+                                                                    Saved
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                        <p className="text-[10px] text-charcoal/40 font-mono tracking-wider mt-0.5">{folder.itemIds.length} bookmarked items</p>
+                                                    </div>
+                                                </div>
+                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                                                    isSelected 
+                                                        ? 'bg-tan border-tan text-white' 
+                                                        : 'border-tan-light/80 bg-white'
+                                                }`}>
+                                                    {isSelected && <span className="text-[10px]">✓</span>}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Explicit Confirm Button */}
+                        {selectedFolderId && (() => {
+                            const selectedFolder = userFolders.find(f => f.id === selectedFolderId);
+                            const isBookmarked = selectedFolder?.itemIds.includes(id || '');
+                            return (
+                                <button
+                                    onClick={() => selectedFolder && handleToggleBookmark(selectedFolder.id, selectedFolder.itemIds)}
+                                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all shadow-md active:scale-[0.98] animate-in slide-in-from-bottom-2 duration-300 ${
+                                        isBookmarked 
+                                            ? 'bg-red-500 hover:bg-red-600 text-white' 
+                                            : 'bg-gradient-to-r from-tan to-tan-dark text-white hover:from-charcoal hover:to-charcoal'
+                                    }`}
+                                >
+                                    <BookOpen size={16} />
+                                    {isBookmarked ? (
+                                        <>Remove from "{selectedFolder?.name}"</>
+                                    ) : (
+                                        <>Save to "{selectedFolder?.name}"</>
+                                    )}
+                                </button>
+                            );
+                        })()}
+
+                        {/* Create New Folder Form */}
+                        <form onSubmit={handleCreateFolder} className="border-t border-tan/20 pt-6 mt-2 flex flex-col gap-3">
+                            <p className="text-[11px] font-black text-tan uppercase tracking-[0.2em] font-sans">Create a New Folder</p>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Senoia Families, Civil War Documents"
+                                    value={newFolderName}
+                                    onChange={e => setNewFolderName(e.target.value)}
+                                    className="flex-1 bg-white border border-tan-light/50 p-2.5 rounded-xl text-sm outline-none focus:border-tan font-sans"
+                                    disabled={isCreatingFolder}
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    className="bg-charcoal text-white font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-tan transition-all font-sans whitespace-nowrap shadow-sm"
+                                    disabled={isCreatingFolder}
+                                >
+                                    {isCreatingFolder ? 'Creating...' : 'Create & Save'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast Message Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-8 right-8 z-[2500] bg-charcoal text-cream border border-tan/30 px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-4 duration-300 font-serif font-semibold text-[15px]">
+                    <span className="text-xl">✨</span>
+                    <span>{toastMessage}</span>
+                </div>
             )}
         </div>
     );
@@ -1711,6 +2393,8 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                         </div>
                     </div>
                 )}
+
+                <StickyNoteWidget id={item.id!} user={user} hasResearchAccess={hasResearchAccess} />
             </div>
 
             {/* Right Side: Interactive Searchable Transcript Pane */}
@@ -1798,6 +2482,124 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                     ) : (
                         <p className="text-charcoal/40 italic text-center py-12 font-serif text-lg">No transcript has been added to this Oral History record yet.</p>
                     )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface StickyNoteWidgetProps {
+    id: string;
+    user: any;
+    hasResearchAccess: boolean;
+}
+
+function StickyNoteWidget({ id, user, hasResearchAccess }: StickyNoteWidgetProps) {
+    const [noteContent, setNoteContent] = useState('');
+    const [isSavingNote, setIsSavingNote] = useState(false);
+    const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+    const isInitialLoad = useRef(true);
+
+    // Fetch Note Content
+    useEffect(() => {
+        if (!user || !user.email || !hasResearchAccess || !id) return;
+        const email = user.email.toLowerCase();
+        isInitialLoad.current = true;
+
+        const fetchNote = async () => {
+            try {
+                const noteRef = doc(db, 'members', email, 'research_notes', id);
+                const noteSnap = await getDoc(noteRef);
+                if (noteSnap.exists()) {
+                    setNoteContent(noteSnap.data().content || '');
+                } else {
+                    setNoteContent('');
+                }
+            } catch (err) {
+                console.error("Error fetching sticky note:", err);
+            } finally {
+                setTimeout(() => {
+                    isInitialLoad.current = false;
+                }, 150);
+            }
+        };
+
+        fetchNote();
+    }, [user, hasResearchAccess, id]);
+
+    // Auto-Save Effect (Debounced)
+    useEffect(() => {
+        if (isInitialLoad.current) return;
+        if (!user || !user.email || !hasResearchAccess || !id) return;
+        const email = user.email.toLowerCase();
+
+        const saveTimeout = setTimeout(async () => {
+            try {
+                setIsSavingNote(true);
+                const noteRef = doc(db, 'members', email, 'research_notes', id);
+                
+                await setDoc(noteRef, {
+                    itemId: id,
+                    content: noteContent,
+                    lastUpdated: new Date().toISOString()
+                });
+                
+                setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+            } catch (err) {
+                console.error("Error saving sticky note:", err);
+            } finally {
+                setIsSavingNote(false);
+            }
+        }, 1200);
+
+        return () => clearTimeout(saveTimeout);
+    }, [noteContent, user, hasResearchAccess, id]);
+
+    if (!hasResearchAccess) return null;
+
+    return (
+        <div className="mt-8 relative transition-all duration-300 hover:-translate-y-1">
+            {/* Pushpin graphic */}
+            <div className="absolute top-[-14px] left-1/2 -translate-x-1/2 z-20 text-red-500 drop-shadow-[0_2px_3px_rgba(0,0,0,0.355)]">
+                <Pin size={28} strokeWidth={2.5} fill="currentColor" className="rotate-45" />
+            </div>
+
+            {/* Tactile yellow paper base */}
+            <div className="bg-[#fefbbf] border-t-2 border-yellow-200/60 rounded-b-lg shadow-[0_8px_20px_rgba(0,0,0,0.15)] p-6 pt-8 flex flex-col gap-3 relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-br before:from-white/10 before:to-black/5 before:pointer-events-none">
+                {/* Paper texture overlay */}
+                <div className="absolute inset-0 bg-[radial-gradient(#eab308_1px,transparent_1px)] [background-size:16px_16px] opacity-[0.08] pointer-events-none" />
+
+                <div className="flex justify-between items-center border-b border-yellow-300/40 pb-2">
+                    <h4 className="font-serif font-black text-sm text-[#854d0e] tracking-wider uppercase">
+                        Private Research Note
+                    </h4>
+                    <div className="flex items-center gap-1.5 text-[10px] font-sans font-bold text-[#854d0e]/60">
+                        {isSavingNote ? (
+                            <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#a16207] animate-ping" />
+                                Saving...
+                            </span>
+                        ) : lastSavedTime ? (
+                            <span>Saved {lastSavedTime}</span>
+                        ) : (
+                            <span>Auto-saves as you type</span>
+                        )}
+                    </div>
+                </div>
+
+                <textarea
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    placeholder="Add transcription ideas, genealogical clues, or private notes for your historical research..."
+                    maxLength={1000}
+                    rows={4}
+                    className="w-full bg-transparent resize-none border-none outline-none font-handwriting text-2xl text-[#713f12] placeholder-[#a16207]/40 leading-relaxed font-normal no-scrollbar"
+                    style={{ fontFamily: "'Caveat', cursive, sans-serif" }}
+                />
+
+                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-[#a16207]/60 mt-1">
+                    <span>✏️ Private to you</span>
+                    <span>{noteContent.length} / 1000 characters</span>
                 </div>
             </div>
         </div>

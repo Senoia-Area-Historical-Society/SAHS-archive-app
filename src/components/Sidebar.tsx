@@ -9,7 +9,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
-    const { isSAHSUser, realIsAdmin, logout, user, isEditingMode, setIsEditingMode } = useAuth();
+    const { isSAHSUser, realIsAdmin, logout, user, isEditingMode, setIsEditingMode, hasResearchAccess } = useAuth();
     const navigate = useNavigate();
 
     const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -159,6 +159,18 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         </nav>
                     </div>
 
+                    {/* Research Section */}
+                    {hasResearchAccess && (
+                        <div className="mb-4">
+                            <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Research Workspace</h2>
+                            <nav className="flex flex-col gap-1">
+                                <NavLink to="/my-research" className={navLinkClass} onClick={handleLinkClick}>
+                                    <FolderOpen className="text-tan" size={20} /> My Research Folders
+                                </NavLink>
+                            </nav>
+                        </div>
+                    )}
+
                     {/* Support Section */}
                     <div className="mb-4">
                         <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Help</h2>
@@ -255,6 +267,22 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </div>
 
 
+                {!user && (
+                    <div className="p-4 rounded-xl bg-tan/5 border border-tan/20 flex flex-col gap-2 mb-2">
+                        <h3 className="font-serif font-bold text-[13px] text-charcoal leading-snug">SAHS Member Benefits</h3>
+                        <p className="text-[11px] text-charcoal/60 leading-relaxed font-medium">
+                            Active members can sign in using their Google account to save custom research folders and bookmark archival resources.
+                        </p>
+                        <NavLink
+                            to="/login"
+                            className="text-left text-[11px] font-bold text-tan hover:text-tan-dark transition-colors uppercase tracking-wider mt-1"
+                            onClick={handleLinkClick}
+                        >
+                            Log in as Member →
+                        </NavLink>
+                    </div>
+                )}
+
                 <div className="mt-8 pt-6 border-t border-tan-light/50 flex flex-col gap-4">
                 {user ? (
                     <button
@@ -269,7 +297,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-charcoal text-white rounded-lg text-sm font-medium hover:bg-charcoal-light transition-colors"
                         onClick={handleLinkClick}
                     >
-                        <LogIn size={16} /> Curator Login
+                        <LogIn size={16} /> Member & Curator Login
                     </NavLink>
                 )}
 

@@ -26,6 +26,7 @@ const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ 
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 const SenoiaStories = lazy(() => import('./pages/SenoiaStories').then(m => ({ default: m.SenoiaStories })));
+const MyResearch = lazy(() => import('./pages/MyResearch'));
 
 function PageWrapper() {
   return (
@@ -58,6 +59,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user || !isSAHSUser) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
+function ResearchRoute({ children }: { children: React.ReactNode }) {
+  const { user, hasResearchAccess, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user || !hasResearchAccess) {
     return <Navigate to="/login" replace />;
   }
   
@@ -116,6 +131,9 @@ function App() {
                 <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
                 <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
                 <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
+                
+                {/* Member Research Workspace Route */}
+                <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
               </Route>
             </Route>
           </Routes>
