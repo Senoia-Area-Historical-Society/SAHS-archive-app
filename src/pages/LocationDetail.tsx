@@ -195,9 +195,56 @@ export function LocationDetail() {
                 // Exclude items already here
                 const isAlreadyLinked = item.museum_location_id === id || (item.museum_location_ids || []).includes(id!);
                 return matchesQuery && !isAlreadyLinked;
-            }).slice(0, 100); 
+            });
+
+            // Sort results to prioritize exact matches and prefix matches
+            filtered.sort((a, b) => {
+                const kw = searchQuery.toLowerCase();
+                const aArtId = String(a.artifact_id || '').toLowerCase();
+                const bArtId = String(b.artifact_id || '').toLowerCase();
+                const aIdent = String(a.identifier || '').toLowerCase();
+                const bIdent = String(b.identifier || '').toLowerCase();
+                const aId = String(a.id || '').toLowerCase();
+                const bId = String(b.id || '').toLowerCase();
+
+                const getScore = (artId: string, ident: string, idVal: string) => {
+                    // Exact matches (highest priority)
+                    if (artId === kw) return 100;
+                    if (ident === kw) return 90;
+                    if (idVal === kw) return 80;
+                    
+                    // Prefix matches
+                    if (artId.startsWith(kw)) return 70;
+                    if (ident.startsWith(kw)) return 60;
+                    if (idVal.startsWith(kw)) return 50;
+
+                    // Contains matches
+                    if (artId.includes(kw)) return 30;
+                    if (ident.includes(kw)) return 20;
+                    if (idVal.includes(kw)) return 10;
+                    
+                    return 0;
+                };
+
+                const scoreA = getScore(aArtId, aIdent, aId);
+                const scoreB = getScore(bArtId, bIdent, bId);
+
+                if (scoreB !== scoreA) {
+                    return scoreB - scoreA;
+                }
+
+                // If scores are equal, sort numerically by artifact_id if possible
+                const numA = parseInt(aArtId, 10);
+                const numB = parseInt(bArtId, 10);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                }
+                
+                // Fallback to alphabetical title
+                return (a.title || '').localeCompare(b.title || '');
+            });
             
-            setSearchResults(filtered);
+            setSearchResults(filtered.slice(0, 100));
             setIsSearching(false);
         };
 
