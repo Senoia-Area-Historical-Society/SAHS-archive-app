@@ -145,3 +145,14 @@ export interface ArchiveItem {
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
     accession_date?: string | null;
 }
+
+export interface Member {
+    id: string; // Firebase Document ID (email in lowercase)
+    name: string;
+    email: string;
+    tier: 'Member';
+    status: 'active' | 'expired';
+    joinedAt: string;
+    expiresAt: string; // ISO date string or 'Never'
+}
+

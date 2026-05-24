@@ -942,7 +942,7 @@ export function InteractiveMap() {
         setSelectionBox(prev => prev ? { ...prev, endX: x, endY: y } : null);
     };
 
-    const handleCanvasMouseUp = (e: React.MouseEvent) => {
+    const handleCanvasMouseUp = () => {
         if (!selectionBox) return;
         
         const left = Math.min(selectionBox.startX, selectionBox.endX);
@@ -1053,7 +1053,6 @@ export function InteractiveMap() {
         const offsetY = d.y - start.y;
 
         selectedIdsRef.current.forEach(id => {
-            const isLead = id === draggedId;
 
             // Handle Node following (Rooms and Pins) using inner data attribute selection and closest('.react-draggable') wrapper
             const innerEl = document.querySelector(`[data-selection-id="${id}"]`);

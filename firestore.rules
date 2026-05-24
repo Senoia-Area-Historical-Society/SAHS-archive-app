@@ -6,11 +6,12 @@ service cloud.firestore {
     function isSAHSUser() {
       return request.auth != null && 
         request.auth.token.email != null && (
-        request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
-        request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
-        request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
-        get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role in ['admin', 'curator']
-      );
+          request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
+          request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
+          request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
+          (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
+           get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role in ['admin', 'curator'])
+        );
     }
 
     // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles
@@ -26,6 +27,19 @@ service cloud.firestore {
     match /archive_items/{item} {
       allow read: if true;
       allow write: if isSAHSUser();
+    }
+
+    // comments subcollection under archive_items: Everyone can read, only active members and curators can post
+    match /archive_items/{itemId}/comments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null && (
+        isSAHSUser() || 
+        exists(/databases/$(database)/documents/members/$(request.auth.token.email.lower()))
+      );
+      allow delete: if isSAHSUser() || (
+        request.auth != null && 
+        request.auth.token.email.lower() == resource.data.authorEmail.lower()
+      );
     }
 
     // collections collection: Anyone can read, only SAHS users can write
@@ -56,6 +70,22 @@ service cloud.firestore {
     match /locations/{location} {
       allow read: if true;
       allow write: if isSAHSUser();
+    }
+
+    // members collection: SAHS curators/admins can manage all, individuals can read their own membership status
+    match /members/{email} {
+      allow read: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+      allow write: if isSAHSUser();
+    }
+
+    // research_folders subcollection: Owners and SAHS curators/admins can read/write
+    match /members/{email}/research_folders/{folderId} {
+      allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+    }
+
+    // research_notes subcollection: Owners and SAHS curators/admins can read/write
+    match /members/{email}/research_notes/{itemId} {
+      allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
     }
 
     // Default deny for everything else
