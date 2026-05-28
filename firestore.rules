@@ -78,14 +78,71 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
-    // research_folders subcollection: Owners and SAHS curators/admins can read/write
+    // Deprecated research_folders subcollection (retained for backward compatibility/read-only safety if needed)
     match /members/{email}/research_folders/{folderId} {
       allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
     }
 
-    // research_notes subcollection: Owners and SAHS curators/admins can read/write
+    // Deprecated research_notes subcollection (retained for backward compatibility/read-only safety if needed)
     match /members/{email}/research_notes/{itemId} {
       allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+    }
+
+    // Root-level research_folders: Owners, Collaborators, and SAHS curators/admins can read/write
+    match /research_folders/{folderId} {
+      allow read: if isSAHSUser() || (
+        request.auth != null && (
+          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || 
+          request.auth.token.email.lower() in resource.data.sharedWith
+        )
+      );
+      allow create: if isSAHSUser() || (
+        request.auth != null && 
+        request.resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+      );
+      allow update: if isSAHSUser() || (
+        request.auth != null && (
+          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || 
+          request.auth.token.email.lower() in resource.data.sharedWith
+        )
+      );
+      allow delete: if isSAHSUser() || (
+        request.auth != null && 
+        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+      );
+    }
+
+    // Root-level research_notes: Owners can read/write; Collaborators can read if note is not private
+    match /research_notes/{noteId} {
+      allow read: if isSAHSUser() || (
+        request.auth != null && (
+          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || (
+            resource.data.isPrivate == false && 
+            resource.data.folderId != 'global' &&
+            (
+              get(/databases/$(database)/documents/research_folders/$(resource.data.folderId)).data.ownerEmail.lower() == request.auth.token.email.lower() ||
+              request.auth.token.email.lower() in get(/databases/$(database)/documents/research_folders/$(resource.data.folderId)).data.sharedWith
+            )
+          )
+        )
+      );
+      allow create: if isSAHSUser() || (
+        request.auth != null && 
+        request.resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+      );
+      allow update: if isSAHSUser() || (
+        request.auth != null && 
+        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+      );
+      allow delete: if isSAHSUser() || (
+        request.auth != null && 
+        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+      );
+    }
+
+    // mail collection for Trigger Email extension: Authenticated users can write emails to trigger notifications
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
     }
 
     // Default deny for everything else

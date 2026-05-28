@@ -1,20 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId } from 'firebase/firestore';
-import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin } from 'lucide-react';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc } from 'firebase/firestore';
+import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem } from '../types/database';
 
 interface ResearchFolder {
     id: string;
     name: string;
+    description?: string;
     createdAt: string;
     itemIds: string[];
+    ownerEmail: string;
+    sharedWith: string[];
 }
 
 export function MyResearch() {
-    const { user, hasResearchAccess } = useAuth();
+    const { user, hasResearchAccess, isSAHSUser } = useAuth();
     
     const [folders, setFolders] = useState<ResearchFolder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -25,58 +28,119 @@ export function MyResearch() {
     // Create / Rename States
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState('');
+    const [newFolderDescription, setNewFolderDescription] = useState('');
     const [renamingFolder, setRenamingFolder] = useState<ResearchFolder | null>(null);
     const [renameValue, setRenameValue] = useState('');
+    const [renameDescriptionValue, setRenameDescriptionValue] = useState('');
+    
+    // Sharing States
+    const [sharingFolder, setSharingFolder] = useState<ResearchFolder | null>(null);
+    const [shareEmail, setShareEmail] = useState('');
+    const [isSharing, setIsSharing] = useState(false);
     
     // Toast Notification
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-    // Sticky Notes Workspace States
-    const [notes, setNotes] = useState<Record<string, string>>({});
+    // Add Items Search Modal States
+    const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+    const [allItems, setAllItems] = useState<ArchiveItem[]>([]);
+    const [loadingAllItems, setLoadingAllItems] = useState(false);
+    const [addItemKeyword, setAddItemKeyword] = useState('');
+
+    // Notes Workspace States
+    interface ResearchNote {
+        id: string;
+        itemId: string;
+        folderId: string;
+        ownerEmail: string;
+        content: string;
+        isPrivate: boolean;
+        lastUpdated: string;
+    }
+    const [notes, setNotes] = useState<Record<string, ResearchNote[]>>({});
     const [activeNoteItemId, setActiveNoteItemId] = useState<string | null>(null);
+    const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
     const [activeNoteContent, setActiveNoteContent] = useState('');
     const [activeNoteTitle, setActiveNoteTitle] = useState('');
+    const [activeNoteIsPrivate, setActiveNoteIsPrivate] = useState(true);
     const [isSavingNote, setIsSavingNote] = useState(false);
 
-    // Fetch notes on mount / auth change
-    const fetchNotes = async () => {
+    // Fetch folder-specific notes and collaborators' shared notes
+    const fetchFolderNotes = async (folderId: string) => {
         if (!user || !user.email || !hasResearchAccess) return;
         const email = user.email.toLowerCase();
         try {
-            const notesCol = collection(db, 'members', email, 'research_notes');
-            const snap = await getDocs(notesCol);
-            const notesMap: Record<string, string> = {};
-            snap.docs.forEach(doc => {
-                notesMap[doc.id] = doc.data().content || '';
+            const notesCol = collection(db, 'research_notes');
+            const q = query(notesCol, where('folderId', '==', folderId));
+            const snap = await getDocs(q);
+            
+            const notesMap: Record<string, ResearchNote[]> = {};
+            snap.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                const noteOwner = (data.ownerEmail || '').toLowerCase();
+                const itemId = data.itemId;
+                const isNotePrivate = data.isPrivate !== false;
+                
+                if (noteOwner === email || !isNotePrivate) {
+                    if (!notesMap[itemId]) {
+                        notesMap[itemId] = [];
+                    }
+                    notesMap[itemId].push({
+                        id: docSnap.id,
+                        itemId,
+                        folderId,
+                        ownerEmail: data.ownerEmail || '',
+                        content: data.content || '',
+                        isPrivate: isNotePrivate,
+                        lastUpdated: data.lastUpdated || new Date().toISOString()
+                    });
+                }
             });
+            
+            // Sort notes by lastUpdated ascending (timeline view)
+            Object.keys(notesMap).forEach(itemId => {
+                notesMap[itemId].sort((a, b) => new Date(a.lastUpdated).getTime() - new Date(b.lastUpdated).getTime());
+            });
+            
             setNotes(notesMap);
         } catch (err) {
-            console.error("Error fetching research notes:", err);
+            console.error("Error fetching folder notes:", err);
         }
     };
 
-    useEffect(() => {
-        fetchNotes();
-    }, [user, hasResearchAccess]);
-
     const handleSaveNote = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !user.email || !hasResearchAccess || !activeNoteItemId) return;
+        if (!user || !user.email || !hasResearchAccess || !activeNoteItemId || !selectedFolder) return;
         const email = user.email.toLowerCase();
         setIsSavingNote(true);
 
         try {
-            const noteRef = doc(db, 'members', email, 'research_notes', activeNoteItemId);
-            await setDoc(noteRef, {
-                itemId: activeNoteItemId,
-                content: activeNoteContent,
-                lastUpdated: new Date().toISOString()
-            });
-
-            // Update in-memory notes map
-            setNotes(prev => ({ ...prev, [activeNoteItemId]: activeNoteContent }));
-            showToast("Saved private research note!");
+            if (activeNoteId) {
+                // Update existing note
+                const noteRef = doc(db, 'research_notes', activeNoteId);
+                await updateDoc(noteRef, {
+                    content: activeNoteContent,
+                    isPrivate: activeNoteIsPrivate,
+                    lastUpdated: new Date().toISOString()
+                });
+                showToast(activeNoteIsPrivate ? "Updated private note!" : "Updated shared note!");
+            } else {
+                // Create new note
+                const notesCol = collection(db, 'research_notes');
+                await addDoc(notesCol, {
+                    itemId: activeNoteItemId,
+                    folderId: selectedFolder.id,
+                    ownerEmail: email,
+                    content: activeNoteContent,
+                    isPrivate: activeNoteIsPrivate,
+                    lastUpdated: new Date().toISOString()
+                });
+                showToast(activeNoteIsPrivate ? "Added private research note!" : "Added note (shared with collaborators)!");
+            }
+            
             setActiveNoteItemId(null);
+            setActiveNoteId(null);
+            fetchFolderNotes(selectedFolder.id);
         } catch (err) {
             console.error("Error saving note:", err);
             showToast("Failed to save note.");
@@ -85,12 +149,27 @@ export function MyResearch() {
         }
     };
 
+    const handleDeleteNote = async (noteId: string) => {
+        if (!window.confirm("Are you sure you want to delete this research note?")) return;
+        try {
+            const noteRef = doc(db, 'research_notes', noteId);
+            await deleteDoc(noteRef);
+            showToast("Deleted research note.");
+            if (selectedFolder) {
+                fetchFolderNotes(selectedFolder.id);
+            }
+        } catch (err) {
+            console.error("Error deleting note:", err);
+            showToast("Failed to delete note.");
+        }
+    };
+
     const showToast = (msg: string) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 3000);
     };
 
-    // 1. Fetch member research folders
+    // 1. Fetch member research folders from root collection
     const fetchFolders = async () => {
         if (!user || !user.email || !hasResearchAccess) {
             setLoading(false);
@@ -99,13 +178,22 @@ export function MyResearch() {
         const email = user.email.toLowerCase();
         setLoading(true);
         try {
-            const foldersCol = collection(db, 'members', email, 'research_folders');
-            const snap = await getDocs(foldersCol);
+            const foldersCol = collection(db, 'research_folders');
+            const q = query(
+                foldersCol,
+                or(
+                    where('ownerEmail', '==', email),
+                    where('sharedWith', 'array-contains', email)
+                )
+            );
+            const snap = await getDocs(q);
             const folderList = snap.docs.map(doc => ({
                 id: doc.id,
                 name: doc.data().name || 'Unnamed Folder',
                 createdAt: doc.data().createdAt || new Date().toISOString(),
-                itemIds: doc.data().itemIds || []
+                itemIds: doc.data().itemIds || [],
+                ownerEmail: doc.data().ownerEmail || '',
+                sharedWith: doc.data().sharedWith || []
             })) as ResearchFolder[];
             
             // Sort by creation date descending
@@ -121,9 +209,9 @@ export function MyResearch() {
                     setSelectedFolder(null);
                 }
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error loading research workspace:", err);
-            showToast("Failed to load research folders.");
+            showToast(`Failed to load research folders: ${err?.message || err}`);
         } finally {
             setLoading(false);
         }
@@ -132,6 +220,15 @@ export function MyResearch() {
     useEffect(() => {
         fetchFolders();
     }, [user, hasResearchAccess]);
+
+    // Fetch notes when folder selection changes
+    useEffect(() => {
+        if (selectedFolder) {
+            fetchFolderNotes(selectedFolder.id);
+        } else {
+            setNotes({});
+        }
+    }, [selectedFolder, user]);
 
     // 2. Fetch specific items when folder selection changes
     useEffect(() => {
@@ -143,11 +240,9 @@ export function MyResearch() {
             
             setLoadingItems(true);
             try {
-                // Fetch in chunks of 30 due to Firestore "in" limits
                 const itemIds = selectedFolder.itemIds;
                 const itemsCol = collection(db, 'archive_items');
                 
-                // If there are more than 30, slice it
                 const slicedIds = itemIds.slice(0, 30);
                 const q = query(itemsCol, where(documentId(), 'in', slicedIds));
                 const snap = await getDocs(q);
@@ -158,9 +253,9 @@ export function MyResearch() {
                 })) as ArchiveItem[];
                 
                 setFolderItems(itemsList);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error loading folder contents:", err);
-                showToast("Failed to load historical items.");
+                showToast(`Failed to load historical items: ${err?.message || err}`);
             } finally {
                 setLoadingItems(false);
             }
@@ -169,26 +264,90 @@ export function MyResearch() {
         fetchFolderItems();
     }, [selectedFolder]);
 
-    // 3. Create a new folder
+    // Fetch all items from archive directory for in-context search
+    const fetchAllItems = async () => {
+        if (allItems.length > 0 || !hasResearchAccess) return;
+        setLoadingAllItems(true);
+        try {
+            const q = query(collection(db, 'archive_items'));
+            const snap = await getDocs(q);
+            const itemsList = snap.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as ArchiveItem[];
+            
+            const filtered = isSAHSUser ? itemsList : itemsList.filter(i => !i.is_private);
+            setAllItems(filtered);
+        } catch (err) {
+            console.error("Error fetching all archive items:", err);
+            showToast("Failed to load archive items.");
+        } finally {
+            setLoadingAllItems(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isAddItemsOpen) {
+            fetchAllItems();
+        }
+    }, [isAddItemsOpen]);
+
+    const searchedAddItems = useMemo(() => {
+        if (!addItemKeyword.trim()) return allItems.slice(0, 10);
+        const kw = addItemKeyword.toLowerCase();
+        return allItems.filter(item => 
+            item.title?.toLowerCase().includes(kw) ||
+            item.description?.toLowerCase().includes(kw) ||
+            item.artifact_id?.toString().toLowerCase().includes(kw)
+        );
+    }, [allItems, addItemKeyword]);
+
+    const handleToggleFolderItem = async (itemId: string) => {
+        if (!selectedFolder) return;
+        
+        const isCurrentlyInFolder = selectedFolder.itemIds.includes(itemId);
+        const updatedItemIds = isCurrentlyInFolder 
+            ? selectedFolder.itemIds.filter(id => id !== itemId)
+            : [...selectedFolder.itemIds, itemId];
+            
+        try {
+            const folderRef = doc(db, 'research_folders', selectedFolder.id);
+            await updateDoc(folderRef, { itemIds: updatedItemIds });
+            
+            // Sync local folder state
+            setSelectedFolder(prev => prev ? { ...prev, itemIds: updatedItemIds } : null);
+            showToast(isCurrentlyInFolder ? "Removed item from folder" : "Added item to folder!");
+            fetchFolders();
+        } catch (err) {
+            console.error("Error updating folder items:", err);
+            showToast("Failed to update folder items.");
+        }
+    };
+
+    // 3. Create a new folder in root collection
     const handleCreateFolder = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !user.email || !newFolderName.trim()) return;
         const email = user.email.toLowerCase();
 
         try {
-            const foldersCol = collection(db, 'members', email, 'research_folders');
+            const foldersCol = collection(db, 'research_folders');
             const newDocRef = doc(foldersCol);
             
             const newFolder = {
                 name: newFolderName.trim(),
+                description: newFolderDescription.trim(),
                 createdAt: new Date().toISOString(),
-                itemIds: []
+                itemIds: [],
+                ownerEmail: email,
+                sharedWith: []
             };
 
             await setDoc(newDocRef, newFolder);
             
             showToast(`Created folder "${newFolderName}"`);
             setNewFolderName('');
+            setNewFolderDescription('');
             setIsCreateOpen(false);
             fetchFolders();
         } catch (err) {
@@ -197,33 +356,43 @@ export function MyResearch() {
         }
     };
 
-    // 4. Rename an existing folder
+    // 4. Rename/Update an existing folder in root collection
     const handleRenameFolder = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !user.email || !renamingFolder || !renameValue.trim()) return;
-        const email = user.email.toLowerCase();
 
         try {
-            const folderRef = doc(db, 'members', email, 'research_folders', renamingFolder.id);
-            await updateDoc(folderRef, { name: renameValue.trim() });
+            const folderRef = doc(db, 'research_folders', renamingFolder.id);
+            await updateDoc(folderRef, { 
+                name: renameValue.trim(),
+                description: renameDescriptionValue.trim()
+            });
             
-            showToast("Folder renamed successfully!");
+            showToast("Folder updated successfully!");
             setRenamingFolder(null);
             setRenameValue('');
+            setRenameDescriptionValue('');
             fetchFolders();
         } catch (err) {
-            console.error("Error renaming folder:", err);
-            showToast("Failed to rename folder.");
+            console.error("Error updating folder:", err);
+            showToast("Failed to update folder.");
         }
     };
 
-    // 5. Delete a folder
-    const handleDeleteFolder = async (folderId: string, folderName: string) => {
-        if (!user || !user.email || !window.confirm(`Are you sure you want to delete the folder "${folderName}"? Bookmarked history items will remain in the main archive.`)) return;
+    // 5. Delete a folder from root collection (Owner only)
+    const handleDeleteFolder = async (folderId: string, folderName: string, ownerEmail: string) => {
+        if (!user || !user.email) return;
         const email = user.email.toLowerCase();
 
+        if (ownerEmail !== email && !isSAHSUser) {
+            showToast("Only the owner of the folder can delete it.");
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to delete the folder "${folderName}"? Bookmarked history items will remain in the main archive.`)) return;
+
         try {
-            const folderRef = doc(db, 'members', email, 'research_folders', folderId);
+            const folderRef = doc(db, 'research_folders', folderId);
             await deleteDoc(folderRef);
             
             showToast(`Deleted folder "${folderName}"`);
@@ -234,6 +403,98 @@ export function MyResearch() {
         } catch (err) {
             console.error("Error deleting folder:", err);
             showToast("Failed to delete folder.");
+        }
+    };
+
+    // 6. Share Folder Handler
+    const handleShareFolder = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !user.email || !sharingFolder || !shareEmail.trim()) return;
+        const emailToShare = shareEmail.trim().toLowerCase();
+
+        if (emailToShare === user.email.toLowerCase()) {
+            showToast("You are already the owner of this folder.");
+            return;
+        }
+
+        if (sharingFolder.sharedWith.includes(emailToShare)) {
+            showToast("This folder is already shared with that user.");
+            return;
+        }
+
+        setIsSharing(true);
+        try {
+            const folderRef = doc(db, 'research_folders', sharingFolder.id);
+            const newSharedWith = [...sharingFolder.sharedWith, emailToShare];
+            await updateDoc(folderRef, { sharedWith: newSharedWith });
+            
+            // Trigger collaborative email notification
+            await addDoc(collection(db, 'mail'), {
+                to: emailToShare,
+                message: {
+                    subject: `SAHS Archives: Collaborative Folder Shared!`,
+                    text: `${user.email} has shared the research folder "${sharingFolder.name}"${sharingFolder.description ? ` (${sharingFolder.description})` : ''} with you. Visit your SAHS Archives Research Workspace to collaborate!`,
+                    html: `
+                        <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; background-color: #faf7f2; border: 1px solid #e1d8c7; border-radius: 8px;">
+                            <h2 style="color: #2b2b2b; font-family: serif; border-bottom: 1px solid #e1d8c7; padding-bottom: 12px; margin-top: 0;">SAHS Research Workspace</h2>
+                            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6;">
+                                <strong>${user.email}</strong> has shared a collaborative research folder with you:
+                            </p>
+                            <div style="background-color: #ffffff; padding: 16px; border-left: 4px solid #c8b89c; border-radius: 4px; margin: 20px 0;">
+                                <h3 style="margin: 0; color: #2b2b2b; font-family: serif;">📁 ${sharingFolder.name}</h3>
+                                ${sharingFolder.description ? `
+                                <p style="margin: 8px 0 0 0; color: #666666; font-size: 13px; font-style: italic; line-height: 1.4; border-top: 1px solid #f0f0f0; padding-top: 8px;">
+                                    ${sharingFolder.description}
+                                </p>
+                                ` : ''}
+                            </div>
+                            <p style="color: #4a4a4a; font-size: 14px; line-height: 1.6;">
+                                You can now actively view, add historical archive documents/photographs, and share collaborative notes inside this folder.
+                            </p>
+                            <a href="https://senoiahistory.com/research" style="display: inline-block; background-color: #2b2b2b; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 16px;">
+                                Open Workspace
+                            </a>
+                            <hr style="border: 0; border-top: 1px solid #e1d8c7; margin: 24px 0;" />
+                            <p style="font-size: 11px; color: #8c8c8c; margin-bottom: 0;">
+                                Sent automatically by the Senoia Area Historical Society Archives platform.
+                            </p>
+                        </div>
+                    `
+                }
+            });
+            
+            // Sync local state
+            setSharingFolder(prev => prev ? { ...prev, sharedWith: newSharedWith } : null);
+            setShareEmail('');
+            showToast(`Shared folder with ${emailToShare} and sent invitation email!`);
+            fetchFolders();
+        } catch (err) {
+            console.error("Error sharing folder:", err);
+            showToast("Failed to share folder.");
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    // 7. Unshare User Handler
+    const handleUnshareUser = async (emailToUnshare: string) => {
+        if (!sharingFolder) return;
+        
+        setIsSharing(true);
+        try {
+            const folderRef = doc(db, 'research_folders', sharingFolder.id);
+            const newSharedWith = sharingFolder.sharedWith.filter(e => e !== emailToUnshare);
+            await updateDoc(folderRef, { sharedWith: newSharedWith });
+            
+            // Sync local state
+            setSharingFolder(prev => prev ? { ...prev, sharedWith: newSharedWith } : null);
+            showToast(`Removed access for ${emailToUnshare}`);
+            fetchFolders();
+        } catch (err) {
+            console.error("Error removing collaborator:", err);
+            showToast("Failed to remove collaborator.");
+        } finally {
+            setIsSharing(false);
         }
     };
 
@@ -248,7 +509,7 @@ export function MyResearch() {
                         <Sparkles size={24} className="text-tan animate-pulse" />
                     </h1>
                     <p className="text-charcoal/60 font-sans mt-2 max-w-xl leading-relaxed">
-                        Welcome to your private research portal. Here you can curate specific historical items, documents, and figures into organized folders for your personal studies.
+                        Welcome to your collaborative research portal. Create folders, collaborate with other historical researchers, and share notes about historical figures and archives!
                     </p>
                 </div>
                 
@@ -284,32 +545,46 @@ export function MyResearch() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
                     {folders.map(folder => {
                         const isSelected = selectedFolder?.id === folder.id;
+                        const isOwner = folder.ownerEmail === user?.email?.toLowerCase();
                         return (
                             <div
                                 key={folder.id}
                                 onClick={() => setSelectedFolder(isSelected ? null : folder)}
-                                className={`group relative p-6 rounded-2xl border text-left cursor-pointer transition-all flex flex-col justify-between min-h-[160px] shadow-sm ${
+                                className={`group relative p-6 pt-8 rounded-2xl border text-left cursor-pointer transition-all flex flex-col justify-between min-h-[170px] shadow-sm ${
                                     isSelected
                                         ? 'bg-tan/10 border-tan shadow-md ring-1 ring-tan'
                                         : 'bg-white hover:bg-tan-light/10 border-tan-light/40 hover:border-tan/40 hover:-translate-y-1'
                                 }`}
                             >
-                                <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute top-2.5 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {isOwner && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSharingFolder(folder);
+                                            }}
+                                            className="p-1.5 bg-white/95 hover:bg-tan/20 rounded-full border border-tan-light/50 text-charcoal/70 hover:text-tan transition-colors"
+                                            title="Share Folder"
+                                        >
+                                            <Users size={14} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setRenamingFolder(folder);
                                             setRenameValue(folder.name);
+                                            setRenameDescriptionValue(folder.description || '');
                                         }}
                                         className="p-1.5 bg-white/95 hover:bg-tan/20 rounded-full border border-tan-light/50 text-charcoal/70 hover:text-tan transition-colors"
-                                        title="Rename Folder"
+                                        title="Edit Folder Details"
                                     >
                                         <Edit3 size={14} />
                                     </button>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleDeleteFolder(folder.id, folder.name);
+                                            handleDeleteFolder(folder.id, folder.name, folder.ownerEmail);
                                         }}
                                         className="p-1.5 bg-white/95 hover:bg-red-500/20 rounded-full border border-tan-light/50 text-charcoal/70 hover:text-red-600 transition-colors"
                                         title="Delete Folder"
@@ -318,18 +593,34 @@ export function MyResearch() {
                                     </button>
                                 </div>
 
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-4 mt-2">
                                     <div className="flex items-center gap-3">
                                         <span className="text-3xl transition-transform group-hover:scale-110 duration-300">
                                             {isSelected ? '📂' : '📁'}
                                         </span>
                                         <div>
-                                            <h3 className="font-serif font-bold text-lg text-charcoal leading-tight line-clamp-1">
+                                            <h3 className="font-serif font-bold text-lg text-charcoal leading-tight break-words">
                                                 {folder.name}
                                             </h3>
-                                            <p className="text-[10px] text-charcoal/40 font-mono tracking-wider mt-0.5">
-                                                Created {new Date(folder.createdAt).toLocaleDateString()}
-                                            </p>
+                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                <p className="text-[10px] text-charcoal/40 font-mono tracking-wider">
+                                                    Created {new Date(folder.createdAt).toLocaleDateString()}
+                                                </p>
+                                                {folder.description && (
+                                                    <p className="text-xs text-charcoal/60 font-sans mt-1.5 line-clamp-2 leading-relaxed italic break-words">
+                                                        {folder.description}
+                                                    </p>
+                                                )}
+                                                {!isOwner ? (
+                                                    <span className="text-[9px] font-bold text-tan-dark bg-tan/10 px-1.5 py-0.5 rounded w-max mt-1">
+                                                        Shared by: {folder.ownerEmail}
+                                                    </span>
+                                                ) : folder.sharedWith.length > 0 ? (
+                                                    <span className="text-[9px] font-bold text-charcoal bg-charcoal/5 px-1.5 py-0.5 rounded w-max mt-1 flex items-center gap-1">
+                                                        <Users size={10} /> Collaborative ({folder.sharedWith.length})
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -361,13 +652,27 @@ export function MyResearch() {
                                 {selectedFolder.itemIds.length} Items Saved
                             </span>
                         </div>
-                        <button
-                            onClick={() => setSelectedFolder(null)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-tan-light text-charcoal-light hover:bg-black/5 hover:text-charcoal transition-all text-xs font-bold font-sans uppercase tracking-wider"
-                        >
-                            <X size={14} /> Close Preview
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setIsAddItemsOpen(true)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-tan hover:bg-tan-dark text-cream shadow-sm transition-all text-xs font-bold font-sans uppercase tracking-wider active:scale-95"
+                            >
+                                <Plus size={14} /> Add Items
+                            </button>
+                            <button
+                                onClick={() => setSelectedFolder(null)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-tan-light text-charcoal-light hover:bg-black/5 hover:text-charcoal transition-all text-xs font-bold font-sans uppercase tracking-wider"
+                            >
+                                <X size={14} /> Close Preview
+                            </button>
+                        </div>
                     </div>
+
+                    {selectedFolder.description && (
+                        <p className="text-sm text-charcoal/70 font-sans italic mb-8 leading-relaxed max-w-3xl border-l-2 border-tan/30 pl-4 break-words">
+                            {selectedFolder.description}
+                        </p>
+                    )}
 
                     {loadingItems ? (
                         <div className="py-20 text-center font-serif text-charcoal/60 italic flex flex-col items-center gap-3">
@@ -385,37 +690,91 @@ export function MyResearch() {
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {folderItems.map(item => {
-                                const note = notes[item.id || ''];
+                                const itemNotes = notes[item.id || ''] || [];
                                 return (
                                     <div key={item.id} className="flex flex-col gap-3 group relative bg-white/20 p-2.5 rounded-2xl border border-tan-light/10 hover:border-tan-light/30 transition-all hover:shadow-sm">
                                         <DocumentCard
                                             item={item}
                                             galleryIds={folderItems.map(i => i.id || '')}
+                                            folderId={selectedFolder.id}
                                         />
                                         
-                                        {/* Tactile Mini Note Trigger */}
-                                        <button
-                                            onClick={() => {
-                                                setActiveNoteItemId(item.id || '');
-                                                setActiveNoteContent(note || '');
-                                                setActiveNoteTitle(item.title || '');
-                                            }}
-                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-left transition-all text-xs font-semibold font-sans leading-none ${
-                                                note 
-                                                    ? 'bg-[#fefcbf] border-yellow-300 text-[#854d0e] hover:shadow-sm shadow-xs' 
-                                                    : 'bg-white hover:bg-tan-light/10 border-tan-light/40 text-charcoal/60 hover:text-tan hover:border-tan/40'
-                                            }`}
-                                        >
-                                            <span className="flex items-center gap-1.5 truncate">
-                                                <span>📝</span>
-                                                <span className="truncate max-w-[140px] md:max-w-[180px] font-sans">
-                                                    {note ? `Note: "${note}"` : 'Add Research Note...'}
-                                                </span>
-                                            </span>
-                                            <span className="shrink-0 text-[10px] font-black text-tan uppercase tracking-wider ml-1 hover:underline">
-                                                {note ? 'Edit' : 'Write'}
-                                            </span>
-                                        </button>
+                                        {/* Collaborative Research Notes Journal */}
+                                        <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-tan-light/10">
+                                            <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest px-1">Research Journal</h4>
+                                            
+                                            <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-0.5">
+                                                {itemNotes.length === 0 ? (
+                                                    <p className="text-[11px] text-charcoal/40 italic px-1 py-1">No notes recorded yet.</p>
+                                                ) : (
+                                                    itemNotes.map(note => {
+                                                        const isMyNote = (note.ownerEmail || '').toLowerCase() === user?.email?.toLowerCase();
+                                                        return (
+                                                            <div 
+                                                                key={note.id} 
+                                                                className={`p-3 rounded-xl border flex flex-col gap-1.5 text-xs text-left relative ${
+                                                                    note.isPrivate
+                                                                        ? 'bg-[#fefcbf]/40 border-yellow-200/50 text-[#713f12]'
+                                                                        : 'bg-tan/5 border-tan-light/30 text-charcoal/80'
+                                                                }`}
+                                                            >
+                                                                <div className="flex justify-between items-center text-[9px] font-bold text-charcoal/40">
+                                                                    <span className="flex items-center gap-1 font-sans">
+                                                                        {note.isPrivate ? '🔒 Private' : '👥 Shared'}
+                                                                        <span>•</span>
+                                                                        <span>{note.ownerEmail.split('@')[0]}</span>
+                                                                    </span>
+                                                                    <div className="flex items-center gap-1">
+                                                                        {isMyNote && (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setActiveNoteItemId(item.id || '');
+                                                                                        setActiveNoteId(note.id);
+                                                                                        setActiveNoteContent(note.content);
+                                                                                        setActiveNoteTitle(item.title || '');
+                                                                                        setActiveNoteIsPrivate(note.isPrivate);
+                                                                                    }}
+                                                                                    className="text-tan hover:text-tan-dark font-black uppercase hover:underline"
+                                                                                >
+                                                                                    Edit
+                                                                                </button>
+                                                                                <span>•</span>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteNote(note.id)}
+                                                                                    className="text-red-500 hover:text-red-700 font-black uppercase hover:underline"
+                                                                                >
+                                                                                    Delete
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <p className="font-sans font-medium leading-relaxed italic break-words">
+                                                                    "{note.content}"
+                                                                </p>
+                                                                <span className="text-[8px] text-charcoal/30 self-end font-mono">
+                                                                    {new Date(note.lastUpdated).toLocaleDateString()}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+
+                                            <button
+                                                onClick={() => {
+                                                    setActiveNoteItemId(item.id || '');
+                                                    setActiveNoteId(null);
+                                                    setActiveNoteContent('');
+                                                    setActiveNoteTitle(item.title || '');
+                                                    setActiveNoteIsPrivate(true);
+                                                }}
+                                                className="w-full flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-dashed border-tan-light/40 hover:border-tan/40 text-charcoal/50 hover:text-tan bg-white hover:bg-tan-light/10 text-xs font-semibold font-sans transition-all active:scale-98"
+                                            >
+                                                <Plus size={14} /> Add Note...
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -459,6 +818,17 @@ export function MyResearch() {
                             />
                         </div>
 
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Folder Description (Optional)</label>
+                            <textarea
+                                placeholder="Describe the focus or topic of this research folder..."
+                                value={newFolderDescription}
+                                onChange={e => setNewFolderDescription(e.target.value)}
+                                className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans resize-none"
+                                rows={3}
+                            />
+                        </div>
+
                         <div className="flex gap-3 justify-end border-t border-tan/20 pt-6">
                             <button
                                 type="button"
@@ -478,7 +848,7 @@ export function MyResearch() {
                 </div>
             )}
 
-            {/* Rename Folder Modal */}
+            {/* Edit Folder Modal */}
             {renamingFolder && (
                 <div className="fixed inset-0 z-[2200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
                     <form
@@ -489,7 +859,7 @@ export function MyResearch() {
                         <div className="flex justify-between items-center border-b border-tan/20 pb-4">
                             <div className="flex items-center gap-2">
                                 <Edit3 size={20} className="text-tan" />
-                                <h3 className="font-serif font-bold text-xl text-charcoal">Rename Folder</h3>
+                                <h3 className="font-serif font-bold text-xl text-charcoal">Edit Folder Details</h3>
                             </div>
                             <button
                                 type="button"
@@ -501,7 +871,7 @@ export function MyResearch() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">New Folder Name</label>
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Folder Name</label>
                             <input
                                 type="text"
                                 placeholder="Rename folder..."
@@ -510,6 +880,17 @@ export function MyResearch() {
                                 className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans"
                                 required
                                 autoFocus
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Folder Description (Optional)</label>
+                            <textarea
+                                placeholder="Describe the focus or topic of this research folder..."
+                                value={renameDescriptionValue}
+                                onChange={e => setRenameDescriptionValue(e.target.value)}
+                                className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans resize-none"
+                                rows={3}
                             />
                         </div>
 
@@ -525,10 +906,91 @@ export function MyResearch() {
                                 type="submit"
                                 className="px-6 py-2 bg-charcoal hover:bg-tan text-white font-bold rounded-xl text-sm transition-all shadow-md font-sans"
                             >
-                                Rename
+                                Save Changes
                             </button>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* Sharing Folder Modal */}
+            {sharingFolder && (
+                <div className="fixed inset-0 z-[2200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div
+                        className="bg-cream border border-tan/30 w-full max-w-md rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col gap-6 animate-in zoom-in duration-300"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center border-b border-tan/20 pb-4">
+                            <div className="flex items-center gap-2">
+                                <Users size={20} className="text-tan" />
+                                <h3 className="font-serif font-bold text-xl text-charcoal">Collaborate on "{sharingFolder.name}"</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSharingFolder(null)}
+                                className="p-2 hover:bg-black/5 rounded-full text-charcoal/60 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Add Collaborator Form */}
+                        <form onSubmit={handleShareFolder} className="flex flex-col gap-2">
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Share with Researcher (Email)</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="email"
+                                    placeholder="e.g. colleague@senoiahistory.com"
+                                    value={shareEmail}
+                                    onChange={e => setShareEmail(e.target.value)}
+                                    className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans"
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={isSharing}
+                                    className="px-5 py-3 bg-charcoal hover:bg-tan text-white font-bold rounded-xl text-sm transition-all shadow-md active:scale-95 whitespace-nowrap font-sans disabled:opacity-50"
+                                >
+                                    Share
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Collaborators List */}
+                        <div className="flex flex-col gap-3">
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Active Collaborators</label>
+                            {sharingFolder.sharedWith.length === 0 ? (
+                                <p className="text-xs text-charcoal/50 italic font-sans">Not shared with anyone yet.</p>
+                            ) : (
+                                <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto pr-1">
+                                    {sharingFolder.sharedWith.map(email => (
+                                        <div key={email} className="flex items-center justify-between p-2.5 bg-white border border-tan-light/20 rounded-xl">
+                                            <span className="text-xs font-semibold text-charcoal font-sans">{email}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleUnshareUser(email)}
+                                                className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors text-xs font-bold font-sans uppercase tracking-wider"
+                                                title="Remove Access"
+                                                disabled={isSharing}
+                                            >
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 justify-end border-t border-tan/20 pt-6 mt-2">
+                            <button
+                                type="button"
+                                onClick={() => setSharingFolder(null)}
+                                className="px-6 py-2 bg-charcoal hover:bg-tan text-white font-bold rounded-xl text-sm transition-all shadow-md font-sans"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -553,7 +1015,7 @@ export function MyResearch() {
                             <div className="flex justify-between items-center border-b border-yellow-300/50 pb-2.5 z-10">
                                 <div className="flex flex-col gap-0.5">
                                     <h4 className="font-serif font-black text-xs text-[#854d0e] tracking-widest uppercase">
-                                        Private Research Note
+                                        Research Note
                                     </h4>
                                     <p className="text-[10px] text-charcoal/50 font-sans font-bold max-w-[240px] truncate">
                                         For: {activeNoteTitle}
@@ -579,8 +1041,25 @@ export function MyResearch() {
                                 autoFocus
                             />
 
-                            <div className="flex justify-between items-center text-[10px] font-sans font-bold text-[#a16207]/60 border-t border-yellow-300/40 pt-3 z-10">
-                                <span>🔒 Private to your account</span>
+                            {/* Share note option */}
+                            <div className="flex items-center gap-2.5 z-10 px-1 py-2 border-t border-b border-yellow-300/30">
+                                <input
+                                    type="checkbox"
+                                    id="share-note-checkbox"
+                                    checked={!activeNoteIsPrivate}
+                                    onChange={(e) => setActiveNoteIsPrivate(!e.target.checked)}
+                                    className="rounded border-yellow-400 text-tan focus:ring-tan w-4 h-4 cursor-pointer"
+                                />
+                                <label 
+                                    htmlFor="share-note-checkbox" 
+                                    className="text-xs font-bold text-[#713f12] cursor-pointer select-none font-sans flex items-center gap-1.5"
+                                >
+                                    👥 Share note with folder collaborators
+                                </label>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] font-sans font-bold text-[#a16207]/60 pt-1 z-10">
+                                <span>{activeNoteIsPrivate ? '🔒 Private to your account' : '👥 Visible to collaborators'}</span>
                                 <span>{activeNoteContent.length} / 1000 chars</span>
                             </div>
 
@@ -597,11 +1076,119 @@ export function MyResearch() {
                                     disabled={isSavingNote}
                                     className="px-5 py-2.5 bg-gradient-to-r from-tan to-tan-dark text-cream hover:from-charcoal hover:to-charcoal font-bold rounded-xl text-xs transition-all shadow-md active:scale-95 font-sans"
                                 >
-                                    {isSavingNote ? 'Saving...' : 'Save Private Note'}
+                                    {isSavingNote ? 'Saving...' : 'Save Note'}
                                 </button>
                             </div>
                         </div>
                     </form>
+                </div>
+            )}
+
+            {/* Add Items Modal */}
+            {isAddItemsOpen && selectedFolder && (
+                <div className="fixed inset-0 z-[2200] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div
+                        className="bg-cream border border-tan/30 w-full max-w-xl rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col gap-6 animate-in zoom-in duration-300 max-h-[85vh] overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center border-b border-tan/20 pb-4 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <Plus size={20} className="text-tan" />
+                                <h3 className="font-serif font-bold text-xl text-charcoal">Add Items to "{selectedFolder.name}"</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsAddItemsOpen(false);
+                                    setAddItemKeyword('');
+                                }}
+                                className="p-2 hover:bg-black/5 rounded-full text-charcoal/60 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="flex flex-col gap-2 shrink-0">
+                            <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Search Archive Items</label>
+                            <input
+                                type="text"
+                                placeholder="Type item title, ID, or description..."
+                                value={addItemKeyword}
+                                onChange={e => setAddItemKeyword(e.target.value)}
+                                className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans font-medium"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Search Results List */}
+                        <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-3 min-h-[250px]">
+                            {loadingAllItems ? (
+                                <div className="flex flex-col items-center justify-center py-12 gap-3 flex-1">
+                                    <div className="w-8 h-8 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>
+                                    <p className="font-serif text-charcoal/60 italic text-sm">Loading archive directory...</p>
+                                </div>
+                            ) : searchedAddItems.length === 0 ? (
+                                <div className="text-center py-12 text-charcoal/50 italic font-sans flex-1">
+                                    No archive items found matching "{addItemKeyword}".
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-2.5">
+                                    {searchedAddItems.map(item => {
+                                        const isInFolder = selectedFolder.itemIds.includes(item.id || '');
+                                        return (
+                                            <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-tan-light/20 rounded-xl hover:shadow-xs transition-shadow">
+                                                <div className="flex items-center gap-3 min-w-0 pr-4">
+                                                    {item.featured_image_url || (item.file_urls && item.file_urls.length > 0) ? (
+                                                        <img 
+                                                            src={item.featured_image_url || item.file_urls[0]} 
+                                                            alt={item.title} 
+                                                            className="w-10 h-10 rounded-lg object-cover shrink-0 border border-tan-light/20"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-lg bg-charcoal/5 text-tan flex items-center justify-center text-xs font-serif shrink-0 border border-tan-light/20">
+                                                            {item.title.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <h4 className="text-sm font-bold text-charcoal truncate leading-snug">{item.title}</h4>
+                                                        <p className="text-[10px] text-charcoal/50 font-sans tracking-wide mt-0.5 uppercase font-medium">
+                                                            ID: {item.artifact_id || 'N/A'} • {item.artifact_type || item.item_type}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleFolderItem(item.id || '')}
+                                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-sans transition-all active:scale-95 ${
+                                                        isInFolder
+                                                            ? 'bg-tan/10 text-tan hover:bg-red-500/10 hover:text-red-600'
+                                                            : 'bg-charcoal text-white hover:bg-tan'
+                                                    }`}
+                                                >
+                                                    {isInFolder ? '✓ Added' : '+ Add'}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 justify-end border-t border-tan/20 pt-6 mt-auto shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsAddItemsOpen(false);
+                                    setAddItemKeyword('');
+                                }}
+                                className="px-6 py-2 bg-charcoal hover:bg-tan text-white font-bold rounded-xl text-sm transition-all shadow-md font-sans"
+                            >
+                                Done
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 

@@ -52,3 +52,26 @@ img {
   animation: wave 1.2s ease-in-out infinite;
   transform-origin: bottom;
 }
+
+/* Custom Thin Scrollbar for Research Sticky Notes */
+.note-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(133, 77, 14, 0.3) transparent;
+}
+
+.note-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.note-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.note-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(133, 77, 14, 0.25);
+  border-radius: 4px;
+}
+
+.note-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(133, 77, 14, 0.45);
+}
