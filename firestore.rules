@@ -145,6 +145,14 @@ service cloud.firestore {
       allow create: if request.auth != null;
     }
 
+    // Root-level personal_pins: Only the owner can read/write their personal pins
+    match /personal_pins/{pinId} {
+      allow read: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower();
+      allow create: if request.auth != null && request.resource.data.ownerEmail.lower() == request.auth.token.email.lower();
+      allow update: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower() && request.resource.data.ownerEmail.lower() == request.auth.token.email.lower();
+      allow delete: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower();
+    }
+
     // Default deny for everything else
     match /{document=**} {
       allow read, write: if false;

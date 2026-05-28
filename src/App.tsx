@@ -27,6 +27,7 @@ const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ 
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 const SenoiaStories = lazy(() => import('./pages/SenoiaStories').then(m => ({ default: m.SenoiaStories })));
 const MyResearch = lazy(() => import('./pages/MyResearch'));
+const MyResearchMap = lazy(() => import('./pages/MyResearchMap').then(m => ({ default: m.MyResearchMap })));
 
 function PageWrapper() {
   return (
@@ -134,6 +135,7 @@ function App() {
                 
                 {/* Member Research Workspace Route */}
                 <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
+                <Route path="my-research/map" element={<ResearchRoute><MyResearchMap /></ResearchRoute>} />
               </Route>
             </Route>
           </Routes>

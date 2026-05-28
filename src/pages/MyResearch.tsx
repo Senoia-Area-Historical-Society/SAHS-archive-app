@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc } from 'firebase/firestore';
-import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users } from 'lucide-react';
+import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem } from '../types/database';
+import { FolderMapView } from '../components/FolderMapView';
 
 interface ResearchFolder {
     id: string;
@@ -24,6 +25,14 @@ export function MyResearch() {
     const [selectedFolder, setSelectedFolder] = useState<ResearchFolder | null>(null);
     const [folderItems, setFolderItems] = useState<ArchiveItem[]>([]);
     const [loadingItems, setLoadingItems] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+    
+    // Reset viewMode when selected folder changes
+    useEffect(() => {
+        if (!selectedFolder) {
+            setViewMode('grid');
+        }
+    }, [selectedFolder]);
     
     // Create / Rename States
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -653,15 +662,43 @@ export function MyResearch() {
                             </span>
                         </div>
                         <div className="flex items-center gap-3">
+                            {/* Segment View Toggle */}
+                            <div className="flex items-center bg-beige/50 border border-tan-light/40 p-1 rounded-xl shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('grid')}
+                                    className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold font-sans transition-all ${
+                                        viewMode === 'grid'
+                                            ? 'bg-white text-charcoal shadow-xs'
+                                            : 'text-charcoal-light hover:text-charcoal'
+                                    }`}
+                                    title="Grid View"
+                                >
+                                    <LayoutGrid size={14} /> <span className="hidden sm:inline">Grid</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('map')}
+                                    className={`flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold font-sans transition-all ${
+                                        viewMode === 'map'
+                                            ? 'bg-white text-charcoal shadow-xs'
+                                            : 'text-charcoal-light hover:text-charcoal'
+                                    }`}
+                                    title="Map View"
+                                >
+                                    <Map size={14} /> <span className="hidden sm:inline">Map</span>
+                                </button>
+                            </div>
+
                             <button
                                 onClick={() => setIsAddItemsOpen(true)}
-                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-tan hover:bg-tan-dark text-cream shadow-sm transition-all text-xs font-bold font-sans uppercase tracking-wider active:scale-95"
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-tan hover:bg-tan-dark text-cream shadow-sm transition-all text-xs font-bold font-sans uppercase tracking-wider active:scale-95 shrink-0"
                             >
                                 <Plus size={14} /> Add Items
                             </button>
                             <button
                                 onClick={() => setSelectedFolder(null)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-tan-light text-charcoal-light hover:bg-black/5 hover:text-charcoal transition-all text-xs font-bold font-sans uppercase tracking-wider"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-tan-light text-charcoal-light hover:bg-black/5 hover:text-charcoal transition-all text-xs font-bold font-sans uppercase tracking-wider shrink-0"
                             >
                                 <X size={14} /> Close Preview
                             </button>
@@ -687,6 +724,8 @@ export function MyResearch() {
                                 You haven't bookmarked any items in this folder yet. Browse the archive and click "Save to Research" on any document, figure, or organization page to save them here!
                             </p>
                         </div>
+                    ) : viewMode === 'map' ? (
+                        <FolderMapView items={folderItems} folderId={selectedFolder.id} />
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {folderItems.map(item => {

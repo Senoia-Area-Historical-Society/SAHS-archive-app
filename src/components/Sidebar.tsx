@@ -164,8 +164,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         <div className="mb-4">
                             <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Research Workspace</h2>
                             <nav className="flex flex-col gap-1">
-                                <NavLink to="/my-research" className={navLinkClass} onClick={handleLinkClick}>
+                                <NavLink to="/my-research" end className={navLinkClass} onClick={handleLinkClick}>
                                     <FolderOpen className="text-tan" size={20} /> My Research Folders
+                                </NavLink>
+                                <NavLink to="/my-research/map" className={navLinkClass} onClick={handleLinkClick}>
+                                    <Map className="text-tan" size={20} /> My Research Map
                                 </NavLink>
                             </nav>
                         </div>
