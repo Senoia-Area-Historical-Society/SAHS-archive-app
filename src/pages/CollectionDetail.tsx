@@ -260,7 +260,7 @@ export function CollectionDetail() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
                         {items.map(item => (
                             <div key={item.id} className="relative group">
-                                <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} />
+                                <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} collectionId={id} />
                                 {isSAHSUser && (
                                     <button 
                                         onClick={(e) => handleRemoveItem(item.id || '', e)}

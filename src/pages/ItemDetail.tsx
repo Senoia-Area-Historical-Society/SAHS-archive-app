@@ -490,7 +490,7 @@ export function ItemDetail() {
                     {(prevId || nextId) && (
                         <div className="flex items-center gap-1 bg-tan-light/10 border border-tan-light/30 rounded-lg p-1 ml-2 md:ml-6 shadow-sm">
                             <button 
-                                onClick={() => prevId && navigate(`/items/${prevId}`, { state: { galleryIds } })} 
+                                onClick={() => prevId && navigate(`/items/${prevId}`, { state: { galleryIds, collectionId: location.state?.collectionId } })} 
                                 disabled={!prevId}
                                 title="Previous Item"
                                 className={`p-1.5 md:p-2 rounded transition-colors flex items-center gap-1 text-xs md:text-sm font-bold uppercase tracking-wider ${prevId ? 'text-charcoal hover:bg-white hover:text-tan hover:shadow-sm' : 'text-charcoal/20 cursor-not-allowed'}`}
@@ -501,7 +501,7 @@ export function ItemDetail() {
                                 {currentIndex + 1} / {galleryIds.length}
                             </div>
                             <button 
-                                onClick={() => nextId && navigate(`/items/${nextId}`, { state: { galleryIds } })} 
+                                onClick={() => nextId && navigate(`/items/${nextId}`, { state: { galleryIds, collectionId: location.state?.collectionId } })} 
                                 disabled={!nextId}
                                 title="Next Item"
                                 className={`p-1.5 md:p-2 rounded transition-colors flex items-center gap-1 text-xs md:text-sm font-bold uppercase tracking-wider ${nextId ? 'text-charcoal hover:bg-white hover:text-tan hover:shadow-sm' : 'text-charcoal/20 cursor-not-allowed'}`}
@@ -523,7 +523,7 @@ export function ItemDetail() {
                             </button>
                         )}
                         <button
-                            onClick={() => navigate(`/edit-item/${id}`)}
+                            onClick={() => navigate(`/edit-item/${id}`, { state: { collectionId: location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0]) } })}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
                         >
                             <Edit2 size={16} /> Edit

@@ -7,10 +7,12 @@ import { OptimizedImage } from './OptimizedImage';
 export function DocumentCard({ 
     item, 
     galleryIds, 
+    collectionId,
     onRemove 
 }: { 
     item: ArchiveItem, 
     galleryIds?: string[],
+    collectionId?: string,
     onRemove?: (e: React.MouseEvent) => void
 }) {
     const { isEditingMode, isSAHSUser } = useAuth();
@@ -20,7 +22,7 @@ export function DocumentCard({
     return (
         <Link
             to={isEditingMode ? `/edit-item/${item.id}` : `/items/${item.id}`}
-            state={{ galleryIds }}
+            state={{ galleryIds, collectionId }}
             className="bg-white border-2 border-tan-light/50 rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] hover:border-tan transition-all flex flex-col group cursor-pointer"
         >
             <div className="aspect-[4/3] bg-tan-light/20 flex flex-col p-4 relative overflow-hidden">
