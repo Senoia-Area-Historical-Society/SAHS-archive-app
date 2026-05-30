@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
 import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2 } from 'lucide-react';
 import type { MuseumLocation, ArchiveItem } from '../types/database';
+import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 export function LocationDetail() {
     const { id } = useParams();
@@ -15,8 +16,14 @@ export function LocationDetail() {
     const [parentLocation, setParentLocation] = useState<MuseumLocation | null>(null);
     const [childBoxes, setChildBoxes] = useState<MuseumLocation[]>([]);
     const [items, setItems] = useState<ArchiveItem[]>([]);
+    const [nestedItems, setNestedItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser, user } = useAuth();
+
+    // Print Options Modal State
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [printScope, setPrintScope] = useState<'direct' | 'all' | 'nested-boxes'>('direct');
+    const [printFilter, setPrintFilter] = useState<'all' | 'no-qr'>('all');
 
     // Selection/Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +58,7 @@ export function LocationDetail() {
         setLoading(true);
         setChildBoxes([]);
         setParentLocation(null);
+        setNestedItems([]);
         try {
             // Fetch location details
             const docRef = doc(db, 'locations', id);
@@ -72,6 +80,7 @@ export function LocationDetail() {
                 }
             }
 
+            let childBoxesData: MuseumLocation[] = [];
             if (currentLocData) {
                 if (currentLocData.parent_location_id) {
                     const parentRef = doc(db, 'locations', currentLocData.parent_location_id);
@@ -82,7 +91,8 @@ export function LocationDetail() {
                 } else if (locDocId) {
                     const childQ = query(collection(db, 'locations'), where('parent_location_id', '==', locDocId));
                     const childSnap = await getDocs(childQ);
-                    setChildBoxes(childSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation)));
+                    childBoxesData = childSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation));
+                    setChildBoxes(childBoxesData);
                 }
             }
 
@@ -113,9 +123,51 @@ export function LocationDetail() {
             });
 
             const itemsData = Array.from(itemsMap.values());
-            
             itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
             setItems(itemsData);
+
+            // Fetch items for nested child boxes
+            if (childBoxesData.length > 0) {
+                const childItemPromises = childBoxesData.map(async (box) => {
+                    const qBox = query(
+                        collection(db, 'archive_items'),
+                        where('museum_location_ids', 'array-contains', box.id)
+                    );
+                    const qBoxLegacy = query(
+                        collection(db, 'archive_items'),
+                        where('museum_location_id', '==', box.id)
+                    );
+                    const [snapBox, snapBoxLegacy] = await Promise.all([
+                        getDocs(qBox),
+                        getDocs(qBoxLegacy)
+                    ]);
+                    
+                    const boxItemsMap = new Map<string, ArchiveItem>();
+                    snapBox.docs.forEach(doc => {
+                        boxItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                    });
+                    snapBoxLegacy.docs.forEach(doc => {
+                        boxItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                    });
+                    return Array.from(boxItemsMap.values());
+                });
+                
+                const resolvedChildItemsList = await Promise.all(childItemPromises);
+                const combinedChildItems = resolvedChildItemsList.flat();
+                
+                // Remove duplicates
+                const uniqueChildItemsMap = new Map<string, ArchiveItem>();
+                combinedChildItems.forEach(item => {
+                    uniqueChildItemsMap.set(item.id, item);
+                });
+                
+                const sortedChildItems = Array.from(uniqueChildItemsMap.values()).sort(
+                    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+                );
+                setNestedItems(sortedChildItems);
+            } else {
+                setNestedItems([]);
+            }
         } catch (error) {
             console.error("Error fetching location details:", error);
         } finally {
@@ -516,6 +568,42 @@ export function LocationDetail() {
         }
     };
 
+    interface PrintableLabel {
+        key: string;
+        qrValue: string;
+        title: string;
+        subtitle: string;
+    }
+
+    const getLabelsToPrint = (): PrintableLabel[] => {
+        if (printScope === 'nested-boxes') {
+            return childBoxes.map(box => ({
+                key: box.docId || box.id,
+                qrValue: `loc:${box.id}`,
+                title: box.name,
+                subtitle: `Box ID: ${box.id}`
+            }));
+        }
+        
+        let list = [...items];
+        if (printScope === 'all') {
+            list = [...items, ...nestedItems];
+        }
+        
+        if (printFilter === 'no-qr') {
+            list = list.filter(item => !item.artifact_id || item.artifact_id.trim() === '');
+        }
+        
+        return list.map(item => ({
+            key: item.id || '',
+            qrValue: `${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`,
+            title: item.title,
+            subtitle: item.artifact_id || item.id || ''
+        }));
+    };
+    
+    const labelsToPrint = getLabelsToPrint();
+
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading shelf details...</div>;
     }
@@ -535,8 +623,8 @@ export function LocationDetail() {
         <>
         {/* Conflict Resolution Modal */}
         {currentConflictIndex >= 0 && conflictedItems[currentConflictIndex] && (
-            <div className="fixed inset-0 z-[2000] bg-charcoal/90 flex flex-col items-center justify-center p-4">
-                <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center">
+                <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8 sm:my-auto">
                     <div className="bg-tan/10 p-8 border-b border-tan/20 text-center">
                         <div className="w-16 h-16 bg-tan/20 rounded-full flex items-center justify-center mx-auto mb-4">
                             <MapPin size={32} className="text-tan" />
@@ -619,12 +707,13 @@ export function LocationDetail() {
                 {/* Decorative Element */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-tan/5 rounded-bl-[200px] -mr-20 -mt-20 pointer-events-none" />
                 
-                <div className="lg:w-1/4 bg-tan-light/5 p-8 md:p-12 lg:p-16 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-tan-light/10">
-                    <div className="relative group/icon">
-                        <div className="absolute inset-0 bg-tan/20 blur-3xl rounded-full scale-0 group-hover/icon:scale-100 transition-transform duration-1000 opacity-30" />
-                        <MapPin size={80} className="text-tan/10 relative z-10" fill="currentColor" />
-                        <Tag size={32} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-tan relative z-20 transition-transform duration-500 group-hover/icon:scale-110" />
-                    </div>
+                <div className="lg:w-1/4 bg-tan-light/5 p-8 md:p-12 lg:p-16 flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-tan-light/10 gap-4">
+                    <QRCodeDisplay 
+                        value={`loc:${locationData.id}`} 
+                        label={locationData.name} 
+                        subLabel={parentLocation ? `Nested Box in ${parentLocation.name}` : "Museum Location Tag"}
+                        size={120}
+                    />
                 </div>
                 <div className="p-8 md:p-12 lg:p-16 flex-1 flex flex-col justify-center relative z-10">
                     <div className="flex items-center gap-4 mb-4">
@@ -701,9 +790,9 @@ export function LocationDetail() {
                     >
                         <MapPin size={18} /> View on Blueprint
                     </Link>
-                    {items.length > 0 && !isSelectMode && (
+                    {(items.length > 0 || nestedItems.length > 0) && !isSelectMode && (
                         <button 
-                            onClick={() => window.print()}
+                            onClick={() => setIsPrintModalOpen(true)}
                             className="flex items-center gap-2 bg-tan text-white px-5 py-3 rounded-lg font-bold hover:bg-charcoal transition-colors shadow-sm w-full sm:w-auto justify-center"
                         >
                             <Printer size={18} /> Print Labels
@@ -863,8 +952,8 @@ export function LocationDetail() {
 
             {/* Add Box Modal */}
             {isAddBoxModalOpen && (
-                <div className="fixed inset-0 z-[2000] bg-charcoal/90 flex flex-col items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8">
+                <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 my-8 sm:my-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
                                 <Box className="text-tan" size={24}/> Add Nested Box
@@ -906,8 +995,8 @@ export function LocationDetail() {
 
             {/* Move Box Modal */}
             {isMoveBoxModalOpen && (
-                <div className="fixed inset-0 z-[2000] bg-charcoal/90 flex flex-col items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8">
+                <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 my-8 sm:my-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
                                 <MapPin className="text-tan" size={24}/> Relocate Box
@@ -985,25 +1074,184 @@ export function LocationDetail() {
             </div>
         </div>
         
+        {/* Batch Print Configuration Modal */}
+        {isPrintModalOpen && (
+            <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center print:hidden animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8 sm:my-auto">
+                    <div className="bg-tan/10 p-8 border-b border-tan/20 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Printer className="text-tan" size={28} />
+                            <div>
+                                <h2 className="text-2xl font-serif font-bold text-charcoal">Batch Print Configuration</h2>
+                                <p className="text-xs text-charcoal/50 font-sans mt-0.5">Select scope and filtering options for physical asset tags.</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsPrintModalOpen(false)} 
+                            className="text-charcoal/40 hover:text-charcoal hover:bg-black/5 p-2 rounded-full transition-all"
+                        >
+                            <X size={24} />
+                        </button>
+                    </div>
+                    
+                    <div className="p-8 space-y-6">
+                        {/* Scope Selector */}
+                        {childBoxes.length > 0 && (
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Print Scope / Selection</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintScope('direct')}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                            printScope === 'direct' 
+                                                ? 'bg-tan/10 border-tan shadow-sm' 
+                                                : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                        }`}
+                                    >
+                                        <span className="font-bold text-xs text-charcoal leading-tight">Shelf Items</span>
+                                        <span className="text-[10px] text-charcoal/50 leading-tight">Print the {items.length} items housed directly on this shelf.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintScope('all')}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                            printScope === 'all' 
+                                                ? 'bg-tan/10 border-tan shadow-sm' 
+                                                : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                        }`}
+                                    >
+                                        <span className="font-bold text-xs text-charcoal leading-tight flex items-center justify-between">
+                                            Everything
+                                            <span className="bg-tan/20 text-tan text-[9px] font-bold py-0.5 px-1 rounded-full">Items</span>
+                                        </span>
+                                        <span className="text-[10px] text-charcoal/50 leading-tight">All items on shelf + {nestedItems.length} items inside nested boxes.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintScope('nested-boxes')}
+                                        className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                            printScope === 'nested-boxes' 
+                                                ? 'bg-tan/10 border-tan shadow-sm' 
+                                                : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                        }`}
+                                    >
+                                        <span className="font-bold text-xs text-charcoal leading-tight flex items-center justify-between">
+                                            Box Tags
+                                            <span className="bg-blue-100 text-blue-700 text-[9px] font-bold py-0.5 px-1 rounded-full">Boxes</span>
+                                        </span>
+                                        <span className="text-[10px] text-charcoal/50 leading-tight">Print physical QR codes for the {childBoxes.length} boxes themselves.</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Filter Selector - Only show if not printing Box Tags */}
+                        {printScope !== 'nested-boxes' && (
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Item Filtering</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintFilter('all')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-24 ${
+                                            printFilter === 'all' 
+                                                ? 'bg-tan/10 border-tan shadow-sm' 
+                                                : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                        }`}
+                                    >
+                                        <span className="font-bold text-sm text-charcoal">All Items</span>
+                                        <span className="text-xs text-charcoal/50 leading-tight">Print QR codes for every item in the selected scope.</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPrintFilter('no-qr')}
+                                        className={`p-4 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-24 ${
+                                            printFilter === 'no-qr' 
+                                                ? 'bg-tan/10 border-tan shadow-sm' 
+                                                : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                        }`}
+                                    >
+                                        <span className="font-bold text-sm text-charcoal">Unlabeled Only</span>
+                                        <span className="text-xs text-charcoal/50 leading-tight">Only print items that do not have a Catalog ID / QR Code assigned.</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Summary Card */}
+                        <div className="bg-cream/40 border border-tan-light/30 rounded-2xl p-4 flex items-center justify-between text-charcoal">
+                            <div className="text-sm">
+                                <p className="font-bold">Summary</p>
+                                <p className="text-xs text-charcoal/60 mt-0.5">
+                                    Scope: <span className="font-semibold text-charcoal">
+                                        {printScope === 'nested-boxes' ? 'Physical Box Tags' : printScope === 'all' ? 'Everything (including nested boxes)' : 'Shelf items only'}
+                                    </span>
+                                    {printScope !== 'nested-boxes' && (
+                                        <>
+                                            <br />
+                                            Filter: <span className="font-semibold text-charcoal">{printFilter === 'no-qr' ? 'Unlabeled items only' : 'All items'}</span>
+                                        </>
+                                    )}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-3xl font-serif font-black text-tan">{labelsToPrint.length}</span>
+                                <span className="block text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Labels</span>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pt-4 border-t border-tan-light/20">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPrintModalOpen(false);
+                                    setTimeout(() => {
+                                        window.print();
+                                    }, 100);
+                                }}
+                                disabled={labelsToPrint.length === 0}
+                                className="flex-1 flex items-center justify-center gap-2 bg-tan text-white py-4 rounded-xl font-bold hover:bg-charcoal transition-all shadow-md disabled:bg-charcoal/20 disabled:shadow-none"
+                            >
+                                <Printer size={20} /> Print {labelsToPrint.length} Label{labelsToPrint.length !== 1 ? 's' : ''}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsPrintModalOpen(false)}
+                                className="px-6 py-4 bg-white border border-tan-light text-charcoal hover:bg-cream rounded-xl font-bold transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+        
         {/* Dedicated Print Layout - Purely optimized for paper density */}
         <div className="hidden print:block w-full bg-white text-black bg-none">
             <div className="mb-6 border-b border-black pb-4 text-center">
-                <h1 className="text-2xl font-bold font-serif m-0">{locationData.name} - Asset Tags</h1>
-                <p className="text-sm m-0 text-gray-500">Inventory Label Sheet &bull; Generated {new Date().toLocaleDateString()}</p>
+                <h1 className="text-2xl font-bold font-serif m-0">
+                    {locationData.name} {printScope === 'all' ? '(With Nested Boxes)' : printScope === 'nested-boxes' ? '(Nested Box Tags)' : ''} - Asset Tags
+                </h1>
+                <p className="text-sm m-0 text-gray-500">
+                    Inventory Label Sheet &bull; Scope: {printScope === 'all' ? 'Everything' : printScope === 'nested-boxes' ? 'Nested Box Tags' : 'Shelf Only'} &bull; Filter: {printScope === 'nested-boxes' ? 'N/A' : printFilter === 'no-qr' ? 'Unlabeled Only' : 'All'} &bull; Generated {new Date().toLocaleDateString()}
+                </p>
             </div>
             
             {/* Grid layout ensuring ~1.5 inch squares fit tightly across paper width */}
             <div className="flex flex-wrap gap-[0.2in] justify-center items-center text-center">
-                {items.map(item => (
-                    <div key={item.id} className="flex flex-col items-center justify-center p-2 border border-gray-400 w-[1.5in] h-[1.5in] bg-white break-inside-avoid">
+                {labelsToPrint.map(label => (
+                    <div key={label.key} className="flex flex-col items-center justify-center p-2 border border-gray-400 w-[1.5in] h-[1.5in] bg-white break-inside-avoid">
                         <QRCodeSVG 
-                            value={`${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`} 
+                            value={label.qrValue} 
                             size={96} // Exactly 1 inch optical scale on 96dpi output
                             level="L"
                             includeMargin={false}
                         />
-                        <span className="text-[10px] font-bold mt-[0.1in] truncate w-full px-1">{item.title}</span>
-                        <span className="text-[8px] mt-0.5 text-gray-600 font-mono tracking-tighter truncate w-full px-1">{item.artifact_id || item.id}</span>
+                        <span className="text-[10px] font-bold mt-[0.1in] truncate w-full px-1">{label.title}</span>
+                        <span className="text-[8px] mt-0.5 text-gray-600 font-mono tracking-tighter truncate w-full px-1">{label.subtitle}</span>
                     </div>
                 ))}
             </div>
