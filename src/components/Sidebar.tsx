@@ -170,6 +170,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                 <NavLink to="/my-research/map" className={navLinkClass} onClick={handleLinkClick}>
                                     <Map className="text-tan" size={20} /> My Research Map
                                 </NavLink>
+                                <NavLink to="/my-research/membership" className={navLinkClass} onClick={handleLinkClick}>
+                                    <Users className="text-tan" size={20} /> Membership Status
+                                </NavLink>
                             </nav>
                         </div>
                     )}

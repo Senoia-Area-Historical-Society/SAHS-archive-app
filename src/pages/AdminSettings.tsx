@@ -351,6 +351,12 @@ export function AdminSettings() {
                                     Curator
                                 </button>
                                 <button
+                                    onClick={() => setSimulatedRole('member')}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${simulatedRole === 'member' ? 'bg-white text-tan shadow-sm' : 'text-charcoal/60 hover:text-charcoal'}`}
+                                >
+                                    Member
+                                </button>
+                                <button
                                     onClick={() => setSimulatedRole('visitor')}
                                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${simulatedRole === 'visitor' ? 'bg-white text-tan shadow-sm' : 'text-charcoal/60 hover:text-charcoal'}`}
                                 >

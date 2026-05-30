@@ -16,8 +16,8 @@ interface AuthContextType {
     isCurator: boolean;  // Effective role
     realIsAdmin: boolean; // Actual database role
     realIsCurator: boolean; // Actual database role
-    simulatedRole: 'admin' | 'curator' | 'visitor' | null;
-    setSimulatedRole: (role: 'admin' | 'curator' | 'visitor' | null) => void;
+    simulatedRole: 'admin' | 'curator' | 'member' | 'visitor' | null;
+    setSimulatedRole: (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => void;
     isEditingMode: boolean;
     setIsEditingMode: (value: boolean) => void;
     lastSearchPath: string;
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isCurator, setIsCurator] = useState(false);
     const [isEditingMode, setIsEditingMode] = useState(false);
     const [lastSearchPath, setLastSearchPath] = useState('/archive');
-    const [simulatedRole, setSimulatedRole] = useState<'admin' | 'curator' | 'visitor' | null>(() => {
+    const [simulatedRole, setSimulatedRole] = useState<'admin' | 'curator' | 'member' | 'visitor' | null>(() => {
         return localStorage.getItem('sahs_simulated_role') as any || null;
     });
     const [isMember, setIsMember] = useState(false);
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const location = useLocation();
 
-    const handleSetSimulatedRole = (role: 'admin' | 'curator' | 'visitor' | null) => {
+    const handleSetSimulatedRole = (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => {
         if (!isAdmin) return; // Only real admins can simulate roles
         setSimulatedRole(role);
         if (role) {
@@ -181,7 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const effectiveIsAdmin = isAdmin && (!simulatedRole || simulatedRole === 'admin');
     const effectiveIsCurator = (isAdmin || isCurator) && (!simulatedRole || simulatedRole === 'admin' || simulatedRole === 'curator');
     const effectiveIsSAHSUser = effectiveIsAdmin || effectiveIsCurator;
-    const hasResearchAccess = effectiveIsSAHSUser || isMember;
+    const effectiveIsMember = simulatedRole === 'member' || (isMember && !simulatedRole);
+    const hasResearchAccess = effectiveIsSAHSUser || effectiveIsMember;
 
     return (
         <AuthContext.Provider value={{ 

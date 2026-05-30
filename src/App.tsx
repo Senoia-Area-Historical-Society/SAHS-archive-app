@@ -28,6 +28,7 @@ const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m
 const SenoiaStories = lazy(() => import('./pages/SenoiaStories').then(m => ({ default: m.SenoiaStories })));
 const MyResearch = lazy(() => import('./pages/MyResearch'));
 const MyResearchMap = lazy(() => import('./pages/MyResearchMap').then(m => ({ default: m.MyResearchMap })));
+const MembershipStatus = lazy(() => import('./pages/MembershipStatus').then(m => ({ default: m.MembershipStatus })));
 
 function PageWrapper() {
   return (
@@ -136,6 +137,7 @@ function App() {
                 {/* Member Research Workspace Route */}
                 <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
                 <Route path="my-research/map" element={<ResearchRoute><MyResearchMap /></ResearchRoute>} />
+                <Route path="my-research/membership" element={<ResearchRoute><MembershipStatus /></ResearchRoute>} />
               </Route>
             </Route>
           </Routes>
