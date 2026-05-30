@@ -993,16 +993,15 @@ export default function EditItem() {
                     >
                         View Item
                     </button>
-                    {associatedCollection && (
+                    {associatedCollection ? (
                         <button
                             type="button"
                             onClick={() => navigate(`/collections/${associatedCollection.id}`)}
-                            className="bg-cream border border-tan-light/50 text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/20 transition-colors flex items-center gap-2"
+                            className="bg-charcoal text-white px-6 py-3 rounded-lg font-bold hover:bg-charcoal/80 transition-colors flex items-center gap-2"
                         >
-                            <BookOpen size={18} className="text-tan" /> Go Back to Collection
+                            <BookOpen size={18} className="text-tan" /> Back to Collection
                         </button>
-                    )}
-                    {fromAudit ? (
+                    ) : fromAudit ? (
                         <button
                             onClick={() => navigate('/audit')}
                             className="bg-charcoal text-white px-6 py-3 rounded-lg font-bold hover:bg-charcoal/80 transition-colors flex items-center gap-2"
@@ -1070,16 +1069,15 @@ export default function EditItem() {
                 </div>
                 <div className="flex items-center gap-6">
                     <button onClick={() => navigate(-1)} className="text-sm font-medium text-charcoal/60 hover:text-charcoal">Cancel</button>
-                    {associatedCollection && (
+                    {associatedCollection ? (
                         <button 
                             type="button"
                             onClick={() => navigate(`/collections/${associatedCollection.id}`)}
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
+                            className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
                         >
-                            <BookOpen size={16} className="text-tan" /> Go Back to Collection
+                            <BookOpen size={16} className="text-tan" /> Back to Collection
                         </button>
-                    )}
-                    {fromAudit ? (
+                    ) : fromAudit ? (
                         <button 
                             type="button"
                             onClick={() => navigate('/audit')}
