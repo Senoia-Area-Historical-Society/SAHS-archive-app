@@ -969,6 +969,9 @@ export default function EditItem() {
         return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">Loading archive details...</div>;
     }
 
+    const collectionId = item ? (location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0])) : undefined;
+    const associatedCollection = collections.find(c => c.id === collectionId);
+
     if (success) {
         return (
             <div className="max-w-2xl mx-auto h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-500">
@@ -990,6 +993,15 @@ export default function EditItem() {
                     >
                         View Item
                     </button>
+                    {associatedCollection && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/collections/${associatedCollection.id}`)}
+                            className="bg-cream border border-tan-light/50 text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/20 transition-colors flex items-center gap-2"
+                        >
+                            <BookOpen size={18} className="text-tan" /> Go Back to Collection
+                        </button>
+                    )}
                     {fromAudit ? (
                         <button
                             onClick={() => navigate('/audit')}
@@ -1011,9 +1023,6 @@ export default function EditItem() {
     }
 
     if (!item) return null;
-
-    const collectionId = location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0]);
-    const associatedCollection = collections.find(c => c.id === collectionId);
 
     return (
         <div className="max-w-5xl mx-auto h-full flex flex-col pb-12 relative">
