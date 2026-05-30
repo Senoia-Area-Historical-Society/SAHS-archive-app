@@ -3,7 +3,7 @@ import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, 
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
@@ -148,6 +148,7 @@ export default function EditItem() {
     const { lastSearchPath, user } = useAuth();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
     const fromAudit = searchParams.get('from') === 'audit';
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1011,6 +1012,9 @@ export default function EditItem() {
 
     if (!item) return null;
 
+    const collectionId = location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0]);
+    const associatedCollection = collections.find(c => c.id === collectionId);
+
     return (
         <div className="max-w-5xl mx-auto h-full flex flex-col pb-12 relative">
             {/* Zoom Overlay */}
@@ -1057,6 +1061,15 @@ export default function EditItem() {
                 </div>
                 <div className="flex items-center gap-6">
                     <button onClick={() => navigate(-1)} className="text-sm font-medium text-charcoal/60 hover:text-charcoal">Cancel</button>
+                    {associatedCollection && (
+                        <button 
+                            type="button"
+                            onClick={() => navigate(`/collections/${associatedCollection.id}`)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
+                        >
+                            <BookOpen size={16} className="text-tan" /> Go Back to Collection
+                        </button>
+                    )}
                     {fromAudit ? (
                         <button 
                             type="button"
