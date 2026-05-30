@@ -53,6 +53,15 @@ export function LocationDetail() {
     const [availableShelves, setAvailableShelves] = useState<MuseumLocation[]>([]);
     const [isMovingBox, setIsMovingBox] = useState(false);
 
+    // Bulk Relocate State
+    const [isBulkSelectActive, setIsBulkSelectActive] = useState(false);
+    const [bulkSelectedItems, setBulkSelectedItems] = useState<ArchiveItem[]>([]);
+    const [isBulkRelocateModalOpen, setIsBulkRelocateModalOpen] = useState(false);
+    const [allMuseumLocations, setAllMuseumLocations] = useState<MuseumLocation[]>([]);
+    const [destLocationId, setDestLocationId] = useState('');
+    const [destSearchQuery, setDestSearchQuery] = useState('');
+    const [isRelocatingBulk, setIsRelocatingBulk] = useState(false);
+
     const fetchLocationAndItems = async () => {
         if (!id) return;
         setLoading(true);
@@ -568,6 +577,75 @@ export function LocationDetail() {
         }
     };
 
+    const fetchMuseumLocations = async () => {
+        try {
+            const q = query(collection(db, 'locations'));
+            const snap = await getDocs(q);
+            const locs = snap.docs.map(d => ({ docId: d.id, ...d.data() } as MuseumLocation));
+            const filtered = locs.filter(l => l.id !== id && l.docId !== locationData?.docId && l.id !== locationData?.id);
+            filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            setAllMuseumLocations(filtered);
+        } catch (err) {
+            console.error("Error fetching museum locations:", err);
+        }
+    };
+
+    const handleBulkRelocate = async () => {
+        if (bulkSelectedItems.length === 0 || !destLocationId || !locationData) return;
+        setIsRelocatingBulk(true);
+        try {
+            const batch = writeBatch(db);
+            const now = new Date().toISOString();
+            const adminEmail = user?.email || 'Admin';
+
+            bulkSelectedItems.forEach(item => {
+                const itemRef = doc(db, 'archive_items', item.id!);
+                const currentLocIds = item.museum_location_ids || [];
+                // Filter out current location slug and docId
+                const filteredLocIds = currentLocIds.filter(
+                    lid => lid !== id && lid !== locationData.id && lid !== locationData.docId
+                );
+                // Add the new location slug
+                const newLocIds = Array.from(new Set([...filteredLocIds, destLocationId]));
+
+                batch.update(itemRef, {
+                    museum_location_ids: newLocIds,
+                    museum_location_id: destLocationId, // primary location
+                    last_tagged_at: now,
+                    last_tagged_by: adminEmail,
+                    stage: 'Housed'
+                });
+            });
+
+            await batch.commit();
+
+            // Reset selection and relocate states
+            setIsBulkSelectActive(false);
+            setBulkSelectedItems([]);
+            setIsBulkRelocateModalOpen(false);
+            setDestLocationId("");
+            setDestSearchQuery("");
+
+            await fetchLocationAndItems();
+        } catch (error) {
+            console.error("Error performing bulk relocation:", error);
+            alert("Failed to relocate items. Please check your permissions.");
+        } finally {
+            setIsRelocatingBulk(false);
+        }
+    };
+
+    const toggleBulkSelection = (item: ArchiveItem) => {
+        setBulkSelectedItems(prev => {
+            const isSelected = prev.some(i => i.id === item.id);
+            if (isSelected) {
+                return prev.filter(i => i.id !== item.id);
+            } else {
+                return [...prev, item];
+            }
+        });
+    };
+
     interface PrintableLabel {
         key: string;
         qrValue: string;
@@ -773,10 +851,29 @@ export function LocationDetail() {
                             )}
                         </div>
                     )}
+                    {isSAHSUser && items.length > 0 && !isSelectMode && (
+                        <button 
+                            onClick={() => {
+                                setIsBulkSelectActive(!isBulkSelectActive);
+                                if (!isBulkSelectActive) {
+                                    fetchMuseumLocations();
+                                } else {
+                                    setBulkSelectedItems([]);
+                                }
+                            }}
+                            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center ${
+                                isBulkSelectActive ? 'bg-tan text-white shadow-lg' : 'bg-white border border-tan text-tan hover:bg-tan/5'
+                            }`}
+                        >
+                            {isBulkSelectActive ? <X size={18} /> : <Check size={18} />}
+                            {isBulkSelectActive ? 'Cancel Selection' : 'Bulk Relocate'}
+                        </button>
+                    )}
                     {isSAHSUser && (
                         <button 
                             onClick={() => setIsSelectMode(!isSelectMode)}
-                            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center ${
+                            disabled={isBulkSelectActive}
+                            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
                                 isSelectMode ? 'bg-charcoal text-white' : 'bg-white border border-tan text-tan hover:bg-tan/5'
                             }`}
                         >
@@ -1055,14 +1152,40 @@ export function LocationDetail() {
             <div className="flex-1">
                 {items.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-max">
-                        {items.map(item => (
-                            <DocumentCard 
-                                key={item.id} 
-                                item={item} 
-                                galleryIds={items.map(i => i.id || '')} 
-                                onRemove={(e) => handleRemoveItemFromLocation(e, item)}
-                            />
-                        ))}
+                        {items.map(item => {
+                            const isSelected = bulkSelectedItems.some(i => i.id === item.id);
+                            return (
+                                <div key={item.id} className="relative group/bulk">
+                                    <DocumentCard 
+                                        item={item} 
+                                        galleryIds={items.map(i => i.id || '')} 
+                                        onRemove={(e) => handleRemoveItemFromLocation(e, item)}
+                                    />
+                                    {isBulkSelectActive && (
+                                        <div 
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                toggleBulkSelection(item);
+                                            }}
+                                            className={`absolute inset-0 z-30 rounded-2xl cursor-pointer transition-all duration-300 ${
+                                                isSelected 
+                                                    ? 'bg-tan/10 border-4 border-tan shadow-[0_0_15px_rgba(210,180,140,0.4)]' 
+                                                    : 'bg-black/5 hover:bg-black/10 border-2 border-transparent'
+                                            }`}
+                                        >
+                                            <div className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all shadow-md ${
+                                                isSelected 
+                                                    ? 'bg-tan border-tan text-white scale-110' 
+                                                    : 'bg-white/80 backdrop-blur-sm border-white text-transparent group-hover/bulk:border-tan/50'
+                                            }`}>
+                                                <Check size={18} strokeWidth={3} className={isSelected ? 'block' : 'hidden group-hover/bulk:block group-hover/bulk:text-tan/50'} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="text-center py-20 bg-cream/30 rounded-xl border border-tan-light/50 shadow-sm">
@@ -1219,6 +1342,167 @@ export function LocationDetail() {
                             <button
                                 type="button"
                                 onClick={() => setIsPrintModalOpen(false)}
+                                className="px-6 py-4 bg-white border border-tan-light text-charcoal hover:bg-cream rounded-xl font-bold transition-all"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Floating Bulk Action Bar */}
+        {isBulkSelectActive && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1000] w-[calc(100%-2rem)] max-w-lg bg-white/80 backdrop-blur-xl border border-tan-light/30 rounded-2xl py-4 px-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex items-center justify-between gap-4 animate-in slide-in-from-bottom-8 duration-300 print:hidden">
+                <div className="flex flex-col">
+                    <span className="text-xs font-black uppercase text-tan tracking-wider">Bulk Relocate</span>
+                    <span className="text-sm font-bold text-charcoal">
+                        {bulkSelectedItems.length === 0 
+                            ? 'Select items in the grid' 
+                            : `Selected ${bulkSelectedItems.length} Artifact${bulkSelectedItems.length === 1 ? '' : 's'}`
+                        }
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            setIsBulkSelectActive(false);
+                            setBulkSelectedItems([]);
+                        }}
+                        className="px-4 py-2 text-xs font-bold text-charcoal/50 hover:text-charcoal transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => setIsBulkRelocateModalOpen(true)}
+                        disabled={bulkSelectedItems.length === 0}
+                        className="bg-tan hover:bg-charcoal text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-colors shadow-md disabled:bg-charcoal/10 disabled:text-charcoal/30 disabled:shadow-none flex items-center gap-1.5"
+                    >
+                        <MapPin size={14} />
+                        Relocate Group
+                    </button>
+                </div>
+            </div>
+        )}
+
+        {/* Searchable Target Location Selector Modal */}
+        {isBulkRelocateModalOpen && (
+            <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center print:hidden animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-8 sm:my-auto">
+                    <div className="bg-tan/10 p-6 md:p-8 border-b border-tan/20 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-tan/20 rounded-xl flex items-center justify-center">
+                                <MapPin size={22} className="text-tan" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-serif font-bold text-charcoal">Choose Destination</h2>
+                                <p className="text-xs text-charcoal/50 font-sans mt-0.5">Where would you like to relocate {bulkSelectedItems.length} artifact{bulkSelectedItems.length === 1 ? '' : 's'}?</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                setIsBulkRelocateModalOpen(false);
+                                setDestLocationId("");
+                                setDestSearchQuery("");
+                            }} 
+                            className="text-charcoal/40 hover:text-charcoal hover:bg-black/5 p-2 rounded-full transition-all"
+                        >
+                            <X size={24} />
+                        </button>
+                    </div>
+                    
+                    <div className="p-6 md:p-8 space-y-6">
+                        {/* Search Input */}
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Search shelves or boxes..."
+                                value={destSearchQuery}
+                                onChange={e => setDestSearchQuery(e.target.value)}
+                                className="w-full bg-cream/50 pl-11 pr-4 py-3.5 rounded-xl border border-tan-light/50 focus:border-tan outline-none transition-all font-sans text-sm"
+                                autoFocus
+                            />
+                        </div>
+
+                        {/* Locations List */}
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {allMuseumLocations.filter(loc => {
+                                if (!destSearchQuery) return true;
+                                const q = destSearchQuery.toLowerCase();
+                                return loc.name.toLowerCase().includes(q) || 
+                                       loc.id.toLowerCase().includes(q) || 
+                                       (loc.description && loc.description.toLowerCase().includes(q));
+                            }).length > 0 ? (
+                                allMuseumLocations.filter(loc => {
+                                    if (!destSearchQuery) return true;
+                                    const q = destSearchQuery.toLowerCase();
+                                    return loc.name.toLowerCase().includes(q) || 
+                                           loc.id.toLowerCase().includes(q) || 
+                                           (loc.description && loc.description.toLowerCase().includes(q));
+                                }).map(loc => {
+                                    const isSelected = destLocationId === loc.id;
+                                    return (
+                                        <div 
+                                            key={loc.docId}
+                                            onClick={() => setDestLocationId(loc.id)}
+                                            className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
+                                                isSelected 
+                                                    ? 'bg-tan/10 border-tan shadow-sm' 
+                                                    : 'bg-white border-tan-light/20 hover:border-tan/30'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border ${
+                                                    isSelected ? 'bg-tan/20 border-tan/30 text-tan' : 'bg-charcoal/5 border-charcoal/10 text-charcoal/40 group-hover:text-tan transition-colors'
+                                                }`}>
+                                                    {loc.parent_location_id ? <Box size={16} /> : <MapPin size={16} />}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-charcoal text-sm group-hover:text-tan transition-colors">{loc.name}</h4>
+                                                    <p className="text-[11px] text-charcoal/40 font-sans leading-none mt-1">
+                                                        {loc.parent_location_id ? 'Nested Box' : 'Display Shelf'} &bull; Slug: {loc.id}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center border transition-all ${
+                                                isSelected ? 'bg-tan border-tan text-white' : 'border-tan-light group-hover:border-tan'
+                                            }`}>
+                                                {isSelected && <Check size={12} strokeWidth={3} />}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="text-center py-8 text-charcoal/40 italic">No locations found.</div>
+                            )}
+                        </div>
+
+                        {/* Summary & Confirm */}
+                        <div className="flex gap-3 pt-4 border-t border-tan-light/20">
+                            <button
+                                onClick={handleBulkRelocate}
+                                disabled={!destLocationId || isRelocatingBulk}
+                                className="flex-1 flex items-center justify-center gap-2 bg-tan text-white py-4 rounded-xl font-bold hover:bg-charcoal transition-all shadow-md disabled:bg-charcoal/20 disabled:shadow-none"
+                            >
+                                {isRelocatingBulk ? (
+                                    <>
+                                        <Loader2 className="animate-spin" size={18} />
+                                        Relocating...
+                                    </>
+                                ) : (
+                                    <>
+                                        Confirm Relocation
+                                    </>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setIsBulkRelocateModalOpen(false);
+                                    setDestLocationId("");
+                                    setDestSearchQuery("");
+                                }}
                                 className="px-6 py-4 bg-white border border-tan-light text-charcoal hover:bg-cream rounded-xl font-bold transition-all"
                             >
                                 Cancel
