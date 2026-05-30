@@ -514,7 +514,7 @@ export function ItemDetail() {
 
                 {isSAHSUser && (
                     <div className="flex gap-3">
-                        {item.collection_status === 'pending' && (
+                        {item.item_type === 'Artifact' && item.collection_status === 'pending' && (
                             <button
                                 onClick={handleAccession}
                                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
@@ -543,31 +543,41 @@ export function ItemDetail() {
                     <h1 className="text-5xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
                         {item.title}
                     </h1>
-                    {/* Collection Status Badges */}
-                    {item.collection_status === 'pending' && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
-                            <Clock size={14} /> Pending Accessioning
-                        </div>
-                    )}
-                    {item.collection_status === 'deaccessioned' && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-700 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
-                            <XCircle size={14} /> Deaccessioned
-                        </div>
-                    )}
-                    {item.collection_status === 'loan' && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
-                            <Calendar size={14} /> On Loan
-                        </div>
-                    )}
-                    {(item.collection_status === 'permanent' || !item.collection_status) && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tan text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
-                            <Award size={14} /> Permanent Collection
-                        </div>
-                    )}
-                    {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
-                            <Lock size={14} /> Private Item
-                        </div>
+                    {/* Collection Status Badges - Only for Artifacts */}
+                    {item.item_type === 'Artifact' ? (
+                        <>
+                            {item.collection_status === 'pending' && isSAHSUser && (
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                    <Clock size={14} /> Pending Accessioning
+                                </div>
+                            )}
+                            {item.collection_status === 'deaccessioned' && isSAHSUser && (
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-700 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                    <XCircle size={14} /> Deaccessioned
+                                </div>
+                            )}
+                            {item.collection_status === 'loan' && (
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                    <Calendar size={14} /> On Loan
+                                </div>
+                            )}
+                            {(item.collection_status === 'permanent' || !item.collection_status) && (
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tan text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                    <Award size={14} /> Permanent Collection
+                                </div>
+                            )}
+                            {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
+                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                    <Lock size={14} /> Private Item
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        item.is_private && isSAHSUser && (
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                                <Lock size={14} /> Private Item
+                            </div>
+                        )
                     )}
                     {isCollectionPrivate && isSAHSUser && (
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
