@@ -144,4 +144,5 @@ export interface ArchiveItem {
     accession_paperwork_urls?: string[]; // Admin/Curator only scans of paperwork
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
     accession_date?: string | null;
+    collection_status?: 'permanent' | 'pending' | 'deaccessioned' | 'loan' | null;
 }

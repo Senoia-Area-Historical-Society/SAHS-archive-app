@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -264,6 +264,27 @@ export function ItemDetail() {
         }
     };
 
+    const handleAccession = async () => {
+        if (!id || !item) return;
+        if (!window.confirm('Are you sure you want to accession this artifact? This will make it a Permanent Artifact and set its visibility to Public.')) return;
+        
+        try {
+            await updateDoc(doc(db, 'archive_items', id), {
+                collection_status: 'permanent',
+                is_private: false,
+                updated_at: new Date().toISOString(),
+                updated_by_email: user?.email || null,
+                updated_by_name: user?.displayName || null,
+            });
+            // Update local state
+            setItem(prev => prev ? { ...prev, collection_status: 'permanent', is_private: false } : null);
+            alert('Artifact has been successfully accessioned and is now public!');
+        } catch (error) {
+            console.error("Error accessioning item:", error);
+            alert("Failed to accession item.");
+        }
+    };
+
     if (loading || isDeleting) {
         return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">{isDeleting ? 'Deleting...' : 'Loading resource...'}</div>;
     }
@@ -493,6 +514,14 @@ export function ItemDetail() {
 
                 {isSAHSUser && (
                     <div className="flex gap-3">
+                        {item.collection_status === 'pending' && (
+                            <button
+                                onClick={handleAccession}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                                <Check size={16} /> Accession Artifact
+                            </button>
+                        )}
                         <button
                             onClick={() => navigate(`/edit-item/${id}`)}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-tan-light/50 rounded-lg text-sm font-medium text-charcoal hover:bg-tan-light/20 transition-colors shadow-sm"
@@ -514,7 +543,28 @@ export function ItemDetail() {
                     <h1 className="text-5xl md:text-7xl font-serif font-bold text-charcoal leading-tight tracking-tighter">
                         {item.title}
                     </h1>
-                    {item.is_private && isSAHSUser && (
+                    {/* Collection Status Badges */}
+                    {item.collection_status === 'pending' && isSAHSUser && (
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                            <Clock size={14} /> Pending Accessioning
+                        </div>
+                    )}
+                    {item.collection_status === 'deaccessioned' && isSAHSUser && (
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-700 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                            <XCircle size={14} /> Deaccessioned
+                        </div>
+                    )}
+                    {item.collection_status === 'loan' && (
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                            <Calendar size={14} /> On Loan
+                        </div>
+                    )}
+                    {(item.collection_status === 'permanent' || !item.collection_status) && (
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tan text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
+                            <Award size={14} /> Permanent Collection
+                        </div>
+                    )}
+                    {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                             <Lock size={14} /> Private Item
                         </div>

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Lock, X } from 'lucide-react';
+import { Lock, X, Clock, XCircle, Calendar } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { OptimizedImage } from './OptimizedImage';
@@ -37,7 +37,23 @@ export function DocumentCard({
                     </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                {item.is_private && isSAHSUser && (
+                {/* Specific preservation status badges */}
+                {item.collection_status === 'pending' && isSAHSUser && (
+                    <span className="absolute top-3 left-3 bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
+                        <Clock size={10} /> Pending
+                    </span>
+                )}
+                {item.collection_status === 'deaccessioned' && isSAHSUser && (
+                    <span className="absolute top-3 left-3 bg-red-700 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
+                        <XCircle size={10} /> Deaccessioned
+                    </span>
+                )}
+                {item.collection_status === 'loan' && (
+                    <span className="absolute top-3 left-3 bg-blue-600 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
+                        <Calendar size={10} /> On Loan
+                    </span>
+                )}
+                {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
                     <span className="absolute top-3 left-3 bg-amber-500 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
                         <Lock size={10} /> Private
                     </span>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
@@ -183,6 +183,13 @@ export default function EditItem() {
     const [selectedRelatedOrgs, setSelectedRelatedOrgs] = useState<{ id: string, org_name: string }[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [isPrivate, setIsPrivate] = useState(false);
+    const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
+
+    useEffect(() => {
+        if (collectionStatus === 'pending' || collectionStatus === 'deaccessioned') {
+            setIsPrivate(true);
+        }
+    }, [collectionStatus]);
 
 
 
@@ -439,6 +446,7 @@ export default function EditItem() {
                     setExistingAccessionUrls(data.accession_paperwork_urls || []);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
+                    setCollectionStatus(data.collection_status || 'permanent');
                 } else {
                     setError("Item not found.");
                 }
@@ -740,7 +748,8 @@ export default function EditItem() {
                 featured_image_url: finalFeaturedUrl,
         collection_id: item.collection_id || null,
                 collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
-                is_private: isPrivate,
+                is_private: (collectionStatus === 'pending' || collectionStatus === 'deaccessioned') ? true : isPrivate,
+                collection_status: collectionStatus,
 
                 // Core DC Elements
                 title: formData.get('title') as string || "",
@@ -1081,15 +1090,57 @@ export default function EditItem() {
                 </div>
             </div>
 
+            {/* Preservation / Collection Status Segmented Selector */}
+            <div className="mb-6 bg-white p-6 rounded-2xl border border-tan-light/50 shadow-sm space-y-4 text-charcoal">
+                <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-charcoal/80 mb-1">Preservation Status</h3>
+                    <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                        Specify how this item is categorized in the museum's collection database. This dynamically controls its public visibility.
+                    </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                        { status: 'permanent', label: 'Permanent Collection', icon: Award, desc: 'Remains in the collection indefinitely.', activeClass: 'bg-tan text-white border-tan shadow-sm hover:bg-tan/90', inactiveClass: 'border-tan-light/30 hover:border-tan/50 hover:bg-tan/5 text-charcoal/70' },
+                        { status: 'pending', label: 'Pending Accessioning', icon: Clock, desc: 'Awaiting formal accessioning. Forced Private.', activeClass: 'bg-amber-600 text-white border-amber-600 shadow-sm hover:bg-amber-600/90', inactiveClass: 'border-amber-600/20 hover:border-amber-600/50 hover:bg-amber-600/5 text-charcoal/70' },
+                        { status: 'deaccessioned', label: 'Deaccessioned', icon: XCircle, desc: 'Removed from the collection. Forced Private.', activeClass: 'bg-red-700 text-white border-red-700 shadow-sm hover:bg-red-700/90', inactiveClass: 'border-red-700/20 hover:border-red-700/50 hover:bg-red-700/5 text-charcoal/70' },
+                        { status: 'loan', label: 'On Loan', icon: Calendar, desc: 'Temporary loan; will not remain indefinitely.', activeClass: 'bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-600/90', inactiveClass: 'border-blue-600/20 hover:border-blue-600/50 hover:bg-blue-600/5 text-charcoal/70' }
+                    ].map(({ status, label, icon: Icon, desc, activeClass, inactiveClass }) => {
+                        const isActive = collectionStatus === status;
+                        return (
+                            <button
+                                key={status}
+                                type="button"
+                                onClick={() => setCollectionStatus(status as any)}
+                                className={`p-4 rounded-xl border-2 text-left flex flex-col justify-between transition-all duration-200 group/btn h-full ${isActive ? activeClass : inactiveClass}`}
+                            >
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Icon size={18} className={isActive ? 'text-white' : 'text-tan group-hover/btn:scale-110 transition-transform duration-200'} />
+                                    <span className="font-bold text-xs uppercase tracking-wider">{label}</span>
+                                </div>
+                                <p className={`text-[11px] leading-snug font-sans ${isActive ? 'text-white/80' : 'text-charcoal/50'}`}>
+                                    {desc}
+                                </p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
             <div className="mb-8 flex items-center justify-between bg-white p-5 rounded-2xl border border-tan-light/50 shadow-sm">
                 <div className="flex items-center gap-4 text-charcoal">
-                    <div className={`p-2.5 rounded-xl transition-colors ${isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                        {isPrivate ? <Lock size={20} /> : <Users size={20} />}
+                    <div className={`p-2.5 rounded-xl transition-colors ${(collectionStatus === 'pending' || collectionStatus === 'deaccessioned' || isPrivate) ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
+                        {(collectionStatus === 'pending' || collectionStatus === 'deaccessioned' || isPrivate) ? <Lock size={20} /> : <Users size={20} />}
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm uppercase tracking-wider">{isPrivate ? 'Private Resource' : 'Public Resource'}</h3>
-                        <p className="text-xs text-charcoal/60 leading-relaxed">
-                            {isPrivate 
+                        <h3 className="font-bold text-sm uppercase tracking-wider">
+                            {(collectionStatus === 'pending' || collectionStatus === 'deaccessioned') ? 'Forced Private Resource' : isPrivate ? 'Private Resource' : 'Public Resource'}
+                        </h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            {collectionStatus === 'pending'
+                                ? 'Forced Private: Pending artifacts are automatically hidden from the public archive until they are formally accessioned.'
+                                : collectionStatus === 'deaccessioned'
+                                ? 'Forced Private: Deaccessioned artifacts are kept private for administrative history and cannot be made public.'
+                                : isPrivate 
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
@@ -1097,11 +1148,12 @@ export default function EditItem() {
                 </div>
                 <button
                     type="button"
+                    disabled={collectionStatus === 'pending' || collectionStatus === 'deaccessioned'}
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isPrivate ? 'bg-amber-500' : 'bg-tan/30'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${(collectionStatus === 'pending' || collectionStatus === 'deaccessioned' || isPrivate) ? 'bg-amber-500' : 'bg-tan/30'} ${(collectionStatus === 'pending' || collectionStatus === 'deaccessioned') ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(collectionStatus === 'pending' || collectionStatus === 'deaccessioned' || isPrivate) ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                 </button>
             </div>
