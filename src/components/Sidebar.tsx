@@ -50,7 +50,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             )}
 
             <aside className={`
-                fixed md:sticky top-0 left-0 h-screen z-[1000] md:z-10
+                fixed md:sticky top-0 left-0 h-screen z-[1000] md:z-30
                 w-64 border-r border-tan-light bg-white flex flex-col p-6 shrink-0 overflow-y-auto shadow-[2px_0_8px_rgba(0,0,0,0.02)]
                 transition-transform duration-300 ease-in-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
