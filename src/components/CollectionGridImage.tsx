@@ -26,12 +26,35 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
 
         const fetchImages = async () => {
             try {
-                // Fetch a handful of items to hopefully find at least 4 images
-                const q = query(
-                    collection(db, 'archive_items'),
-                    or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId)),
-                    limit(20)
-                );
+                let q;
+                if (collectionId === 'pending-acquisitions') {
+                    q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'pending'),
+                        limit(20)
+                    );
+                } else if (collectionId === 'deaccessioned-artifacts') {
+                    q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'deaccessioned'),
+                        limit(20)
+                    );
+                } else if (collectionId === 'on-loan') {
+                    q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'loan'),
+                        limit(20)
+                    );
+                } else {
+                    q = query(
+                        collection(db, 'archive_items'),
+                        or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId)),
+                        limit(20)
+                    );
+                }
                 const snapshot = await getDocs(q);
                 const urls = snapshot.docs
                     .map(doc => {

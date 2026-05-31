@@ -23,12 +23,54 @@ export function Collections() {
                     id: doc.id,
                     ...doc.data()
                 })) as Collection[];
+
+                // Filter out the old manual "Deaccessed/Stolen" collection
+                const filteredDbCollections = collectionsData.filter(c => {
+                    if (c.id === 'nn1oEjqdXRgopJfCLiBK') return false;
+                    const titleLower = (c.title || '').toLowerCase();
+                    if (titleLower === 'deaccessed/stolen' || titleLower === 'deaccessioned & stolen') return false;
+                    return true;
+                });
+
+                const VIRTUAL_COLLECTIONS: Collection[] = [
+                    {
+                        id: 'pending-acquisitions',
+                        title: 'Pending Acquisitions',
+                        description: 'Curated repository of items awaiting formal accessioning. These items are strictly confidential and visible to archive staff only.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    },
+                    {
+                        id: 'deaccessioned-artifacts',
+                        title: 'Deaccessioned & Stolen',
+                        description: 'Preservation records for items that have been legally deaccessioned, retired, or stolen from our physical collection.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    },
+                    {
+                        id: 'on-loan',
+                        title: 'Items on Loan',
+                        description: 'A curated showcase of items currently on loan to the Senoia Area Historical Society for temporary exhibition.',
+                        is_private: false,
+                        created_at: new Date(0).toISOString()
+                    }
+                ];
+
+                let merged = [...filteredDbCollections];
+                const activeVirtuals = VIRTUAL_COLLECTIONS.filter(vc => {
+                    if (vc.id === 'pending-acquisitions' || vc.id === 'deaccessioned-artifacts') {
+                        return isSAHSUser;
+                    }
+                    return true;
+                });
                 
-                // Filter out private collections for non-SAHS users
+                // Prepend virtual collections so they are highlighted at the top
+                merged = [...activeVirtuals, ...merged];
+                
                 if (!isSAHSUser) {
-                    setCollections(collectionsData.filter(c => !c.is_private));
+                    setCollections(merged.filter(c => !c.is_private));
                 } else {
-                    setCollections(collectionsData);
+                    setCollections(merged);
                 }
             } catch (error) {
                 console.error("Error fetching collections:", error);
@@ -105,7 +147,7 @@ export function Collections() {
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
 
-                                {isSAHSUser && (
+                                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id) && (
                                     <div className="absolute top-3 right-3 flex gap-2 z-10">
                                         <button
                                             onClick={(e) => {
@@ -130,6 +172,12 @@ export function Collections() {
                                 {col.is_private && isSAHSUser && (
                                     <div className="absolute top-3 left-3 bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10">
                                         <Lock size={10} /> Private
+                                    </div>
+                                )}
+
+                                {['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id) && (
+                                    <div className={`absolute top-3 ${col.is_private && isSAHSUser ? 'left-24' : 'left-3'} bg-tan text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10`}>
+                                        Automatic
                                     </div>
                                 )}
 

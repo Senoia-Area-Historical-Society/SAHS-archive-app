@@ -28,27 +28,79 @@ export function CollectionDetail() {
         const fetchCollectionAndItems = async () => {
             if (!id) return;
             try {
-                // Fetch collection details
-                const docRef = doc(db, 'collections', id);
-                const docSnap = await getDoc(docRef);
-                
-                if (docSnap.exists()) {
-                    setCollectionData({ id: docSnap.id, ...docSnap.data() } as Collection);
-                } else {
-                    console.error("No such collection!");
-                }
+                let itemsData: ArchiveItem[] = [];
 
-                // Fetch items in this collection
-                const q = query(
-                    collection(db, 'archive_items'), 
-                    or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
-                );
-                
-                const querySnapshot = await getDocs(q);
-                const itemsData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as ArchiveItem[];
+                if (id === 'pending-acquisitions') {
+                    setCollectionData({
+                        id: 'pending-acquisitions',
+                        title: 'Pending Acquisitions',
+                        description: 'Curated repository of items awaiting formal accessioning. These items are strictly confidential and visible to archive staff only.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'pending')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else if (id === 'deaccessioned-artifacts') {
+                    setCollectionData({
+                        id: 'deaccessioned-artifacts',
+                        title: 'Deaccessioned & Stolen',
+                        description: 'Preservation records for items that have been legally deaccessioned, retired, or stolen from our physical collection.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'deaccessioned')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else if (id === 'on-loan') {
+                    setCollectionData({
+                        id: 'on-loan',
+                        title: 'Items on Loan',
+                        description: 'A curated showcase of items currently on loan to the Senoia Area Historical Society for temporary exhibition.',
+                        is_private: false,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'loan')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else {
+                    // Fetch collection details
+                    const docRef = doc(db, 'collections', id);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        setCollectionData({ id: docSnap.id, ...docSnap.data() } as Collection);
+                    } else {
+                        console.error("No such collection!");
+                    }
+
+                    // Fetch items in this collection
+                    const q = query(
+                        collection(db, 'archive_items'), 
+                        or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
+                    );
+                    
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })) as ArchiveItem[];
+                }
                 
                 // Sort client-side to avoid needing a Firestore composite index
                 itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
@@ -199,7 +251,7 @@ export function CollectionDetail() {
                 <Link to="/collections" className="inline-flex items-center text-sm font-bold text-tan uppercase tracking-wider hover:text-charcoal transition-colors">
                     <ChevronLeft size={16} className="mr-1" /> Back to Collections
                 </Link>
-                {isSAHSUser && (
+                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                     <Link to={`/edit-collection/${collectionData.id}`} className="inline-flex items-center gap-2 text-sm font-bold bg-tan/10 text-tan hover:bg-tan hover:text-white px-4 py-2 rounded-lg transition-colors">
                         <Edit2 size={16} /> Edit Collection
                     </Link>
@@ -236,6 +288,11 @@ export function CollectionDetail() {
                                 <Users size={12} /> Public Collection
                             </div>
                         )}
+                        {['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-tan/10 text-tan border border-tan/20 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
+                                <FolderOpen size={12} /> Automatic Collection
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -245,7 +302,7 @@ export function CollectionDetail() {
                     Items in this Collection
                     <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{items.length}</span>
                 </h2>
-                {isSAHSUser && (
+                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                     <button 
                         onClick={handleOpenAddModal}
                         className="bg-tan text-white px-4 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors flex items-center gap-2 shadow-sm text-sm"
@@ -261,7 +318,7 @@ export function CollectionDetail() {
                         {items.map(item => (
                             <div key={item.id} className="relative group">
                                 <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} collectionId={id} />
-                                {isSAHSUser && (
+                                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                                     <button 
                                         onClick={(e) => handleRemoveItem(item.id || '', e)}
                                         className="absolute top-3 right-3 p-2 bg-charcoal/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500 shadow-md"
