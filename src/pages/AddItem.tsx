@@ -871,7 +871,7 @@ export function AddItem() {
                                     ref={fileInputRef}
                                     className="hidden"
                                     multiple
-                                    accept="image/png, image/jpeg, image/webp, application/pdf"
+                                    accept="image/png, image/jpeg, image/webp, image/heic, image/heif, .heic, .heif, application/pdf"
                                     onChange={async (e) => {
                                         if (e.target.files) {
                                             await processFiles(e.target.files);
