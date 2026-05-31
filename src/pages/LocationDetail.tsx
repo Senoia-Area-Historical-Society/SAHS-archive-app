@@ -151,7 +151,8 @@ export function LocationDetail() {
     // Search for items to add from local catalog
     useEffect(() => {
         const searchItems = () => {
-            if (!searchQuery || searchQuery.length < 2) {
+            const minLength = searchMode === 'id' ? 1 : 2;
+            if (!searchQuery || searchQuery.length < minLength) {
                 setSearchResults([]);
                 return;
             }
@@ -800,12 +801,17 @@ export function LocationDetail() {
                                             </div>
                                         </div>
                                     ))
-                                ) : searchQuery.length >= 2 ? (
+                                ) : searchQuery.length >= (searchMode === 'id' ? 1 : 2) ? (
                                     <div className="text-center py-8 text-charcoal/40 italic">No items found matching "{searchQuery}"</div>
                                 ) : (
                                     <div className="text-center py-8 text-charcoal/30 flex flex-col items-center gap-2">
                                         <AlertCircle size={24} className="opacity-20" />
-                                        <p className="text-sm font-sans">Enter at least 2 characters to search the archive.</p>
+                                        <p className="text-sm font-sans">
+                                            {searchMode === 'id' 
+                                                ? "Enter at least 1 character to search by Catalog ID." 
+                                                : "Enter at least 2 characters to search the archive."
+                                            }
+                                        </p>
                                     </div>
                                 )}
                             </div>
