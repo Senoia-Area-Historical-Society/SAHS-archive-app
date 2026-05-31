@@ -82,7 +82,9 @@ export function LocationDetail() {
                 } else if (locDocId) {
                     const childQ = query(collection(db, 'locations'), where('parent_location_id', '==', locDocId));
                     const childSnap = await getDocs(childQ);
-                    setChildBoxes(childSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation)));
+                    const boxes = childSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation));
+                    boxes.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+                    setChildBoxes(boxes);
                 }
             }
 
@@ -417,7 +419,10 @@ export function LocationDetail() {
                 created_at: new Date().toISOString()
             };
             const docRef = await addDoc(collection(db, 'locations'), newLoc);
-            setChildBoxes(prev => [...prev, { docId: docRef.id, ...newLoc } as MuseumLocation]);
+            setChildBoxes(prev => {
+                const next = [...prev, { docId: docRef.id, ...newLoc } as MuseumLocation];
+                return next.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+            });
             setIsAddBoxModalOpen(false);
             setNewBoxName('');
             setNewBoxId('');
