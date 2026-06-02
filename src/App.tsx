@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import AnalyticsTracker from './components/AnalyticsTracker';
 
 // Lazy load pages for better initial bundle size
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
@@ -81,6 +82,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <AnalyticsTracker />
       <AuthProvider>
         <Suspense fallback={<LoadingSpinner />}>
           <Routes>
