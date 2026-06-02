@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo, Fragment } from 'react';
+import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award, Play, Pause, Music } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -96,7 +96,8 @@ export function AddItem() {
         });
     }, [selectedFiles]);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-    const [itemType, setItemType] = useState<ItemType>('Document');
+    const initialTypeParam = searchParams.get('type') as ItemType | null;
+    const [itemType, setItemType] = useState<ItemType>(initialTypeParam || 'Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
 
     // New Fields & Data State
@@ -537,6 +538,14 @@ export function AddItem() {
                 artifact_type: formData.get('artifact_type') as string || "",
                 museum_location: formData.get('museum_location') as string || "",
                 accession_date: formData.get('accession_date') as string || "",
+
+                // Oral History specific
+                narrator_id: selectedRelatedFigures.length > 0 ? selectedRelatedFigures[0].id : null,
+                interviewer: formData.get('interviewer') as string || "",
+                interview_date: formData.get('interview_date') as string || "",
+                audio_url: additionalMediaUrls.length > 0 ? additionalMediaUrls[0] : (formData.get('youtube_video_id') ? null : ""),
+                youtube_video_id: formData.get('youtube_video_id') as string || "",
+                transcript: formData.get('transcript') as string || formData.get('transcription') as string || "",
             };
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
@@ -826,7 +835,31 @@ export function AddItem() {
                 </div>
             )}
 
-            <form id="add-item-form" onSubmit={handleSubmit} className="bg-white rounded-2xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
+            {itemType === 'Oral History' ? (
+                <OralHistoryAddForm
+                    isSubmitting={isSubmitting}
+                    handleSubmit={handleSubmit}
+                    uploadProgress={uploadProgress}
+                    selectedFiles={selectedFiles}
+                    setSelectedFiles={setSelectedFiles}
+                    fileObjectURLs={fileObjectURLs}
+                    setFileObjectURLs={setFileObjectURLs}
+                    featuredImageIndex={featuredImageIndex}
+                    setFeaturedImageIndex={setFeaturedImageIndex}
+                    accessionFiles={accessionFiles}
+                    setAccessionFiles={setAccessionFiles}
+                    additionalMediaFiles={additionalMediaFiles}
+                    setAdditionalMediaFiles={setAdditionalMediaFiles}
+                    selectedRelatedFigures={selectedRelatedFigures}
+                    setSelectedRelatedFigures={setSelectedRelatedFigures}
+                    allFigures={allFigures}
+                    figureSearch={figureSearch}
+                    setFigureSearch={setFigureSearch}
+                    showFigureResults={showFigureResults}
+                    setShowFigureResults={setShowFigureResults}
+                />
+            ) : (
+                <form id="add-item-form" onSubmit={handleSubmit} className="bg-white rounded-2xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
 
                 {/* Section 1: Files & Type */}
                 <div className="p-8 border-b border-tan-light/50 bg-cream/20">
@@ -1087,7 +1120,7 @@ export function AddItem() {
 
                                 <div>
                                     <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                        <Camera size={14} /> Additional Media (Video/Audio)
+                                        <Camera size={14} /> {(itemType as string) === 'Oral History' ? 'Audio Interview Recording (.mp3 / .wav) *' : 'Additional Media (Video/Audio)'}
                                         <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold">Visible to Visitors</span>
                                     </label>
                                     <div 
@@ -1161,6 +1194,27 @@ export function AddItem() {
                                         <div>
                                             <label htmlFor="dissolved_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Closed / Dissolved Date</label>
                                             <input type="text" name="dissolved_date" id="dissolved_date" placeholder="MM/DD/YYYY" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {(itemType as string) === 'Oral History' && (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="interviewer" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interviewer Name</label>
+                                            <input type="text" name="interviewer" id="interviewer" placeholder="e.g. Jane Smith" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                        <div>
+                                            <label htmlFor="interview_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interview Date</label>
+                                            <input type="text" name="interview_date" id="interview_date" placeholder="e.g. October 12, 1995" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div>
+                                            <label htmlFor="youtube_video_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">YouTube Video ID / URL (Optional)</label>
+                                            <input type="text" name="youtube_video_id" id="youtube_video_id" placeholder="e.g. dQw4w9WgXcQ" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     </div>
                                 </>
@@ -1309,10 +1363,21 @@ export function AddItem() {
                             )}
 
                             <div>
-                                <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">
-                                    {itemType === 'Historic Figure' ? 'Biography *' : itemType === 'Historic Organization' ? 'History & Description *' : itemType === 'Artifact' ? 'Physical Description & History *' : 'History & Description *'}
-                                </label>
-                                <textarea required id="description" name="description" placeholder={itemType === 'Historic Figure' ? "Biographical details, family history, and significance..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : itemType === 'Artifact' ? "Physical details, materials, historical use, and significance..." : "Provide background, provenance, or biographical details..."} className="w-full min-h-[140px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans resize-none leading-relaxed"></textarea>
+                                <div>
+                                    <label htmlFor="description" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">
+                                        {itemType === 'Historic Figure' ? 'Biography *' : itemType === 'Historic Organization' ? 'History & Description *' : itemType === 'Artifact' ? 'Physical Description & History *' : (itemType as string) === 'Oral History' ? 'Interview Summary & Context *' : 'History & Description *'}
+                                    </label>
+                                    <textarea required id="description" name="description" placeholder={itemType === 'Historic Figure' ? "Biographical details, family history, and significance..." : itemType === 'Historic Organization' ? "Historical details, mission, key figures, and legacy..." : itemType === 'Artifact' ? "Physical details, materials, historical use, and significance..." : (itemType as string) === 'Oral History' ? "Summary of the interview, key stories told, and narrator background..." : "Provide background, provenance, or biographical details..."} className="w-full min-h-[140px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans resize-none leading-relaxed"></textarea>
+                                </div>
+
+                                {(itemType as string) === 'Oral History' && (
+                                    <div className="mt-6">
+                                        <label htmlFor="transcript" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">
+                                            Full Interview Transcript *
+                                        </label>
+                                        <textarea required id="transcript" name="transcript" placeholder="Paste the full, transcribed interview dialogue here. Use Speaker names like 'Jane Smith:' for dialogue..." className="w-full min-h-[250px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans resize-none leading-relaxed"></textarea>
+                                    </div>
+                                )}
                             </div>
                             
                             {(itemType === 'Historic Figure' || itemType === 'Historic Organization') && (
@@ -1412,12 +1477,14 @@ export function AddItem() {
 
                         {itemType !== 'Historic Figure' && (
                             <div ref={figureRef}>
-                                <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Connect Historic Figures</label>
+                                <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">
+                                    {(itemType as string) === 'Oral History' ? 'Connect Narrator (Historic Figure) *' : 'Connect Historic Figures'}
+                                </label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-3 text-charcoal/30" size={18} />
                                     <input
                                         type="text"
-                                        placeholder="Search people in the archive..."
+                                        placeholder={(itemType as string) === 'Oral History' ? "Search narrator in the archive..." : "Search people in the archive..."}
                                         className="w-full bg-white border border-tan-light/50 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 transition-all text-sm"
                                         value={figureSearch}
                                         onChange={(e) => {
@@ -1694,6 +1761,1029 @@ export function AddItem() {
                 </div>
 
             </form>
+            )}
         </div>
+    );
+}
+
+// Synced Transcript Helper & Curation Suite for Oral Histories
+function parseTranscriptString(text: string) {
+    if (!text) return [];
+    return text.split('\n').filter(line => line.trim().length > 0).map((line, idx) => {
+        const match = line.match(/^\[?(\d{2}:\d{2}(?:\.\d{1,3})?)\]?\s*([^:]+):\s*(.*)$/);
+        if (match) {
+            return {
+                id: `line-${idx}-${Date.now()}-${Math.random()}`,
+                timestamp: match[1],
+                speaker: match[2].trim(),
+                text: match[3].trim()
+            };
+        }
+        const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
+        if (speakerMatch) {
+            return {
+                id: `line-${idx}-${Date.now()}-${Math.random()}`,
+                timestamp: '00:00',
+                speaker: speakerMatch[1].trim(),
+                text: speakerMatch[2].trim()
+            };
+        }
+        return {
+            id: `line-${idx}-${Date.now()}-${Math.random()}`,
+            timestamp: '00:00',
+            speaker: '',
+            text: line.trim()
+        };
+    });
+}
+
+function parseTimeToSeconds(timeStr: string): number {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':').map(Number);
+    if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+    } else if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+}
+
+function formatTime(seconds: number): string {
+    if (isNaN(seconds)) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+interface OralHistoryAddFormProps {
+    isSubmitting: boolean;
+    handleSubmit: (e: React.FormEvent) => Promise<void>;
+    uploadProgress: number | null;
+    selectedFiles: File[];
+    setSelectedFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    fileObjectURLs: Map<File, string>;
+    setFileObjectURLs: React.Dispatch<React.SetStateAction<Map<File, string>>>;
+    featuredImageIndex: number;
+    setFeaturedImageIndex: React.Dispatch<React.SetStateAction<number>>;
+    accessionFiles: File[];
+    setAccessionFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    additionalMediaFiles: File[];
+    setAdditionalMediaFiles: React.Dispatch<React.SetStateAction<File[]>>;
+    selectedRelatedFigures: any[];
+    setSelectedRelatedFigures: React.Dispatch<React.SetStateAction<any[]>>;
+    allFigures: any[];
+    figureSearch: string;
+    setFigureSearch: (s: string) => void;
+    showFigureResults: boolean;
+    setShowFigureResults: (b: boolean) => void;
+}
+
+export function OralHistoryAddForm({
+    isSubmitting,
+    handleSubmit,
+    uploadProgress,
+    selectedFiles,
+    setSelectedFiles,
+    fileObjectURLs,
+    setFileObjectURLs,
+    featuredImageIndex: _featuredImageIndex,
+    setFeaturedImageIndex,
+    accessionFiles,
+    setAccessionFiles,
+    additionalMediaFiles,
+    setAdditionalMediaFiles,
+    selectedRelatedFigures,
+    setSelectedRelatedFigures,
+    allFigures,
+    figureSearch,
+    setFigureSearch,
+    showFigureResults,
+    setShowFigureResults
+}: OralHistoryAddFormProps) {
+    const [transcriptLines, setTranscriptLines] = useState<{ id: string; timestamp: string; speaker: string; text: string }[]>([]);
+    const [audioPlayerTime, setAudioPlayerTime] = useState(0);
+    const [audioPlayerDuration, setAudioPlayerDuration] = useState(0);
+    const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+    const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+    const [showImportArea, setShowImportArea] = useState(false);
+    const [importText, setImportText] = useState("");
+
+    const handleImportTranscript = () => {
+        const parsed = parseTranscriptString(importText);
+        if (parsed.length > 0) {
+            setTranscriptLines(prev => [...prev, ...parsed]);
+            setImportText("");
+            setShowImportArea(false);
+        } else {
+            alert("Could not parse any lines. Make sure they format like '[MM:SS] Speaker Name: Dialogue Text' or 'Speaker Name: Dialogue Text'.");
+        }
+    };
+
+    const formAudioRef = useRef<HTMLAudioElement | null>(null);
+    const figureRef = useRef<HTMLDivElement | null>(null);
+
+    const filteredFigures = useMemo(() => {
+        if (!figureSearch.trim()) return [];
+        const searchLower = figureSearch.toLowerCase();
+        return allFigures.filter(f => 
+            f.title.toLowerCase().includes(searchLower) &&
+            !selectedRelatedFigures.find(sf => sf.id === f.id)
+        );
+    }, [allFigures, figureSearch, selectedRelatedFigures]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (figureRef.current && !figureRef.current.contains(event.target as Node)) {
+                setShowFigureResults(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [setShowFigureResults]);
+
+    const serializedTranscript = useMemo(() => {
+        return transcriptLines
+            .map(line => `[${line.timestamp}] ${line.speaker}: ${line.text}`)
+            .join('\n');
+    }, [transcriptLines]);
+
+    useEffect(() => {
+        return () => {
+            if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+        };
+    }, [audioBlobUrl]);
+
+    useEffect(() => {
+        const audio = formAudioRef.current;
+        if (!audio) return;
+
+        const onTimeUpdate = () => setAudioPlayerTime(audio.currentTime);
+        const onLoadedMetadata = () => setAudioPlayerDuration(audio.duration);
+        const onPlay = () => setIsAudioPlaying(true);
+        const onPause = () => setIsAudioPlaying(false);
+        const onEnded = () => setIsAudioPlaying(false);
+
+        audio.addEventListener('timeupdate', onTimeUpdate);
+        audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('ended', onEnded);
+
+        return () => {
+            audio.removeEventListener('timeupdate', onTimeUpdate);
+            audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+            audio.removeEventListener('play', onPlay);
+            audio.removeEventListener('pause', onPause);
+            audio.removeEventListener('ended', onEnded);
+        };
+    }, [audioBlobUrl]);
+
+    const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        const url = URL.createObjectURL(file);
+        
+        setFileObjectURLs(prev => {
+            const next = new Map(prev);
+            next.set(file, url);
+            return next;
+        });
+        
+        setSelectedFiles([file]);
+        setFeaturedImageIndex(0);
+    };
+
+    const handleRemoveCover = () => {
+        if (selectedFiles.length > 0) {
+            const file = selectedFiles[0];
+            const url = fileObjectURLs.get(file);
+            if (url) {
+                URL.revokeObjectURL(url);
+                setFileObjectURLs(prev => {
+                    const next = new Map(prev);
+                    next.delete(file);
+                    return next;
+                });
+            }
+        }
+        setSelectedFiles([]);
+        setFeaturedImageIndex(0);
+    };
+
+    const handlePaperworkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        setAccessionFiles(prev => [...prev, ...files]);
+    };
+
+    const handleRemoveNewPaperwork = (idx: number) => {
+        setAccessionFiles(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+        const url = URL.createObjectURL(file);
+        setAudioBlobUrl(url);
+        
+        setAdditionalMediaFiles([file]);
+    };
+
+    const handleRemoveAudio = () => {
+        setAdditionalMediaFiles([]);
+        if (audioBlobUrl) {
+            URL.revokeObjectURL(audioBlobUrl);
+            setAudioBlobUrl(null);
+        }
+    };
+
+    const togglePlay = () => {
+        const audio = formAudioRef.current;
+        if (!audio) return;
+        if (isAudioPlaying) {
+            audio.pause();
+        } else {
+            audio.play().catch(err => console.error("Error playing audio", err));
+        }
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const audio = formAudioRef.current;
+        if (!audio) return;
+        const time = parseFloat(e.target.value);
+        audio.currentTime = time;
+        setAudioPlayerTime(time);
+    };
+
+    const playRowTime = (timestamp: string) => {
+        const seconds = parseTimeToSeconds(timestamp);
+        const audio = formAudioRef.current;
+        if (!audio) return;
+        audio.currentTime = seconds;
+        setAudioPlayerTime(seconds);
+        if (!isAudioPlaying) {
+            audio.play().catch(err => console.error("Error playing audio", err));
+        }
+    };
+
+    const syncRowTime = (rowId: string) => {
+        const formatted = formatTime(audioPlayerTime);
+        setTranscriptLines(prev => prev.map(line => 
+            line.id === rowId ? { ...line, timestamp: formatted } : line
+        ));
+    };
+
+    const addDialogueRow = (insertIdx?: number) => {
+        const defaultTime = formatTime(audioPlayerTime);
+        let prevSpeaker = 'Narrator';
+        if (insertIdx !== undefined && insertIdx > 0 && transcriptLines[insertIdx - 1]) {
+            prevSpeaker = transcriptLines[insertIdx - 1].speaker;
+        } else if (transcriptLines.length > 0) {
+            prevSpeaker = transcriptLines[transcriptLines.length - 1].speaker;
+        } else if (selectedRelatedFigures.length > 0) {
+            prevSpeaker = selectedRelatedFigures[0].title || 'Narrator';
+        }
+        
+        const newRow = {
+            id: `line-new-${Date.now()}-${Math.random()}`,
+            timestamp: defaultTime,
+            speaker: prevSpeaker,
+            text: ''
+        };
+        
+        if (insertIdx !== undefined) {
+            setTranscriptLines(prev => {
+                const next = [...prev];
+                next.splice(insertIdx, 0, newRow);
+                return next;
+            });
+        } else {
+            setTranscriptLines(prev => [...prev, newRow]);
+        }
+    };
+
+    const deleteDialogueRow = (rowId: string) => {
+        setTranscriptLines(prev => prev.filter(line => line.id !== rowId));
+    };
+
+    const sortTranscriptLines = () => {
+        setTranscriptLines(prev => {
+            return [...prev].sort((a, b) => {
+                const secA = parseTimeToSeconds(a.timestamp);
+                const secB = parseTimeToSeconds(b.timestamp);
+                return secA - secB;
+            });
+        });
+    };
+
+    const updateRowField = (rowId: string, field: 'timestamp' | 'speaker' | 'text', val: string) => {
+        setTranscriptLines(prev => prev.map(line => 
+            line.id === rowId ? { ...line, [field]: val } : line
+        ));
+    };
+
+    const clearTranscript = () => {
+        if (window.confirm("Are you sure you want to clear the entire transcript? This cannot be undone.")) {
+            setTranscriptLines([]);
+        }
+    };
+
+    const audioSource = audioBlobUrl || "";
+    const coverImageSource = selectedFiles.length > 0 ? fileObjectURLs.get(selectedFiles[0]) : null;
+    const narratorName = selectedRelatedFigures.length > 0 ? selectedRelatedFigures[0].title : 'Narrator';
+
+    return (
+        <form id="add-item-form" onSubmit={handleSubmit} className="flex flex-col gap-10">
+            {/* Hidden serialization fields inside form */}
+            <textarea 
+                name="transcription" 
+                value={serializedTranscript} 
+                readOnly 
+                className="hidden" 
+            />
+            <textarea 
+                name="transcript" 
+                value={serializedTranscript} 
+                readOnly 
+                className="hidden" 
+            />
+
+            {/* Audio tag for syncing & preview */}
+            {audioSource && (
+                <audio ref={formAudioRef} src={audioSource} preload="metadata" />
+            )}
+
+            {/* Suggestions datalist for speaker fields */}
+            <datalist id="speaker-suggestions">
+                <option value={narratorName} />
+                <option value="Interviewer" />
+            </datalist>
+
+            {/* Form Top Section: Three-column Grid Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
+                
+                {/* Column 1 & 2: Story Details */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl p-8 space-y-6">
+                        <div className="flex items-center gap-2 border-b border-tan-light/20 pb-3">
+                            <Sparkles className="text-tan" size={20} />
+                            <h3 className="text-xl font-serif font-bold text-charcoal">Story Details</h3>
+                        </div>
+
+                        {/* Title input */}
+                        <div>
+                            <label htmlFor="title" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interview Title *</label>
+                            <input 
+                                required 
+                                type="text" 
+                                name="title" 
+                                id="title" 
+                                placeholder="e.g. Oral History Interview with Mildred Sibley" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Summary / Description */}
+                        <div>
+                            <label htmlFor="description" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interview Summary & Context *</label>
+                            <textarea 
+                                required 
+                                id="description" 
+                                name="description" 
+                                placeholder="Provide a rich summary of the stories told, topics discussed, and historical context of this oral history..." 
+                                className="w-full min-h-[160px] bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal leading-relaxed resize-none"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Interviewer */}
+                            <div>
+                                <label htmlFor="interviewer" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interviewer Name</label>
+                                <input 
+                                    type="text" 
+                                    name="interviewer" 
+                                    id="interviewer" 
+                                    placeholder="e.g. Jane Smith" 
+                                    className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                                />
+                            </div>
+
+                            {/* Interview Date */}
+                            <div>
+                                <label htmlFor="interview_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Interview Date</label>
+                                <input 
+                                    type="text" 
+                                    name="interview_date" 
+                                    id="interview_date" 
+                                    placeholder="e.g. October 12, 1995" 
+                                    className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Narrator Link Autocomplete */}
+                        <div ref={figureRef} className="relative">
+                            <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Connect Narrator (Historic Figure) *</label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Type resident / figure name to search..."
+                                    className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal"
+                                    value={figureSearch}
+                                    onChange={(e) => {
+                                        setFigureSearch(e.target.value);
+                                        setShowFigureResults(true);
+                                    }}
+                                    onFocus={() => setShowFigureResults(true)}
+                                />
+
+                                {showFigureResults && (
+                                    <div className="absolute z-20 left-0 right-0 mt-2 bg-white border border-tan-light rounded-xl shadow-xl max-h-48 overflow-auto">
+                                        {filteredFigures.length > 0 ? (
+                                            filteredFigures.map(fig => (
+                                                <button
+                                                    key={fig.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedRelatedFigures([{ id: fig.id, title: fig.title }]);
+                                                        setFigureSearch('');
+                                                        setShowFigureResults(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-cream border-b border-tan-light/20 last:border-0 flex items-center justify-between group text-sm font-sans"
+                                                >
+                                                    <span className="font-medium text-charcoal">{fig.title}</span>
+                                                    <Plus size={14} className="text-tan opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            ))
+                                        ) : (
+                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic font-sans">No figures found.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {selectedRelatedFigures.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-4">
+                                    {selectedRelatedFigures.map(fig => (
+                                        <div key={fig.id} className="flex items-center gap-2 bg-tan text-white px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wider animate-in zoom-in duration-200">
+                                            <span>Narrator: {fig.title}</span>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setSelectedRelatedFigures([])} 
+                                                className="hover:text-charcoal transition-colors ml-1"
+                                                title="Remove Narrator Link"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 3: Cover Photo & Media uploads */}
+                <div className="space-y-6">
+                    {/* Cover Photo Slot */}
+                    <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl p-8 space-y-6">
+                        <div className="flex items-center gap-2 border-b border-tan-light/20 pb-3">
+                            <ImageIcon className="text-tan" size={20} />
+                            <h3 className="text-xl font-serif font-bold text-charcoal">Cover Photo</h3>
+                        </div>
+
+                        {coverImageSource ? (
+                            <div className="relative group rounded-xl overflow-hidden border-2 border-tan/30 shadow-inner aspect-[4/3] bg-cream/5 flex items-center justify-center">
+                                <img src={coverImageSource} className="w-full h-full object-cover" alt="Cover preview" />
+                                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={handleRemoveCover} 
+                                        className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-md hover:bg-red-700 transition-all font-sans"
+                                    >
+                                        Remove Photo
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="relative group border-2 border-dashed border-tan-light/80 hover:border-tan bg-cream/10 rounded-xl transition-all aspect-[4/3] flex flex-col items-center justify-center text-center p-6 cursor-pointer">
+                                <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    onChange={handleCoverUpload} 
+                                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                                />
+                                <Upload className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
+                                <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Cover Photo</p>
+                                <p className="text-[10px] text-charcoal/40 max-w-[180px] font-sans">Portrait image of the narrator or historical figure (.jpg, .png)</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Audio Interview Slot */}
+                    <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl p-8 space-y-6">
+                        <div className="flex items-center gap-2 border-b border-tan-light/20 pb-3">
+                            <Music className="text-tan" size={20} />
+                            <h3 className="text-xl font-serif font-bold text-charcoal">Interview Audio</h3>
+                        </div>
+
+                        {audioSource ? (
+                            <div className="bg-cream/15 border border-tan-light/30 rounded-xl p-4 space-y-4 font-sans">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5 text-tan">
+                                        <Music size={18} />
+                                        <span className="text-xs font-black uppercase tracking-wider text-charcoal max-w-[150px] truncate">
+                                            {additionalMediaFiles.length > 0 ? additionalMediaFiles[0].name : "Audio Recording"}
+                                        </span>
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        onClick={handleRemoveAudio} 
+                                        className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                        title="Remove Audio File"
+                                    >
+                                        <XCircle size={16} />
+                                    </button>
+                                </div>
+                                
+                                {/* Audio wave preview inside form */}
+                                <div className="flex items-center gap-3 bg-white border border-tan-light/20 p-3 rounded-lg shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={togglePlay}
+                                        className="w-10 h-10 rounded-full bg-tan text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0"
+                                    >
+                                        {isAudioPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+                                    </button>
+                                    <div className="flex-1 space-y-1 font-mono">
+                                        <div className="flex justify-between text-[10px] text-charcoal/50">
+                                            <span>{formatTime(audioPlayerTime)}</span>
+                                            <span>{formatTime(audioPlayerDuration)}</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max={audioPlayerDuration || 100}
+                                            value={audioPlayerTime}
+                                            onChange={handleSeek}
+                                            className="w-full accent-tan bg-tan-light/20 h-1 rounded appearance-none cursor-pointer focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="relative group border-2 border-dashed border-tan-light/80 hover:border-tan bg-cream/10 rounded-xl transition-all flex flex-col items-center justify-center text-center p-6 cursor-pointer">
+                                <input 
+                                    type="file" 
+                                    accept="audio/*" 
+                                    onChange={handleAudioUpload} 
+                                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                                />
+                                <Music className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
+                                <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Audio file</p>
+                                <p className="text-[10px] text-charcoal/40 max-w-[180px] font-sans">Select digital audio interview recording (.mp3, .wav)</p>
+                            </div>
+                        )}
+
+                        {/* YouTube URL field */}
+                        <div>
+                            <label htmlFor="youtube_video_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">YouTube Video URL / ID (Optional)</label>
+                            <input 
+                                type="text" 
+                                name="youtube_video_id" 
+                                id="youtube_video_id" 
+                                placeholder="e.g. dQw4w9WgXcQ" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Dublin Core & Private Consent Documents section */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* Column 1: Private paperwork upload */}
+                <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl p-8 space-y-6 lg:col-span-1">
+                    <div className="flex items-center gap-2 border-b border-tan-light/20 pb-3">
+                        <Lock className="text-amber-600" size={20} />
+                        <h3 className="text-xl font-serif font-bold text-charcoal">Private Archives</h3>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200/50 p-4 rounded-xl flex gap-3 text-amber-800 font-sans">
+                        <AlertCircle className="shrink-0 mt-0.5" size={18} />
+                        <div className="space-y-1 text-xs">
+                            <p className="font-bold">⚠️ Private Curator-Only Access</p>
+                            <p className="leading-relaxed text-amber-800/80">Consent forms, legal deeds of gift, and private paperwork are hidden from public website for resident confidentiality.</p>
+                        </div>
+                    </div>
+
+                    {/* Paperwork preview and uploads */}
+                    <div className="space-y-4 font-sans">
+                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Release & Consent Papers</label>
+                        
+                        {accessionFiles.length > 0 && (
+                            <div className="space-y-2">
+                                {/* Newly added ones */}
+                                {accessionFiles.map((file, idx) => (
+                                    <div key={'new-' + idx} className="flex items-center justify-between bg-tan-light/10 border border-tan-light/30 px-3.5 py-2.5 rounded-xl text-xs font-medium text-charcoal animate-in slide-in-from-top-2 duration-200">
+                                        <div className="flex items-center gap-2 font-bold max-w-[180px] truncate">
+                                            <FileText size={14} className="text-tan" />
+                                            <span>{file.name}</span>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleRemoveNewPaperwork(idx)} 
+                                            className="text-red-500 hover:text-red-700 transition-colors p-1"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="relative group border-2 border-dashed border-amber-600/30 bg-amber-50/5 hover:border-amber-600 bg-cream/10 rounded-xl transition-all flex flex-col items-center justify-center text-center p-6 cursor-pointer">
+                            <input 
+                                type="file" 
+                                multiple 
+                                accept=".pdf,.png,.jpg,.jpeg" 
+                                onChange={handlePaperworkUpload} 
+                                className="absolute inset-0 opacity-0 cursor-pointer" 
+                            />
+                            <Upload className="text-amber-600/50 group-hover:scale-110 transition-transform mb-3" size={28} />
+                            <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Add Private Document</p>
+                            <p className="text-[10px] text-charcoal/40 max-w-[180px]">Deed of gift or paperwork (.pdf, .jpg, .png)</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 2 & 3: Archival Metadata */}
+                <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl p-8 space-y-6 lg:col-span-2">
+                    <div className="flex items-center gap-2 border-b border-tan-light/20 pb-3">
+                        <BookOpen className="text-tan" size={20} />
+                        <h3 className="text-xl font-serif font-bold text-charcoal">Dublin Core Archival Metadata</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Filing Code */}
+                        <div>
+                            <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Code</label>
+                            <input 
+                                type="text" 
+                                name="archive_reference" 
+                                id="archive_reference" 
+                                placeholder="e.g. SAHS-OH-1995-001" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Subject */}
+                        <div>
+                            <label htmlFor="subject" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Subject Topics</label>
+                            <input 
+                                type="text" 
+                                name="subject" 
+                                id="subject" 
+                                placeholder="e.g. WWII, Senoia High School, Farming" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Creator */}
+                        <div>
+                            <label htmlFor="creator" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Creator</label>
+                            <input 
+                                type="text" 
+                                name="creator" 
+                                id="creator" 
+                                defaultValue="Senoia Area Historical Society" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Publisher */}
+                        <div>
+                            <label htmlFor="publisher" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Publisher</label>
+                            <input 
+                                type="text" 
+                                name="publisher" 
+                                id="publisher" 
+                                defaultValue="Senoia Area Historical Society" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Rights */}
+                        <div>
+                            <label htmlFor="rights" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Rights Statement</label>
+                            <input 
+                                type="text" 
+                                name="rights" 
+                                id="rights" 
+                                defaultValue="Copyright Senoia Area Historical Society. All rights reserved." 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+
+                        {/* Donor */}
+                        <div>
+                            <label htmlFor="donor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Gift / Donor Name</label>
+                            <input 
+                                type="text" 
+                                name="donor" 
+                                id="donor" 
+                                placeholder="e.g. Sibley Family Collection" 
+                                className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Immersive synced transcript editor spanning full width at bottom */}
+            <div className="bg-white rounded-2xl border border-tan-light/40 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom duration-300">
+                <div className="bg-cream/10 p-8 border-b border-tan-light/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-tan">
+                            <Clock size={22} />
+                            <h3 className="text-2xl font-serif font-bold text-charcoal">Timeline Transcript Editor</h3>
+                        </div>
+                        <p className="text-xs text-charcoal/50 font-sans">Edit dialogue lines, synchronize timestamps live with audio, and sort chronologically.</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2.5 shrink-0 font-sans">
+                        <button
+                            type="button"
+                            onClick={() => addDialogueRow()}
+                            className="bg-tan hover:bg-charcoal text-white text-xs px-4 py-2.5 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md"
+                        >
+                            <Plus size={14} /> Add Line
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowImportArea(!showImportArea)}
+                            className="border border-tan-light/80 hover:bg-cream text-tan text-xs px-4 py-2.5 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Paste and bulk-import an existing transcript text"
+                        >
+                            <FileText size={14} /> Import Bulk Text
+                        </button>
+                        <button
+                            type="button"
+                            onClick={sortTranscriptLines}
+                            className="border border-tan-light/80 hover:bg-cream text-tan text-xs px-4 py-2.5 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Sort dialog rows in order of timestamps"
+                        >
+                            <RotateCw size={14} /> Sort Timeline
+                        </button>
+                        <button
+                            type="button"
+                            onClick={clearTranscript}
+                            className="border border-red-200 text-red-500 hover:bg-red-50 text-xs px-4 py-2.5 rounded-lg font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm"
+                            title="Clear transcript lines"
+                        >
+                            <XCircle size={14} /> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                {showImportArea && (
+                    <div className="p-8 bg-cream/10 border-b border-tan-light/20 space-y-4 animate-in slide-in-from-top-4 duration-300 font-sans">
+                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Paste Text Transcript</label>
+                        <p className="text-[10px] text-charcoal/40 font-sans">Format lines as <strong>[MM:SS] Speaker Name: Dialogue Text</strong> or <strong>Speaker Name: Dialogue Text</strong>. Each dialogue line must be on a new line.</p>
+                        <textarea
+                            value={importText}
+                            onChange={(e) => setImportText(e.target.value)}
+                            placeholder="e.g.&#10;[00:05] Interviewer: Hello, thanks for joining us today.&#10;[00:10] Mildred Sibley: It is my pleasure to be here."
+                            className="w-full min-h-[120px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 text-xs font-mono leading-relaxed"
+                        />
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleImportTranscript}
+                                className="bg-tan hover:bg-charcoal text-white text-xs px-4 py-2 rounded-lg font-black uppercase tracking-wider transition-all"
+                            >
+                                Parse & Append
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setShowImportArea(false); setImportText(""); }}
+                                className="border border-tan-light text-charcoal/60 text-xs px-4 py-2 rounded-lg font-black uppercase tracking-wider transition-all hover:bg-white"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {audioSource ? (
+                    <div className="p-4 bg-charcoal/5 border-b border-tan-light/10 flex flex-col sm:flex-row items-center gap-4 font-sans">
+                        <span className="text-[10px] font-black uppercase text-tan tracking-widest text-center sm:text-left">Active Player</span>
+                        <div className="flex-1 w-full flex items-center gap-3 bg-white border border-tan-light/15 px-4 py-2 rounded-lg shadow-sm">
+                            <button
+                                type="button"
+                                onClick={togglePlay}
+                                className="w-8 h-8 rounded-full bg-tan text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0"
+                            >
+                                {isAudioPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" className="ml-0.5" />}
+                            </button>
+                            <span className="text-xs font-mono text-charcoal/60 w-10 shrink-0">{formatTime(audioPlayerTime)}</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max={audioPlayerDuration || 100}
+                                value={audioPlayerTime}
+                                onChange={handleSeek}
+                                className="flex-1 accent-tan bg-tan-light/20 h-1.5 rounded appearance-none cursor-pointer focus:outline-none"
+                            />
+                            <span className="text-xs font-mono text-charcoal/60 w-10 shrink-0 text-right">{formatTime(audioPlayerDuration)}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4 bg-amber-50/50 border-b border-amber-100 flex items-center gap-2.5 text-amber-800 text-xs font-medium font-sans">
+                        <AlertCircle size={16} className="text-amber-600" />
+                        <span>⚠️ Sync clock and play features will be enabled once you upload an audio interview file above.</span>
+                    </div>
+                )}
+
+                <div className="max-h-[500px] overflow-y-auto">
+                    {transcriptLines.length > 0 ? (
+                        <div className="w-full overflow-x-auto">
+                            <table className="w-full min-w-[700px] border-collapse text-left font-sans text-sm">
+                                <thead>
+                                    <tr className="bg-cream/15 border-b border-tan-light/25 text-[10px] font-black text-tan uppercase tracking-widest font-sans">
+                                        <th className="px-6 py-4 w-28">Time</th>
+                                        <th className="px-6 py-4 w-48">Speaker</th>
+                                        <th className="px-6 py-4">Dialogue Line</th>
+                                        <th className="px-6 py-4 w-28 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {/* Topmost hover insert row */}
+                                    <tr className="group/insert border-none">
+                                        <td colSpan={4} className="p-0 relative">
+                                            <div className="absolute inset-x-0 top-0 -translate-y-1/2 h-5 flex items-center justify-center opacity-0 hover:opacity-100 group-hover/insert:opacity-100 transition-all z-20">
+                                                <div className="w-full h-0.5 bg-tan/40" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => addDialogueRow(0)}
+                                                    className="absolute bg-tan hover:bg-charcoal text-white w-6 h-6 rounded-full flex items-center justify-center transition-all shadow-md transform hover:scale-110 active:scale-95"
+                                                    title="Insert line at the top"
+                                                >
+                                                    <Plus size={12} className="stroke-[3]" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+
+                                    {transcriptLines.map((line, idx) => (
+                                        <Fragment key={line.id}>
+                                            <tr className="border-b border-tan-light/10 hover:bg-cream/5 transition-colors group/row font-sans">
+                                                {/* Timestamp input */}
+                                                <td className="px-6 py-3.5 align-top">
+                                                    <input 
+                                                        type="text"
+                                                        value={line.timestamp}
+                                                        onChange={(e) => updateRowField(line.id, 'timestamp', e.target.value)}
+                                                        placeholder="MM:SS"
+                                                        className="w-full bg-cream/10 border border-tan-light/40 px-2 py-1.5 rounded font-mono text-xs text-charcoal focus:bg-white focus:ring-1 focus:ring-tan outline-none text-center transition-all"
+                                                    />
+                                                </td>
+                                                
+                                                {/* Speaker input */}
+                                                <td className="px-6 py-3.5 align-top">
+                                                    <input 
+                                                        type="text"
+                                                        list="speaker-suggestions"
+                                                        value={line.speaker}
+                                                        onChange={(e) => updateRowField(line.id, 'speaker', e.target.value)}
+                                                        placeholder="e.g. Narrator"
+                                                        className="w-full bg-cream/10 border border-tan-light/40 px-3 py-1.5 rounded text-xs text-charcoal focus:bg-white focus:ring-1 focus:ring-tan outline-none transition-all font-medium"
+                                                    />
+                                                </td>
+                                                
+                                                {/* Dialogue Textarea */}
+                                                <td className="px-6 py-3.5 align-top">
+                                                    <textarea 
+                                                        value={line.text}
+                                                        onChange={(e) => updateRowField(line.id, 'text', e.target.value)}
+                                                        placeholder="Type dialogue here..."
+                                                        rows={1}
+                                                        className="w-full bg-cream/10 border border-tan-light/40 px-3 py-1.5 rounded text-xs text-charcoal focus:bg-white focus:ring-1 focus:ring-tan outline-none transition-all resize-none leading-relaxed h-[34px] min-h-[34px] overflow-hidden font-sans"
+                                                        onInput={(e) => {
+                                                            const target = e.target as HTMLTextAreaElement;
+                                                            target.style.height = 'auto';
+                                                            target.style.height = `${target.scrollHeight}px`;
+                                                        }}
+                                                    />
+                                                </td>
+
+                                                {/* Actions */}
+                                                <td className="px-6 py-3.5 align-top">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        {audioSource && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => syncRowTime(line.id)}
+                                                                    className="p-1.5 rounded hover:bg-tan/10 text-tan transition-colors"
+                                                                    title="Sync with current playback time"
+                                                                >
+                                                                    <Clock size={15} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => playRowTime(line.timestamp)}
+                                                                    className="p-1.5 rounded hover:bg-tan/10 text-tan transition-colors"
+                                                                    title="Seek and play this line"
+                                                                >
+                                                                    <Play size={15} />
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => deleteDialogueRow(line.id)}
+                                                            className="p-1.5 rounded hover:bg-red-50 text-red-500 transition-colors opacity-40 group-hover/row:opacity-100"
+                                                            title="Delete dialogue row"
+                                                        >
+                                                            <X size={15} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                            {/* Hover-to-insert row between lines & bottom */}
+                                            <tr className="group/insert border-none">
+                                                <td colSpan={4} className="p-0 relative">
+                                                    <div className="absolute inset-x-0 top-0 -translate-y-1/2 h-5 flex items-center justify-center opacity-0 hover:opacity-100 group-hover/insert:opacity-100 transition-all z-20">
+                                                        <div className="w-full h-0.5 bg-tan/40" />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => addDialogueRow(idx + 1)}
+                                                            className="absolute bg-tan hover:bg-charcoal text-white w-6 h-6 rounded-full flex items-center justify-center transition-all shadow-md transform hover:scale-110 active:scale-95"
+                                                            title={`Insert line after row ${idx + 1}`}
+                                                        >
+                                                            <Plus size={12} className="stroke-[3]" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="py-16 text-center space-y-3 font-serif">
+                            <Clock size={40} className="text-tan/30 mx-auto" />
+                            <p className="text-charcoal/40 italic text-lg">No transcript lines added yet.</p>
+                            <button
+                                type="button"
+                                onClick={() => addDialogueRow()}
+                                className="border border-tan hover:bg-tan hover:text-white text-tan text-xs px-4 py-2 rounded-lg font-black uppercase tracking-wider transition-all font-sans"
+                            >
+                                Start Dialogue Timeline
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Bottom action progress and submit button */}
+            <div className="p-8 bg-cream border-t border-tan-light/50 flex flex-col sm:flex-row items-center justify-between gap-6 bg-white rounded-2xl border shadow-xl">
+                <div className="flex-1 w-full font-sans">
+                    {uploadProgress !== null && (
+                        <div className="w-full max-w-sm font-sans">
+                            <div className="flex justify-between text-xs font-black text-charcoal uppercase tracking-widest mb-2">
+                                <span>Preserving to Storage...</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <div className="w-full bg-charcoal/5 rounded-full h-4 overflow-hidden border border-tan-light shadow-inner">
+                                <div
+                                    className="bg-tan h-full rounded-full transition-all duration-300 shadow-[0_0_12px_rgba(186,140,99,0.5)]"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-charcoal text-cream px-12 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-tan hover:text-white transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl min-w-[260px] font-sans"
+                >
+                    {isSubmitting ? (
+                        <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-cream/30 border-t-cream rounded-full animate-spin" />
+                            <span>Adding to Archive...</span>
+                        </div>
+                    ) : 'Add Oral History to Archive'}
+                </button>
+            </div>
+        </form>
     );
 }

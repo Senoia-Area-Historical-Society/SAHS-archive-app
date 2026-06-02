@@ -1,5 +1,5 @@
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo2.png';
 
@@ -117,6 +117,9 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                         <nav className="flex flex-col gap-1">
                             <NavLink to="/" className={navLinkClass} onClick={handleLinkClick}>
                                 <Home size={20} /> Home
+                            </NavLink>
+                            <NavLink to="/senoia-stories" className={navLinkClass} onClick={handleLinkClick}>
+                                <Mic size={20} className="text-tan" /> Senoia Stories
                             </NavLink>
                         </nav>
                     </div>

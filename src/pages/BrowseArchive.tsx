@@ -171,6 +171,12 @@ export function BrowseArchive() {
                     description: `Browse ${filteredItems.length} historic artifacts and physical items`,
                     placeholder: 'Search artifacts by title, description, or origin...'
                 };
+            case 'Oral History':
+                return {
+                    title: 'Oral Histories',
+                    description: `Listen and read along with ${filteredItems.length} personal stories from the Senoia community`,
+                    placeholder: 'Search oral histories by narrator, interviewer, tags, or transcript...'
+                };
             default:
                 return {
                     title: 'Archive Collection',
@@ -221,6 +227,7 @@ export function BrowseArchive() {
                         <option value="Historic Figure">Historic Figures</option>
                         <option value="Historic Organization">Historic Organizations</option>
                         <option value="Artifact">Artifacts</option>
+                        <option value="Oral History">Oral Histories</option>
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-charcoal-light"><polyline points="6 9 12 15 18 9"></polyline></svg>

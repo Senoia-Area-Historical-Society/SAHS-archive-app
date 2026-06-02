@@ -37,3 +37,18 @@ img {
   -moz-user-select: none;
   -ms-user-select: none;
 }
+
+/* Audio Wave Visualizer Keyframes */
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-wave {
+  animation: wave 1.2s ease-in-out infinite;
+  transform-origin: bottom;
+}

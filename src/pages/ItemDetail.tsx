@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
@@ -251,12 +251,16 @@ export function ItemDetail() {
     }, [id, isSAHSUser]);
 
     const handleDelete = async () => {
-        if (!id || !window.confirm('Are you sure you want to delete this resource?')) return;
+        const isOralHistory = item?.item_type === 'Oral History';
+        const confirmMessage = isOralHistory
+            ? `Are you sure you want to permanently delete the interview "${item?.title}"? This cannot be undone.`
+            : 'Are you sure you want to delete this resource?';
+        if (!id || !window.confirm(confirmMessage)) return;
 
         setIsDeleting(true);
         try {
             await deleteDoc(doc(db, 'archive_items', id));
-            navigate('/archive');
+            navigate(isOralHistory ? '/senoia-stories' : '/archive');
         } catch (error) {
             console.error("Error deleting item:", error);
             alert("Failed to delete item.");
@@ -590,9 +594,17 @@ export function ItemDetail() {
                 )}
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
-                {/* Left Side: Image Viewer (all item types) */}
-                <div className="w-full lg:w-[420px] shrink-0">
+            {item.item_type === 'Oral History' ? (
+                <OralHistoryDetail 
+                    item={item} 
+                    file_urls={file_urls} 
+                    relatedFigureItems={relatedFigureItems} 
+                    setZoomedImage={setZoomedImage}
+                />
+            ) : (
+                <div className="flex flex-col lg:flex-row gap-12 lg:gap-16">
+                    {/* Left Side: Image Viewer (all item types) */}
+                    <div className="w-full lg:w-[420px] shrink-0">
                     <div className="lg:sticky lg:top-8 space-y-4">
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
                             {file_urls && file_urls.length > 0 ? (
@@ -996,6 +1008,7 @@ export function ItemDetail() {
                     
                 </div>
             </div>
+            )}
 {/* RELATED ITEMS DROP TAB */}
                     {(relatedFigureItems.length > 0 || relatedDocumentItems.length > 0 || relatedOrganizationItems.length > 0) && (
                         <div className="mt-16">
@@ -1093,6 +1106,700 @@ export function ItemDetail() {
                 </div>
 
             )}
+        </div>
+    );
+}
+
+// Custom Helper Functions for Oral Histories Playback & Searching/Highlighting
+function formatTime(seconds: number) {
+    if (isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+function escapeRegExp(string: string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+
+interface OralHistoryDetailProps {
+    item: ArchiveItem;
+    file_urls: string[] | null;
+    relatedFigureItems: ArchiveItem[];
+    setZoomedImage: (url: string | null) => void;
+}
+
+function parseTimeToSeconds(timeStr: string): number {
+    if (!timeStr) return 0;
+    const parts = timeStr.split(':').map(Number);
+    if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+    } else if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    return 0;
+}
+
+export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoomedImage }: OralHistoryDetailProps) {
+    const { isAdmin, isCurator } = useAuth();
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(0.8);
+    const [transcriptSearch, setTranscriptSearch] = useState('');
+    const [currentMatchIdx, setCurrentMatchIdx] = useState(-1);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
+
+    // Track audio events
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+        const onLoadedMetadata = () => setDuration(audio.duration);
+        const onEnded = () => setIsPlaying(false);
+
+        audio.addEventListener('timeupdate', onTimeUpdate);
+        audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        audio.addEventListener('ended', onEnded);
+
+        return () => {
+            audio.removeEventListener('timeupdate', onTimeUpdate);
+            audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+            audio.removeEventListener('ended', onEnded);
+        };
+    }, [item.audio_url]);
+
+    const togglePlay = () => {
+        if (!audioRef.current) return;
+        if (isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            audioRef.current.play().catch(err => console.error("Error playing audio", err));
+            setIsPlaying(true);
+        }
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!audioRef.current) return;
+        const time = parseFloat(e.target.value);
+        audioRef.current.currentTime = time;
+        setCurrentTime(time);
+    };
+
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!audioRef.current) return;
+        const vol = parseFloat(e.target.value);
+        audioRef.current.volume = vol;
+        setVolume(vol);
+    };
+
+    // Click on any dialogue line to seek and play
+    const handleLineClick = (seconds: number) => {
+        if (!audioRef.current) return;
+        audioRef.current.currentTime = seconds;
+        setCurrentTime(seconds);
+        if (!isPlaying) {
+            audioRef.current.play().catch(err => console.error("Error playing audio", err));
+            setIsPlaying(true);
+        }
+    };
+
+    // Parse transcript into timeline object rows
+    const parsedLines = useMemo(() => {
+        const text = item.transcript || item.transcription || "";
+        if (!text) return [];
+        return text.split('\n').filter(line => line.trim().length > 0).map((line, idx) => {
+            const match = line.match(/^\[?(\d{2}:\d{2}(?:\.\d{1,3})?)\]?\s*([^:]+):\s*(.*)$/);
+            if (match) {
+                return {
+                    id: `line-${idx}`,
+                    timestamp: match[1],
+                    seconds: parseTimeToSeconds(match[1]),
+                    speaker: match[2].trim(),
+                    text: match[3].trim()
+                };
+            }
+            const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
+            if (speakerMatch) {
+                return {
+                    id: `line-${idx}`,
+                    timestamp: '00:00',
+                    seconds: 0,
+                    speaker: speakerMatch[1].trim(),
+                    text: speakerMatch[2].trim()
+                };
+            }
+            return {
+                id: `line-${idx}`,
+                timestamp: '00:00',
+                seconds: 0,
+                speaker: '',
+                text: line.trim()
+            };
+        });
+    }, [item.transcript, item.transcription]);
+
+    // Find the currently active dialog index based on audio player currentTime
+    const activeLineIndex = useMemo(() => {
+        if (parsedLines.length === 0) return -1;
+        let activeIdx = -1;
+        for (let i = 0; i < parsedLines.length; i++) {
+            if (currentTime >= parsedLines[i].seconds) {
+                activeIdx = i;
+            } else {
+                break;
+            }
+        }
+        return activeIdx;
+    }, [parsedLines, currentTime]);
+
+    // Smoothly auto-scroll container to keep the active line centered
+    useEffect(() => {
+        if (activeLineIndex !== -1 && transcriptContainerRef.current) {
+            const activeEl = transcriptContainerRef.current.querySelector(`[data-line-index="${activeLineIndex}"]`);
+            if (activeEl) {
+                activeEl.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+        }
+    }, [activeLineIndex]);
+
+    const matchingLineIndices = useMemo(() => {
+        const searchLower = transcriptSearch.toLowerCase().trim();
+        if (!searchLower) return [];
+        return parsedLines
+            .map((line, idx) => {
+                const isMatch = line.text.toLowerCase().includes(searchLower) ||
+                               line.speaker.toLowerCase().includes(searchLower);
+                return isMatch ? idx : -1;
+            })
+            .filter(idx => idx !== -1);
+    }, [transcriptSearch, parsedLines]);
+
+    // Reset focused match index when search changes
+    useEffect(() => {
+        if (matchingLineIndices.length > 0) {
+            setCurrentMatchIdx(0);
+        } else {
+            setCurrentMatchIdx(-1);
+        }
+    }, [matchingLineIndices]);
+
+    const handleNextMatch = () => {
+        if (matchingLineIndices.length === 0) return;
+        setCurrentMatchIdx(prev => (prev + 1) % matchingLineIndices.length);
+    };
+
+    const handlePrevMatch = () => {
+        if (matchingLineIndices.length === 0) return;
+        setCurrentMatchIdx(prev => (prev - 1 + matchingLineIndices.length) % matchingLineIndices.length);
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                handlePrevMatch();
+            } else {
+                handleNextMatch();
+            }
+        }
+    };
+
+    // Smoothly scroll container to keep the focused search match centered
+    useEffect(() => {
+        if (currentMatchIdx !== -1 && matchingLineIndices.length > 0 && transcriptContainerRef.current) {
+            const targetLineIdx = matchingLineIndices[currentMatchIdx];
+            const el = transcriptContainerRef.current.querySelector(`[data-line-index="${targetLineIdx}"]`);
+            if (el) {
+                el.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+        }
+    }, [currentMatchIdx, matchingLineIndices]);
+
+
+    // Render keyword-highlighted scrolling transcript rows
+    const renderedTranscriptLines = useMemo(() => {
+        if (parsedLines.length === 0) return null;
+        
+        const searchLower = transcriptSearch.toLowerCase().trim();
+        
+        return parsedLines.map((line, idx) => {
+            const isActive = idx === activeLineIndex;
+            const hasSearch = searchLower.length > 0;
+            
+            let renderedText: React.ReactNode = line.text;
+            if (hasSearch) {
+                const parts = line.text.split(new RegExp(`(${escapeRegExp(transcriptSearch)})`, 'gi'));
+                renderedText = parts.map((part, pIdx) => {
+                    const isMatch = part.toLowerCase() === searchLower;
+                    const isFocused = isMatch && matchingLineIndices[currentMatchIdx] === idx;
+                    return isMatch ? (
+                        <mark 
+                            key={pIdx} 
+                            className={`font-bold py-0.5 px-1 rounded shadow-sm border-b transition-all ${
+                                isFocused 
+                                    ? "bg-tan text-white border-tan-light animate-pulse" 
+                                    : "bg-amber-100 text-charcoal border-amber-300"
+                            }`}
+                        >
+                            {part}
+                        </mark>
+                    ) : part;
+                });
+            }
+
+            return (
+                <div
+                    key={line.id}
+                    data-line-index={idx}
+                    onClick={() => handleLineClick(line.seconds)}
+                    className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer flex gap-4 ${
+                        isActive 
+                            ? 'bg-tan/10 border-tan shadow-md scale-[1.01] ring-1 ring-tan/20' 
+                            : 'bg-white border-tan-light/10 hover:bg-cream/30 hover:border-tan-light/40'
+                    }`}
+                >
+                    {/* Time & Speaker Badge */}
+                    <div className="w-16 shrink-0 font-sans text-xs space-y-1 select-none">
+                        <div className={`font-mono font-bold tracking-wider ${isActive ? 'text-tan' : 'text-charcoal/40'}`}>
+                            [{line.timestamp}]
+                        </div>
+                        {line.speaker && (
+                            <div className={`font-black uppercase tracking-widest text-[9px] truncate ${isActive ? 'text-charcoal' : 'text-charcoal/50'}`}>
+                                {line.speaker}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Dialogue Line Text */}
+                    <div className="flex-1 font-serif text-sm leading-relaxed">
+                        {line.speaker ? (
+                            <span>
+                                <strong className={`font-bold mr-1.5 ${isActive ? 'text-tan' : 'text-charcoal/80'}`}>{line.speaker}:</strong>
+                                <span className={isActive ? 'text-charcoal font-medium' : 'text-charcoal/70'}>{renderedText}</span>
+                            </span>
+                        ) : (
+                            <span className={isActive ? 'text-charcoal font-medium' : 'text-charcoal/70'}>{renderedText}</span>
+                        )}
+                    </div>
+                </div>
+            );
+        });
+    }, [parsedLines, activeLineIndex, transcriptSearch, matchingLineIndices, currentMatchIdx]);
+
+    // Find the narrator (if linked to a related Historic Figure)
+    const narrator = relatedFigureItems.find(fig => fig.id === item.narrator_id) || relatedFigureItems[0];
+    const portraitUrl = file_urls && file_urls.length > 0 ? file_urls[0] : null;
+
+    const handleExportPDF = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert("Please allow popups to export the PDF.");
+            return;
+        }
+        
+        const narratorName = narrator ? narrator.title : item.title;
+        const dateStr = item.interview_date ? new Date(item.interview_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+        const interviewerStr = item.interviewer || 'Not specified';
+        
+        const linesHtml = parsedLines.map(line => `
+            <div style="margin-bottom: 16px; page-break-inside: avoid; display: flex; gap: 20px; font-family: 'Georgia', serif; font-size: 14px; line-height: 1.6; border-bottom: 1px solid #f3ebe1; padding-bottom: 12px;">
+                <div style="width: 80px; font-family: 'Courier New', monospace; font-size: 12px; color: #a18262; font-weight: bold; flex-shrink: 0;">
+                    [${line.timestamp}]
+                </div>
+                <div style="flex-grow: 1;">
+                    ${line.speaker ? `<strong style="color: #4b3d30; display: block; margin-bottom: 4px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">${line.speaker}:</strong>` : ''}
+                    <div style="color: #2b2520;">${line.text}</div>
+                </div>
+            </div>
+        `).join('');
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Senoia Stories - Transcription - ${narratorName}</title>
+                    <style>
+                        @page {
+                            margin: 20mm;
+                        }
+                        body {
+                            font-family: 'Helvetica Neue', Arial, sans-serif;
+                            color: #2b2520;
+                            background-color: #ffffff;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        .header {
+                            border-bottom: 2px solid #ba8c63;
+                            padding-bottom: 20px;
+                            margin-bottom: 30px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                        }
+                        .header-left h1 {
+                            font-family: 'Georgia', serif;
+                            font-size: 28px;
+                            margin: 0 0 8px 0;
+                            color: #2b2520;
+                        }
+                        .header-left p {
+                            margin: 0;
+                            font-size: 14px;
+                            color: #ba8c63;
+                            text-transform: uppercase;
+                            letter-spacing: 1.5px;
+                            font-weight: bold;
+                        }
+                        .meta-grid {
+                            display: grid;
+                            grid-template-cols: 1fr 1fr;
+                            gap: 20px;
+                            margin-bottom: 40px;
+                            background-color: #faf7f2;
+                            padding: 20px;
+                            border-radius: 8px;
+                            border: 1px solid #f3ebe1;
+                            font-size: 13px;
+                        }
+                        .meta-item strong {
+                            color: #8c7662;
+                            text-transform: uppercase;
+                            font-size: 10px;
+                            letter-spacing: 1px;
+                            display: block;
+                            margin-bottom: 4px;
+                        }
+                        .meta-item span {
+                            font-size: 14px;
+                            color: #2b2520;
+                            font-weight: 500;
+                        }
+                        .content {
+                            margin-top: 20px;
+                        }
+                        .footer {
+                            margin-top: 50px;
+                            border-top: 1px solid #f3ebe1;
+                            padding-top: 15px;
+                            font-size: 11px;
+                            color: #8c7662;
+                            text-align: center;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="header-left">
+                            <h1>Senoia Stories Oral Histories</h1>
+                            <p>Official Archive Transcription</p>
+                        </div>
+                        <div style="font-size: 12px; color: #8c7662; font-family: monospace;">
+                            ID: ${item.archive_reference || 'N/A'}
+                        </div>
+                    </div>
+                    
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <strong>Narrator / Historical Figure</strong>
+                            <span>${narratorName}</span>
+                        </div>
+                        <div class="meta-item">
+                            <strong>Interviewer</strong>
+                            <span>${interviewerStr}</span>
+                        </div>
+                        <div class="meta-item">
+                            <strong>Date of Interview</strong>
+                            <span>${dateStr || 'Not recorded'}</span>
+                        </div>
+                        <div class="meta-item">
+                            <strong>Publisher</strong>
+                            <span>Senoia Area Historical Society</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content">
+                        ${linesHtml}
+                    </div>
+                    
+                    <div class="footer">
+                        Senoia Area Historical Society Archive &bull; Copyright &copy; All rights reserved. &bull; Printed on ${new Date().toLocaleDateString()}
+                    </div>
+                    
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function() { window.close(); }, 500);
+                        };
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    return (
+        <div className="flex flex-col lg:flex-row gap-12 lg:gap-16 w-full animate-in fade-in duration-500">
+            {/* Left Side: Narrator Portrait, Audio/Video Players, and Metadata */}
+            <div className="w-full lg:w-[480px] shrink-0 space-y-8">
+                {/* Audio Element */}
+                {item.audio_url && (
+                    <audio ref={audioRef} src={item.audio_url} preload="metadata" />
+                )}
+
+                {/* Narrator Display Panel */}
+                <div className="relative group overflow-hidden rounded-2xl border border-tan-light/40 bg-white shadow-xl p-6 transition-all duration-300 hover:shadow-2xl">
+                    <div className="flex flex-col sm:flex-row items-center gap-6">
+                        {/* Portrait Image or Pulsing Microphone */}
+                        <div className="relative w-32 h-32 rounded-full overflow-hidden shrink-0 border-2 border-tan bg-tan-light/10 flex items-center justify-center shadow-inner">
+                            {portraitUrl ? (
+                                <img 
+                                    src={portraitUrl} 
+                                    alt={item.title} 
+                                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-110 cursor-zoom-in"
+                                    onClick={() => setZoomedImage(portraitUrl)}
+                                />
+                            ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-tan bg-tan/5 transition-all ${isPlaying ? 'animate-pulse' : ''}`}>
+                                    <Mic size={44} className={isPlaying ? 'text-tan animate-bounce' : 'text-tan-light'} />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Narrator Title Info */}
+                        <div className="text-center sm:text-left space-y-1">
+                            <span className="text-[10px] font-black text-tan uppercase tracking-widest font-sans bg-tan/10 px-2 py-0.5 rounded-full">Interviewee</span>
+                            <h3 className="text-2xl font-serif font-bold text-charcoal leading-tight mt-1">
+                                {narrator ? (
+                                    <Link to={`/figures/${narrator.id}`} className="hover:text-tan transition-colors hover:underline">
+                                        {narrator.title}
+                                    </Link>
+                                ) : (
+                                    item.title
+                                )}
+                            </h3>
+                            {narrator && (narrator.birth_date || narrator.death_date) && (
+                                <p className="text-sm text-charcoal/60 font-sans">
+                                    Lifespan: {narrator.birth_date || '?'} — {narrator.death_date || 'Present'}
+                                </p>
+                            )}
+                            {item.interviewer && (
+                                <p className="text-sm text-charcoal/70 font-sans italic mt-1">
+                                    Interviewer: <span className="font-semibold not-italic text-charcoal">{item.interviewer}</span>
+                                </p>
+                            )}
+                            {item.interview_date && (
+                                <p className="text-xs text-charcoal/50 font-sans">
+                                    Recorded on: {new Date(item.interview_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Short Description */}
+                    {item.description && (
+                        <div className="mt-4 pt-4 border-t border-tan-light/20 text-charcoal/80 font-serif text-sm leading-relaxed italic">
+                            "{item.description}"
+                        </div>
+                    )}
+                </div>
+
+                {/* Premium Embedded Video Player (if exists) */}
+                {item.youtube_video_id ? (
+                    <div className="space-y-3">
+                        <h4 className="text-xs font-black text-tan uppercase tracking-widest font-sans flex items-center gap-1.5">
+                            <Video size={14} /> Responsive Video Interview
+                        </h4>
+                        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-tan-light/40 shadow-xl bg-charcoal relative group">
+                            <iframe
+                                src={`https://www.youtube.com/embed/${item.youtube_video_id}`}
+                                title="YouTube video player"
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                                className="w-full h-full"
+                            ></iframe>
+                        </div>
+                    </div>
+                ) : null}
+
+                {/* Premium Audio Player & Wave Visualizer */}
+                {item.audio_url && (
+                    <div className="bg-charcoal text-cream rounded-2xl p-6 shadow-xl border border-white/10 space-y-6 relative overflow-hidden">
+                        {/* Subtle background glow */}
+                        <div className="absolute -top-24 -left-24 w-48 h-48 bg-tan/20 rounded-full blur-3xl pointer-events-none" />
+
+                        {/* Title & Badge */}
+                        <div className="flex items-center justify-between relative z-10">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2.5 h-2.5 rounded-full bg-tan animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-wider font-sans text-tan">Archive Audio Stream</span>
+                            </div>
+                            <span className="text-xs font-sans text-cream/40">{formatTime(duration)}</span>
+                        </div>
+
+                        {/* Bouncing CSS Frequency Wave Visualizer */}
+                        <div className="h-16 flex items-end justify-center gap-[4px] px-4 relative z-10">
+                            {Array.from({ length: 24 }).map((_, idx) => {
+                                const heights = [20, 45, 30, 60, 25, 40, 50, 15, 35, 55, 40, 20, 30, 55, 45, 15, 35, 60, 25, 50, 40, 30, 45, 20];
+                                const h = heights[idx % heights.length];
+                                const delay = `${(idx * 0.05).toFixed(2)}s`;
+                                return (
+                                    <span 
+                                        key={idx}
+                                        className={`w-1 rounded-full transition-all duration-300 bg-tan/80 ${isPlaying ? 'animate-wave' : ''}`}
+                                        style={{
+                                            height: isPlaying ? `${h}px` : '6px',
+                                            animationDelay: delay,
+                                            transformOrigin: 'bottom',
+                                        }}
+                                    />
+                                );
+                            })}
+                        </div>
+
+                        {/* Custom Player Controls */}
+                        <div className="space-y-4 relative z-10">
+                            {/* Seek Slider */}
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-mono text-cream/60 shrink-0 w-8">{formatTime(currentTime)}</span>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max={duration || 100}
+                                    value={currentTime}
+                                    onChange={handleSeek}
+                                    className="w-full accent-tan bg-white/10 h-1.5 rounded-lg appearance-none cursor-pointer focus:outline-none"
+                                />
+                                <span className="text-xs font-mono text-cream/60 shrink-0 w-8">{formatTime(duration)}</span>
+                            </div>
+
+                            {/* Play/Pause & Volume */}
+                            <div className="flex items-center justify-between pt-2">
+                                <button 
+                                    onClick={togglePlay}
+                                    className="w-14 h-14 rounded-full bg-tan text-white flex items-center justify-center transition-all hover:bg-tan-light hover:scale-105 active:scale-95 shadow-lg border border-tan/20 shrink-0"
+                                    title={isPlaying ? "Pause Interview" : "Play Interview"}
+                                >
+                                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} className="ml-1" fill="currentColor" />}
+                                </button>
+
+                                {/* Volume Slider */}
+                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2.5 rounded-full shrink-0">
+                                    <Volume2 size={16} className="text-cream/60" />
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.05"
+                                        value={volume}
+                                        onChange={handleVolumeChange}
+                                        className="w-20 accent-tan bg-white/20 h-1 rounded appearance-none cursor-pointer focus:outline-none"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Right Side: Interactive Searchable Transcript Pane */}
+            <div className="flex-1 flex flex-col min-h-[400px] lg:min-h-[550px] bg-white rounded-2xl border border-tan-light/40 shadow-xl overflow-hidden">
+                {/* Transcript Header with Search Bar */}
+                <div className="p-6 border-b border-tan-light/20 bg-cream/10 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <BookOpen size={20} className="text-tan" />
+                            <h3 className="text-xl font-serif font-bold text-charcoal">Interactive Transcript</h3>
+                        </div>
+                        <div className="flex items-center gap-3 self-start sm:self-auto">
+                            {(isAdmin || isCurator) && (item.transcript || item.transcription) && (
+                                <button
+                                    onClick={handleExportPDF}
+                                    className="text-[10px] font-black text-tan uppercase tracking-widest font-sans border border-tan/30 hover:border-tan hover:bg-tan hover:text-white bg-white px-3 py-1.5 rounded-lg transition-all shadow-sm flex items-center gap-1.5 transform hover:scale-[1.02] active:scale-[0.98]"
+                                    title="Export this transcription as a beautiful, print-ready PDF"
+                                >
+                                    <FileText size={12} /> Export PDF
+                                </button>
+                            )}
+                            <span className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest font-sans bg-charcoal/5 px-2 py-1.5 rounded-full text-center">
+                                Read along
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Search Field */}
+                    <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                        <input
+                            type="text"
+                            value={transcriptSearch}
+                            onChange={(e) => setTranscriptSearch(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
+                            placeholder="Search keywords or speakers in transcript..."
+                            className="w-full bg-white border border-tan-light/50 pl-10 pr-24 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans text-sm text-charcoal"
+                        />
+                        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-charcoal/40">
+                            {transcriptSearch && matchingLineIndices.length > 0 && (
+                                <div className="flex items-center gap-2 mr-1">
+                                    <span className="text-[11px] font-mono select-none">
+                                        {currentMatchIdx + 1} of {matchingLineIndices.length}
+                                    </span>
+                                    <div className="flex gap-0.5 border-l border-charcoal/10 pl-2">
+                                        <button
+                                            type="button"
+                                            onClick={handlePrevMatch}
+                                            className="p-1 hover:bg-charcoal/5 rounded hover:text-charcoal transition-colors"
+                                            title="Previous match (Shift+Enter)"
+                                        >
+                                            <ChevronUp size={14} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleNextMatch}
+                                            className="p-1 hover:bg-charcoal/5 rounded hover:text-charcoal transition-colors"
+                                            title="Next match (Enter)"
+                                        >
+                                            <ChevronDown size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {transcriptSearch && (
+                                <button
+                                    onClick={() => setTranscriptSearch('')}
+                                    className="hover:text-charcoal transition-colors p-1"
+                                    title="Clear search"
+                                >
+                                    <X size={16} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Transcript Content Div */}
+                <div 
+                    ref={transcriptContainerRef}
+                    className="flex-1 overflow-y-auto p-6 max-h-[550px] font-sans leading-relaxed space-y-4"
+                >
+                    {item.transcript || item.transcription ? (
+                        renderedTranscriptLines
+                    ) : (
+                        <p className="text-charcoal/40 italic text-center py-12 font-serif text-lg">No transcript has been added to this Oral History record yet.</p>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

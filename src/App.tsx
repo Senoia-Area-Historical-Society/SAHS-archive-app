@@ -24,6 +24,7 @@ const RoomDetail = lazy(() => import('./pages/RoomDetail').then(m => ({ default:
 const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ default: m.InteractiveMap })));
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
+const SenoiaStories = lazy(() => import('./pages/SenoiaStories').then(m => ({ default: m.SenoiaStories })));
 
 function PageWrapper() {
   return (
@@ -89,6 +90,7 @@ function App() {
 
               <Route element={<PageWrapper />}>
                 <Route path="archive" element={<BrowseArchive />} />
+                <Route path="senoia-stories" element={<SenoiaStories />} />
                 <Route path="collections" element={<Collections />} />
                 <Route path="collections/:id" element={<CollectionDetail />} />
 

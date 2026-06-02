@@ -64,7 +64,7 @@ export interface MuseumLocation {
     floor_id?: string;
 }
 
-export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization' | 'Artifact';
+export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization' | 'Artifact' | 'Oral History';
 
 // Dublin Core Metadata Element Set (v1.1)
 export interface ArchiveItem {
@@ -145,4 +145,12 @@ export interface ArchiveItem {
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
     accession_date?: string | null;
     collection_status?: 'permanent' | 'pending' | 'deaccessioned' | 'loan' | null;
+
+    // Oral History specific
+    narrator_id?: string | null;        // ID of the narrator (Historic Figure)
+    interviewer?: string | null;        // Name of the interviewer
+    interview_date?: string | null;     // Date of the interview
+    audio_url?: string | null;          // URL of the audio recording
+    youtube_video_id?: string | null;   // Optional YouTube video ID
+    transcript?: string | null;         // Full text transcription of the interview
 }

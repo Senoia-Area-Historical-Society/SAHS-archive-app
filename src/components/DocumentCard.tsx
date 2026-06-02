@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Lock, X, Clock, XCircle, Calendar } from 'lucide-react';
+import { Lock, X, Clock, XCircle, Calendar, Mic } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { OptimizedImage } from './OptimizedImage';
@@ -35,7 +35,11 @@ export function DocumentCard({
                     />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-tan-light bg-charcoal/5">
-                        <span className="font-serif text-4xl opacity-20">{item.title.charAt(0)}</span>
+                        {item.item_type === 'Oral History' ? (
+                            <Mic size={48} className="opacity-40 animate-pulse text-tan" />
+                        ) : (
+                            <span className="font-serif text-4xl opacity-20">{item.title.charAt(0)}</span>
+                        )}
                     </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -102,9 +106,19 @@ export function DocumentCard({
                 {item.item_type === 'Historic Organization' && item.alternative_names && (
                     <p className="text-sm font-serif italic text-tan mb-3 line-clamp-1">"{item.alternative_names}"</p>
                 )}
+                {item.item_type === 'Oral History' && (item.interviewer || item.interview_date) && (
+                    <div className="mb-3 space-y-1">
+                        {item.interviewer && (
+                            <p className="text-[12px] font-sans text-charcoal/60 font-medium uppercase tracking-wider line-clamp-1">
+                                Interviewer: {item.interviewer}
+                            </p>
+                        )}
+                    </div>
+                )}
                 <p className={`text-base md:text-lg text-charcoal/80 line-clamp-3 mb-6 font-sans leading-relaxed ${
                     (item.item_type === 'Historic Figure' && (item.also_known_as || item.occupation || item.birthplace)) || 
-                    (item.item_type === 'Historic Organization' && item.alternative_names) 
+                    (item.item_type === 'Historic Organization' && item.alternative_names) ||
+                    (item.item_type === 'Oral History' && (item.interviewer || item.interview_date))
                     ? '' : 'mt-2'}`}>{item.description}</p>
                 <div className="flex items-center flex-wrap gap-3 mt-auto pt-2">
                     <span className="text-sm text-charcoal-light flex items-center gap-1.5 font-sans">
@@ -113,7 +127,9 @@ export function DocumentCard({
                             ? `${item.birth_date || '?'} — ${item.death_date || '?'}`
                             : item.item_type === 'Historic Organization'
                                 ? `${item.founding_date || '?'} — ${item.dissolved_date || 'Present'}`
-                                : (item.date || 'Unknown Date')}
+                                : item.item_type === 'Oral History'
+                                    ? (item.interview_date || item.date || 'Unknown Date')
+                                    : (item.date || 'Unknown Date')}
                     </span>
                     <span className="text-sm bg-beige/50 text-charcoal/70 px-4 py-1.5 rounded-full font-bold font-sans border border-tan-light/20">
                         {item.artifact_type || item.type || item.item_type}
