@@ -57,4 +57,4 @@ jobs:
 
       # 🚀 Deploy to Firebase using the authenticated environment
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives
+        run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives --force
