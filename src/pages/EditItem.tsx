@@ -960,10 +960,11 @@ export default function EditItem() {
     const filteredDocs = useMemo(() => {
         const search = debouncedDocSearch.toLowerCase();
         return allDocs.filter(d =>
+            d.id !== id &&
             d.title.toLowerCase().includes(search) &&
             !selectedRelatedDocs.some(sd => sd.id === d.id)
         );
-    }, [allDocs, debouncedDocSearch, selectedRelatedDocs]);
+    }, [allDocs, debouncedDocSearch, selectedRelatedDocs, id]);
 
     const filteredOrgs = useMemo(() => {
         const search = debouncedOrgSearch.toLowerCase();
@@ -1979,8 +1980,8 @@ export default function EditItem() {
 
                         </div>
                     )}
-                    {(itemType === 'Historic Figure' || itemType === 'Historic Organization') && (
-                        <div ref={docRef}>
+                    {itemType !== 'Oral History' && (
+                        <div ref={docRef} className={itemType !== 'Historic Figure' ? "pt-6 border-t border-tan-light/30" : ""}>
                             <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-3">Link To Documents & Artifacts</label>
                             <div className="relative">
                                 <input

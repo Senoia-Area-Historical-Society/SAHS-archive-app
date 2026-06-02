@@ -129,7 +129,7 @@ export interface ArchiveItem {
         lng: number;
     } | null;
     related_figures?: string[]; // IDs of Historic Figures
-    related_documents?: string[]; // IDs of Documents/Photos for Figures
+    related_documents?: string[]; // IDs of Documents/Photos/Artifacts related to this item
     related_organizations?: string[]; // IDs of Historic Organizations
     donor?: string | null;         // Original donor of the item (specifically requested for Artifacts)
     artifact_id?: string | null;   // Unique ID for artifacts (e.g. ID #)
