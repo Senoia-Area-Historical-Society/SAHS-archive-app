@@ -133,7 +133,7 @@ export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
     if (!active) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[2000] bg-black/80 flex flex-col items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl">
                 <div className="px-6 py-4 border-b border-tan-light/50 flex items-center justify-between bg-cream/30">
                     <div className="flex items-center gap-3">

@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { useParams, useNavigate } from 'react-router-dom';
-import { extractMetadataFromFile } from '../lib/gemini';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
+import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
     useEffect(() => {
@@ -31,24 +32,35 @@ function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
 const PendingFilePreview = ({
     file,
     url,
+    caption,
     isFeatured,
     onSetFeatured,
     onRemove,
     onCrop,
-    onZoom
+    onZoom,
+    onMove,
+    isFirst,
+    isLast,
+    onCaptionChange
 }: {
     file: File,
     url: string,
+    caption?: string,
     isFeatured: boolean,
     onSetFeatured: (url: string) => void,
     onRemove: () => void,
     onCrop?: () => void,
-    onZoom: (url: string) => void
+    onZoom: (url: string) => void,
+    onMove: (direction: 'left' | 'right') => void,
+    isFirst: boolean,
+    isLast: boolean,
+    onCaptionChange: (caption: string) => void
 }) => {
     const isImage = file.type.startsWith('image/');
 
     return (
-        <div className={`relative aspect-square rounded-lg overflow-hidden border-2 border-dashed transition-all group/thumb ${isFeatured ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-indigo-200'}`}>
+        <div className="flex flex-col gap-1">
+            <div className={`relative aspect-square rounded-lg overflow-hidden border-2 border-dashed transition-all group/thumb ${isFeatured ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-indigo-200'}`}>
             {isImage ? (
                 <img src={url} className="w-full h-full object-cover cursor-zoom-in" alt="new" onClick={() => onCrop ? null : onZoom(url)} />
             ) : (
@@ -75,10 +87,36 @@ const PendingFilePreview = ({
                         className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
                         title="Crop & Center"
                     >
-                        <Maximize2 size={12} />
-                        Center
+                        <RotateCw size={12} />
+                        Edit / Rotate
                     </button>
                 )}
+                <div className="flex gap-1">
+                    <button
+                        type="button"
+                        disabled={isFirst}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMove('left');
+                        }}
+                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                        title="Move Left"
+                    >
+                        <ChevronLeft size={14} />
+                    </button>
+                    <button
+                        type="button"
+                        disabled={isLast}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onMove('right');
+                        }}
+                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                        title="Move Right"
+                    >
+                        <ChevronRight size={14} />
+                    </button>
+                </div>
             </div>
             <button
                 type="button"
@@ -94,13 +132,25 @@ const PendingFilePreview = ({
                 </div>
             )}
         </div>
+        <input
+            type="text"
+            value={caption || ''}
+            onChange={(e) => onCaptionChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Add caption..."
+            className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+        />
+        </div>
     );
 };
 
 export default function EditItem() {
-    const { isSAHSUser, isAdmin, lastSearchPath, user } = useAuth();
+    const { lastSearchPath, user } = useAuth();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const fromAudit = searchParams.get('from') === 'audit';
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -109,43 +159,68 @@ export default function EditItem() {
     const [item, setItem] = useState<ArchiveItem | null>(null);
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
-    const [isExtracting, setIsExtracting] = useState(false);
     const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [existingFileUrls, setExistingFileUrls] = useState<string[]>([]);
+    const [mediaItems, setMediaItems] = useState<{ id: string, type: 'existing' | 'new', value: string | File, caption?: string }[]>([]);
+    
+    // Derived states for backward compatibility and simpler logic in some places
+    
+    const selectedFiles = useMemo(() => mediaItems.filter(m => m.type === 'new').map(m => m.value as File), [mediaItems]);
     const [accessionFiles, setAccessionFiles] = useState<File[]>([]);
     const [existingAccessionUrls, setExistingAccessionUrls] = useState<string[]>([]);
+    const [isConvertingAccessionPdf, setIsConvertingAccessionPdf] = useState(false);
+    const [accessionPdfProgress, setAccessionPdfProgress] = useState(0);
     const [additionalMediaFiles, setAdditionalMediaFiles] = useState<File[]>([]);
     const [existingAdditionalMediaUrls, setExistingAdditionalMediaUrls] = useState<string[]>([]);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+    
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
+    const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<{ id: string, full_name: string }[]>([]);
     const [selectedRelatedDocs, setSelectedRelatedDocs] = useState<{ id: string, title: string }[]>([]);
     const [selectedRelatedOrgs, setSelectedRelatedOrgs] = useState<{ id: string, org_name: string }[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [isPrivate, setIsPrivate] = useState(false);
+    const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
+
+    useEffect(() => {
+        if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
+            setIsPrivate(true);
+        }
+    }, [collectionStatus, itemType]);
 
 
 
 
-    const removeNewFile = (index: number) => {
-        setSelectedFiles(prev => {
-            const newFiles = [...prev];
-            const fileToRemove = newFiles[index];
-            const url = fileObjectURLs.get(fileToRemove);
-            if (url) URL.revokeObjectURL(url);
-            newFiles.splice(index, 1);
-            return newFiles;
+    const removeMediaItem = (id: string) => {
+        setMediaItems(prev => {
+            const itemToRemove = prev.find(m => m.id === id);
+            if (itemToRemove?.type === 'new') {
+                const url = fileObjectURLs.get(itemToRemove.value as File);
+                if (url) URL.revokeObjectURL(url);
+            }
+            if (itemToRemove?.type === 'existing' && featuredImageUrl === itemToRemove.value) {
+                setFeaturedImageUrl(null);
+            }
+            return prev.filter(m => m.id !== id);
         });
     };
 
-    const removeExistingFile = (url: string) => {
-        setExistingFileUrls(prev => prev.filter((u: string) => u !== url));
-        if (featuredImageUrl === url) setFeaturedImageUrl(null);
+    const moveMediaItem = (index: number, direction: 'left' | 'right') => {
+        setMediaItems(prev => {
+            const next = [...prev];
+            const newIndex = direction === 'left' ? index - 1 : index + 1;
+            if (newIndex < 0 || newIndex >= next.length) return prev;
+            [next[index], next[newIndex]] = [next[newIndex], next[index]];
+            return next;
+        });
+    };
+
+    const updateMediaCaption = (id: string, caption: string) => {
+        setMediaItems(prev => prev.map(m => m.id === id ? { ...m, caption } : m));
     };
 
     const removeNewAccession = (index: number) => {
@@ -177,7 +252,8 @@ export default function EditItem() {
         setFileObjectURLs(prev => {
             const next = new Map(prev);
             // Add new files
-            selectedFiles.forEach(file => {
+            mediaItems.filter(m => m.type === 'new').forEach(m => {
+                const file = m.value as File;
                 if (!next.has(file)) {
                     next.set(file, URL.createObjectURL(file));
                 }
@@ -194,7 +270,7 @@ export default function EditItem() {
             });
             // Cleanup removed files
             next.forEach((url, file) => {
-                const isSelected = selectedFiles.includes(file) || 
+                const isSelected = mediaItems.some(m => m.type === 'new' && m.value === file) || 
                                  accessionFiles.includes(file) || 
                                  additionalMediaFiles.includes(file);
                 if (!isSelected) {
@@ -204,7 +280,7 @@ export default function EditItem() {
             });
             return next;
         });
-    }, [selectedFiles, accessionFiles, additionalMediaFiles]);
+    }, [mediaItems, accessionFiles, additionalMediaFiles]);
 
     // Cleanup all blob URLs on final unmount
     useEffect(() => {
@@ -214,15 +290,45 @@ export default function EditItem() {
     }, []); // Only runs on component destroy
 
     const handleCropComplete = (croppedBlob: Blob) => {
-        if (croppingImageIndex === null) return;
+        if (croppingImageIndex === null && !croppingImageUrl) return;
         
-        const originalFile = selectedFiles[croppingImageIndex];
-        const originalObjectURL = fileObjectURLs.get(originalFile);
-        const croppedFile = new File([croppedBlob], originalFile.name, { type: 'image/jpeg' });
+        // Determine original filename
+        let fileName = 'edited_image.jpg';
+        let originalObjectURL: string | null = null;
+        let originalId: string | null = null;
+
+        if (croppingImageIndex !== null) {
+            const item = mediaItems[croppingImageIndex];
+            const originalFile = item.value as File;
+            fileName = originalFile.name;
+            originalObjectURL = fileObjectURLs.get(originalFile) || null;
+            originalId = item.id;
+        } else if (croppingImageUrl) {
+            fileName = croppingImageUrl.split('/').pop()?.split('?')[0] || 'existing_image.jpg';
+            originalObjectURL = croppingImageUrl;
+            originalId = croppingImageUrl;
+        }
+
+        const croppedFile = new File([croppedBlob], fileName, { type: 'image/jpeg' });
         const croppedObjectURL = URL.createObjectURL(croppedFile);
+        const newId = `new-${Date.now()}`;
         
-        const newFiles = [...selectedFiles];
-        newFiles[croppingImageIndex] = croppedFile;
+        setMediaItems(prev => {
+            const next = [...prev];
+            if (croppingImageIndex !== null) {
+                // Replacing a new pending file
+                next[croppingImageIndex] = { id: newId, type: 'new', value: croppedFile };
+            } else {
+                // Replacing an existing file (remove old, add new at same position or end)
+                const idx = prev.findIndex(m => m.id === originalId);
+                if (idx !== -1) {
+                    next[idx] = { id: newId, type: 'new', value: croppedFile };
+                } else {
+                    next.push({ id: newId, type: 'new', value: croppedFile });
+                }
+            }
+            return next;
+        });
 
         setFileObjectURLs(prev => {
             const next = new Map(prev);
@@ -230,12 +336,13 @@ export default function EditItem() {
             return next;
         });
 
+        // If the original was the featured image, make the new one featured
         if (featuredImageUrl === originalObjectURL) {
             setFeaturedImageUrl(croppedObjectURL);
         }
         
-        setSelectedFiles(newFiles);
         setCroppingImageIndex(null);
+        setCroppingImageUrl(null);
     };
 
 
@@ -276,44 +383,40 @@ export default function EditItem() {
     useClickOutside(figureRef, () => setShowFigureResults(false));
     useClickOutside(docRef, () => setShowDocResults(false));
     useClickOutside(orgRef, () => setShowOrgResults(false));
-
-    const cropExistingImage = async (url: string) => {
-        try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const fileName = url.split('/').pop()?.split('?')[0] || 'existing_image.jpg';
-            const file = new File([blob], fileName, { type: blob.type });
-            
-            const newIndex = selectedFiles.length;
-            setSelectedFiles(prev => [...prev, file]);
-            setCroppingImageIndex(newIndex);
-        } catch (err) {
-            console.error("Error cropping existing image:", err);
-            setError("Failed to load existing image for cropping. You may need to re-upload it to crop.");
-        }
+    const cropExistingImage = (url: string) => {
+        setCroppingImageUrl(url);
     };
 
-    const handleCollectionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
-        if (val === 'NEW_COLLECTION') {
-            const nextTitle = prompt("Enter the name for the new collection:");
-            if (nextTitle) {
-                try {
-                    const docRef = await addDoc(collection(db, 'collections'), {
-                        title: nextTitle,
-                        description: "",
-                        created_at: new Date().toISOString(),
-                        item_count: 0
-                    });
-                    const newCol = { id: docRef.id, title: nextTitle, description: "", created_at: new Date().toISOString() };
-                    setCollections(prev => [...prev, newCol].sort((a, b) => a.title.localeCompare(b.title)));
-                    setItem((prev: any) => prev ? ({ ...prev, collection_id: docRef.id }) : null);
-                } catch (err) {
-                    console.error("Error creating collection:", err);
-                }
+    const handleCollectionToggle = (collId: string) => {
+        setItem((prev: any) => {
+            if (!prev) return prev;
+            const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
+            const newIds = currentIds.includes(collId) ? currentIds.filter((id: string) => id !== collId) : [...currentIds, collId];
+            return { ...prev, collection_ids: newIds, collection_id: newIds.length > 0 ? newIds[0] : null };
+        });
+    };
+
+    const handleCreateNewCollection = async () => {
+        const nextTitle = window.prompt("Enter the name of the new collection:");
+        if (nextTitle && nextTitle.trim()) {
+            try {
+                const docRef = await addDoc(collection(db, 'collections'), {
+                    title: nextTitle,
+                    description: "",
+                    created_at: new Date().toISOString(),
+                    item_count: 0
+                });
+                const newCol = { id: docRef.id, title: nextTitle, description: "", created_at: new Date().toISOString() };
+                setCollections(prev => [...prev, newCol].sort((a, b) => a.title.localeCompare(b.title)));
+                setItem((prev: any) => {
+                    if (!prev) return prev;
+                    const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
+                    const newIds = [...currentIds, docRef.id];
+                    return { ...prev, collection_ids: newIds, collection_id: newIds[0] };
+                });
+            } catch (err) {
+                console.error("Error creating collection:", err);
             }
-        } else {
-            setItem((prev: any) => prev ? ({ ...prev, collection_id: val }) : null);
         }
     };
 
@@ -332,12 +435,19 @@ export default function EditItem() {
                 if (docSnap.exists()) {
                     const data = { id: docSnap.id, ...(docSnap.data() || {}) } as ArchiveItem;
                     setItem(data);
-                    setItemType(data.item_type || 'Document');
+                    const rawType = data.item_type || 'Document';
+            setItemType(rawType.trim() as ItemType);
                     setFeaturedImageUrl(data.featured_image_url || null);
-                    setExistingFileUrls(data.file_urls || []);
+                    setMediaItems((data.file_urls || []).map((url, idx) => ({ 
+                        id: url, 
+                        type: 'existing', 
+                        value: url,
+                        caption: data.file_captions ? data.file_captions[idx] : ''
+                    })));
                     setExistingAccessionUrls(data.accession_paperwork_urls || []);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
+                    setCollectionStatus(data.collection_status || 'permanent');
                 } else {
                     setError("Item not found.");
                 }
@@ -406,7 +516,7 @@ export default function EditItem() {
 
         fetchItem();
         fetchCollectionsAndLinked();
-    }, [id, item]);
+    }, [id]);
 
     useEffect(() => {
         if (item) {
@@ -431,76 +541,85 @@ export default function EditItem() {
         }
     }, [item, allFigures, allDocs, allOrgs]);
 
-    const handleAutoExtract = async (mode: 'full' | 'transcription' = 'full') => {
-        let file: File | null = null;
+
+
+    const processFiles = async (files: FileList | File[]) => {
+        const fileArray = Array.from(files);
         
-        if (selectedFiles.length > 0) {
-            file = selectedFiles[0];
+        
+        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
+        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
+        
+        if (hasPdf) {
+            setIsConvertingPdf(true);
+            setPdfConvertProgress(0);
         }
-
-        if (!file && !featuredImageUrl) {
-            setError("Please select a file first or ensure an image is available for analysis.");
-            return;
+        if (hasHeic) {
         }
-
-        setIsExtracting(true);
-        setError(null);
 
         try {
-            const metadata = await extractMetadataFromFile(file, mode, featuredImageUrl || undefined);
-            console.log("Extracted Metadata:", metadata);
+            const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
+            for (let i = 0; i < fileArray.length; i++) {
+                let file = fileArray[i];
+                
+                // HEIC Conversion
+                if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    file = await convertHeicToPng(file);
+                    file = await compressImage(file);
+                } else if (file.type.startsWith('image/')) {
+                    file = await compressImage(file);
+                }
 
-            const form = document.querySelector('form') as HTMLFormElement;
-            if (!form) return;
-
-            const setVal = (name: string, val?: string | null) => {
-                const el = form.elements.namedItem(name);
-                if (el) (el as HTMLInputElement).value = val || '';
+                if (file.type === 'application/pdf') {
+                    const pngs = await convertPdfToPngs(file, (p) => {
+                        setPdfConvertProgress(p);
+                    });
+                    newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f, caption: '' })));
+                } else {
+                    newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file, caption: '' });
+                }
             }
-
-            if (mode === 'transcription') {
-                setVal('transcription', metadata.transcription);
-                (form.elements.namedItem('transcription') as HTMLTextAreaElement)?.focus();
-                return;
-            }
-
-            if (metadata.dc_type?.toLowerCase().includes('text') || metadata.dc_type?.toLowerCase().includes('document')) {
-                setItemType('Document');
-            } else if (metadata.dc_type?.toLowerCase().includes('person') || metadata.dc_type?.toLowerCase().includes('figure')) {
-                setItemType('Historic Figure');
-            }
-
-            setVal('title', metadata.title);
-            setVal('description', metadata.description);
-            setVal('transcription', metadata.transcription);
-            setVal('date', metadata.date);
-            setVal('creator', metadata.creator);
-            setVal('subject', metadata.subject);
-            setVal('tags', metadata.tags?.join(', '));
-            setVal('publisher', metadata.publisher);
-            setVal('contributor', metadata.contributor);
-            setVal('rights', metadata.rights);
-            setVal('relation', metadata.relation);
-            setVal('format', metadata.format);
-            setVal('language', metadata.language);
-            setVal('dc_type', metadata.dc_type);
-            setVal('archive_reference', metadata.archive_reference);
-            setVal('identifier', metadata.identifier);
-            setVal('source', metadata.source);
-            setVal('coverage', metadata.coverage);
-
-            if (metadata.publisher || metadata.language || metadata.format || metadata.identifier || metadata.coverage) {
-                setShowAdvancedDC(true);
-            }
-
-            (form.elements.namedItem('title') as HTMLInputElement)?.focus();
-
-        } catch (err: any) {
-            setError(err.message || "Something went wrong during AI extraction.");
+            setMediaItems(prev => [...prev, ...newItems]);
+        } catch (error) {
+            console.error("Failed to process files:", error);
+            alert("Failed to read or convert one or more files.");
         } finally {
-            setIsExtracting(false);
+            setIsConvertingPdf(false);
+            setPdfConvertProgress(0);
         }
     };
+
+    const processAccessionFiles = async (files: FileList | File[]) => {
+        const fileArray = Array.from(files);
+        setIsConvertingAccessionPdf(true);
+        setAccessionPdfProgress(0);
+
+        try {
+            const finalFiles: File[] = [];
+            for (let i = 0; i < fileArray.length; i++) {
+                const file = fileArray[i];
+                if (file.type === 'application/pdf') {
+                    const pngs = await convertPdfToPngs(file, (p) => {
+                        setAccessionPdfProgress(p);
+                    });
+                    finalFiles.push(...pngs);
+                } else {
+                    finalFiles.push(file);
+                }
+            }
+            setAccessionFiles(prev => [...prev, ...finalFiles]);
+        } catch (error) {
+            console.error("Failed to process accession files:", error);
+            alert("Failed to read or convert one or more accession files.");
+        } finally {
+            setIsConvertingAccessionPdf(false);
+            setAccessionPdfProgress(0);
+        }
+    };
+
+    const handleDriveFiles = useCallback((files: File[]) => {
+        processFiles(files);
+    }, []);
 
     const getCoordinatesFromAddress = async (address: string) => {
         try {
@@ -523,15 +642,16 @@ export default function EditItem() {
         return null;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
         if (!id || !item) return;
 
         setIsSubmitting(true);
         setError(null);
 
         try {
-            const formData = new FormData(e.target as HTMLFormElement);
+            const formElement = e?.target as HTMLFormElement || document.getElementById('edit-item-form');
+            const formData = new FormData(formElement as HTMLFormElement);
             
             const historical_address = formData.get('historical_address') as string || "";
             let coordinates = item.coordinates || null;
@@ -544,43 +664,49 @@ export default function EditItem() {
                 }
             }
 
-            const newFiles = selectedFiles;
-            let fileUrls: string[] = [...existingFileUrls];
+            let finalFileUrls: string[] = [];
+            let finalFileCaptions: string[] = [];
             let finalFeaturedUrl = featuredImageUrl;
 
-            if (newFiles.length > 0) {
-                const totalFiles = newFiles.length;
-                let completedFiles = 0;
-                setUploadProgress(0);
+            if (mediaItems.length > 0) {
+                const totalNewFiles = mediaItems.filter(m => m.type === 'new').length;
+                let completedNewFiles = 0;
+                if (totalNewFiles > 0) setUploadProgress(0);
 
-                for (let i = 0; i < newFiles.length; i++) {
-                    const file = newFiles[i];
-                    const blobUrl = fileObjectURLs.get(file);
+                for (let i = 0; i < mediaItems.length; i++) {
+                    const item = mediaItems[i];
+                    finalFileCaptions.push(item.caption || '');
+                    if (item.type === 'existing') {
+                        finalFileUrls.push(item.value as string);
+                    } else {
+                        const file = item.value as File;
+                        const blobUrl = fileObjectURLs.get(file);
 
-                    const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
-                    const uploadTask = uploadBytesResumable(storageRef, file);
+                        const storageRef = ref(storage, `archive_media/${Date.now()}_${file.name}`);
+                        const uploadTask = uploadBytesResumable(storageRef, file);
 
-                    await new Promise<void>((resolve, reject) => {
-                        uploadTask.on('state_changed',
-                            (snapshot) => {
-                                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                                const overallProgress = ((completedFiles * 100) + progress) / totalFiles;
-                                setUploadProgress(Math.round(overallProgress));
-                            },
-                            reject,
-                            async () => {
-                                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-                                fileUrls.push(downloadUrl);
+                        await new Promise<void>((resolve, reject) => {
+                            uploadTask.on('state_changed',
+                                (snapshot) => {
+                                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                                    const overallProgress = ((completedNewFiles * 100) + progress) / totalNewFiles;
+                                    setUploadProgress(Math.round(overallProgress));
+                                },
+                                reject,
+                                async () => {
+                                    const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                                    finalFileUrls.push(downloadUrl);
 
-                                if (featuredImageUrl === blobUrl) {
-                                    finalFeaturedUrl = downloadUrl;
+                                    if (featuredImageUrl === blobUrl) {
+                                        finalFeaturedUrl = downloadUrl;
+                                    }
+
+                                    completedNewFiles++;
+                                    resolve();
                                 }
-
-                                completedFiles++;
-                                resolve();
-                            }
-                        );
-                    });
+                            );
+                        });
+                    }
                 }
             }
 
@@ -616,12 +742,15 @@ export default function EditItem() {
 
             const updatedData: Partial<ArchiveItem> = {
                 item_type: itemType,
-                file_urls: fileUrls,
+                file_urls: finalFileUrls,
+                file_captions: finalFileCaptions,
                 accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
-                collection_id: (formData.get('collection_id') as string) || "",
-                is_private: isPrivate,
+        collection_id: item.collection_id || null,
+                collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
+                is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
                 // Core DC Elements
                 title: formData.get('title') as string || "",
@@ -649,7 +778,7 @@ export default function EditItem() {
                 physical_location: (formData.get('physical_location') as any) || null,
                 historical_address: historical_address,
                 coordinates: coordinates,
-                category: formData.get('category') as string || "",
+                category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
 
                 // Linking
                 related_figures: selectedRelatedFigures.map(f => f.id),
@@ -661,6 +790,7 @@ export default function EditItem() {
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
                 museum_location: formData.get('museum_location') as string || "",
+                accession_date: formData.get('accession_date') as string || "",
                 // Figure Specific Biographics
                 full_name: formData.get('full_name') as string || "",
                 also_known_as: formData.get('also_known_as') as string || "",
@@ -680,7 +810,128 @@ export default function EditItem() {
                 updated_by_name: user?.displayName || null,
             };
 
+            let final_historical_address = historical_address;
+            let final_coordinates = coordinates;
+
+            // Scenario B: Editing an Artifact and address is blank, but we linked an Org or Figure
+            if (itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && !final_historical_address) {
+                if (selectedRelatedOrgs.length > 0) {
+                    for (const org of selectedRelatedOrgs) {
+                        const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                        if (orgDoc.exists()) {
+                            const orgData = orgDoc.data();
+                            if (orgData.historical_address) {
+                                final_historical_address = orgData.historical_address;
+                                final_coordinates = orgData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!final_historical_address && selectedRelatedFigures.length > 0) {
+                    for (const fig of selectedRelatedFigures) {
+                        const figDoc = await getDoc(doc(db, 'archive_items', fig.id));
+                        if (figDoc.exists()) {
+                            const figData = figDoc.data();
+                            if (figData.historical_address) {
+                                final_historical_address = figData.historical_address;
+                                final_coordinates = figData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            updatedData.historical_address = final_historical_address;
+            updatedData.coordinates = final_coordinates;
+
             await updateDoc(doc(db, 'archive_items', id), updatedData);
+
+            // --- Two-Way Linking Synchronization ---
+            const oldOrgs = item.related_organizations || [];
+            const newOrgs = selectedRelatedOrgs.map(o => o.id);
+            const addedOrgs = newOrgs.filter(orgId => !oldOrgs.includes(orgId));
+            const removedOrgs = oldOrgs.filter(orgId => !newOrgs.includes(orgId));
+
+            for (const orgId of addedOrgs) {
+                await updateDoc(doc(db, 'archive_items', orgId), {
+                    related_documents: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const orgId of removedOrgs) {
+                await updateDoc(doc(db, 'archive_items', orgId), {
+                    related_documents: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+
+            const oldFigs = item.related_figures || [];
+            const newFigs = selectedRelatedFigures.map(f => f.id);
+            const addedFigs = newFigs.filter(figId => !oldFigs.includes(figId));
+            const removedFigs = oldFigs.filter(figId => !newFigs.includes(figId));
+
+            for (const figId of addedFigs) {
+                await updateDoc(doc(db, 'archive_items', figId), {
+                    related_documents: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const figId of removedFigs) {
+                await updateDoc(doc(db, 'archive_items', figId), {
+                    related_documents: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+
+            const oldDocs = item.related_documents || [];
+            const newDocs = selectedRelatedDocs.map(d => d.id);
+            const addedDocs = newDocs.filter(docId => !oldDocs.includes(docId));
+            const removedDocs = oldDocs.filter(docId => !newDocs.includes(docId));
+
+            for (const docId of addedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', docId), {
+                    [arrayField]: arrayUnion(id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            for (const docId of removedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', docId), {
+                    [arrayField]: arrayRemove(id)
+                }).catch(e => console.error("Two-way unlink failed:", e));
+            }
+            // ----------------------------------------
+
+            // Scenario A: Editing an Organization or Figure, address changed, push to artifacts
+            if (itemType === 'Historic Organization' || itemType === 'Historic Figure') {
+                const old_address = item.historical_address || "";
+                const new_address = final_historical_address || "";
+                
+                if (old_address !== new_address) {
+                    const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
+                    
+                    const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : 'related_figures';
+                    const linkedDocsQuery = query(collection(db, 'archive_items'), where(arrayField, 'array-contains', id));
+                    
+                    const linkedDocsSnap = await getDocs(linkedDocsQuery);
+                    linkedDocsSnap.docs.forEach(d => allLinkedIds.add(d.id));
+
+                    for (const artId of allLinkedIds) {
+                        const artDoc = await getDoc(doc(db, 'archive_items', artId));
+                        if (artDoc.exists()) {
+                            const artData = artDoc.data();
+                            const artAddr = artData.historical_address || "";
+                            // Only update if it's blank OR it matches the old address
+                            if (artAddr === "" || artAddr === old_address) {
+                                await updateDoc(doc(db, 'archive_items', artId), {
+                                    historical_address: new_address,
+                                    coordinates: final_coordinates
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
             setSuccess(true);
         } catch (err: any) {
             console.error("Error updating item: ", err);
@@ -718,6 +969,9 @@ export default function EditItem() {
         return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">Loading archive details...</div>;
     }
 
+    const collectionId = item ? (location.state?.collectionId || item.collection_id || (item.collection_ids && item.collection_ids[0])) : undefined;
+    const associatedCollection = collections.find(c => c.id === collectionId);
+
     if (success) {
         return (
             <div className="max-w-2xl mx-auto h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-500">
@@ -739,7 +993,22 @@ export default function EditItem() {
                     >
                         View Item
                     </button>
-                    {lastSearchPath && (
+                    {associatedCollection ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/collections/${associatedCollection.id}`)}
+                            className="bg-charcoal text-white px-6 py-3 rounded-lg font-bold hover:bg-charcoal/80 transition-colors flex items-center gap-2"
+                        >
+                            <BookOpen size={18} className="text-tan" /> Back to Collection
+                        </button>
+                    ) : fromAudit ? (
+                        <button
+                            onClick={() => navigate('/audit')}
+                            className="bg-charcoal text-white px-6 py-3 rounded-lg font-bold hover:bg-charcoal/80 transition-colors flex items-center gap-2"
+                        >
+                            <ArrowLeft size={18} /> Return to Audit
+                        </button>
+                    ) : lastSearchPath && (
                         <button
                             onClick={() => navigate(lastSearchPath)}
                             className="bg-charcoal text-white px-6 py-3 rounded-lg font-bold hover:bg-charcoal/80 transition-colors flex items-center gap-2"
@@ -759,7 +1028,7 @@ export default function EditItem() {
             {/* Zoom Overlay */}
             {zoomedImage && (
                 <div
-                    className="fixed inset-0 z-[100] bg-charcoal/90 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
+                    className="fixed inset-0 z-[2000] bg-charcoal/90 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
                     onClick={() => setZoomedImage(null)}
                 >
                     <div className="relative max-w-full max-h-full overflow-auto text-charcoal">
@@ -779,11 +1048,14 @@ export default function EditItem() {
             )}
 
             {/* Cropper Modal */}
-            {croppingImageIndex !== null && (
+            {(croppingImageIndex !== null || croppingImageUrl !== null) && (
                 <ImageCropper
-                    image={fileObjectURLs.get(selectedFiles[croppingImageIndex]) || ''}
+                    image={croppingImageIndex !== null ? (fileObjectURLs.get(selectedFiles[croppingImageIndex]) || '') : (croppingImageUrl || '')}
                     onCropComplete={handleCropComplete}
-                    onCancel={() => setCroppingImageIndex(null)}
+                    onCancel={() => {
+                        setCroppingImageIndex(null);
+                        setCroppingImageUrl(null);
+                    }}
                     aspectRatio={itemType === 'Historic Figure' ? 0.75 : undefined}
                 />
             )}
@@ -797,26 +1069,100 @@ export default function EditItem() {
                 </div>
                 <div className="flex items-center gap-6">
                     <button onClick={() => navigate(-1)} className="text-sm font-medium text-charcoal/60 hover:text-charcoal">Cancel</button>
-                    {lastSearchPath && (
+                    {associatedCollection ? (
                         <button 
+                            type="button"
+                            onClick={() => navigate(`/collections/${associatedCollection.id}`)}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
+                        >
+                            <BookOpen size={16} className="text-tan" /> Back to Collection
+                        </button>
+                    ) : fromAudit ? (
+                        <button 
+                            type="button"
+                            onClick={() => navigate('/audit')}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-tan text-white rounded-lg text-sm font-bold hover:bg-charcoal transition-all shadow-md active:scale-95"
+                        >
+                            <ArrowLeft size={16} /> Back to Audit
+                        </button>
+                    ) : lastSearchPath && (
+                        <button 
+                            type="button"
                             onClick={() => navigate(lastSearchPath)}
                             className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
                         >
                             <ArrowLeft size={16} /> Back to Search
                         </button>
                     )}
+                    <button 
+                        type="button" 
+                        onClick={() => handleSubmit()}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-tan text-white rounded-lg text-sm font-bold hover:bg-charcoal transition-all shadow-md active:scale-95 disabled:opacity-50"
+                    >
+                        {isSubmitting ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <CheckCircle size={18} />
+                        )}
+                        {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
                 </div>
             </div>
 
+            {/* Preservation / Collection Status Segmented Selector - Only for Artifacts */}
+            {itemType === 'Artifact' && (
+                <div className="mb-6 bg-white p-6 rounded-2xl border border-tan-light/50 shadow-sm space-y-4 text-charcoal">
+                    <div>
+                        <h3 className="font-bold text-sm uppercase tracking-wider text-charcoal/80 mb-1">Preservation Status</h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            Specify how this item is categorized in the museum's collection database. This dynamically controls its public visibility.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {[
+                            { status: 'permanent', label: 'Permanent Collection', icon: Award, desc: 'Remains in the collection indefinitely.', activeClass: 'bg-tan text-white border-tan shadow-sm hover:bg-tan/90', inactiveClass: 'border-tan-light/30 hover:border-tan/50 hover:bg-tan/5 text-charcoal/70' },
+                            { status: 'pending', label: 'Pending Accessioning', icon: Clock, desc: 'Awaiting formal accessioning. Forced Private.', activeClass: 'bg-amber-600 text-white border-amber-600 shadow-sm hover:bg-amber-600/90', inactiveClass: 'border-amber-600/20 hover:border-amber-600/50 hover:bg-amber-600/5 text-charcoal/70' },
+                            { status: 'deaccessioned', label: 'Deaccessioned', icon: XCircle, desc: 'Removed from the collection. Forced Private.', activeClass: 'bg-red-700 text-white border-red-700 shadow-sm hover:bg-red-700/90', inactiveClass: 'border-red-700/20 hover:border-red-700/50 hover:bg-red-700/5 text-charcoal/70' },
+                            { status: 'loan', label: 'On Loan', icon: Calendar, desc: 'Temporary loan; will not remain indefinitely.', activeClass: 'bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-600/90', inactiveClass: 'border-blue-600/20 hover:border-blue-600/50 hover:bg-blue-600/5 text-charcoal/70' }
+                        ].map(({ status, label, icon: Icon, desc, activeClass, inactiveClass }) => {
+                            const isActive = collectionStatus === status;
+                            return (
+                                <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => setCollectionStatus(status as any)}
+                                    className={`p-4 rounded-xl border-2 text-left flex flex-col justify-between transition-all duration-200 group/btn h-full ${isActive ? activeClass : inactiveClass}`}
+                                >
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Icon size={18} className={isActive ? 'text-white' : 'text-tan group-hover/btn:scale-110 transition-transform duration-200'} />
+                                        <span className="font-bold text-xs uppercase tracking-wider">{label}</span>
+                                    </div>
+                                    <p className={`text-[11px] leading-snug font-sans ${isActive ? 'text-white/80' : 'text-charcoal/50'}`}>
+                                        {desc}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8 flex items-center justify-between bg-white p-5 rounded-2xl border border-tan-light/50 shadow-sm">
                 <div className="flex items-center gap-4 text-charcoal">
-                    <div className={`p-2.5 rounded-xl transition-colors ${isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                        {isPrivate ? <Lock size={20} /> : <Users size={20} />}
+                    <div className={`p-2.5 rounded-xl transition-colors ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
+                        {(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? <Lock size={20} /> : <Users size={20} />}
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm uppercase tracking-wider">{isPrivate ? 'Private Resource' : 'Public Resource'}</h3>
-                        <p className="text-xs text-charcoal/60 leading-relaxed">
-                            {isPrivate 
+                        <h3 className="font-bold text-sm uppercase tracking-wider">
+                            {(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'Forced Private Resource' : isPrivate ? 'Private Resource' : 'Public Resource'}
+                        </h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            {(itemType === 'Artifact' && collectionStatus === 'pending')
+                                ? 'Forced Private: Pending artifacts are automatically hidden from the public archive until they are formally accessioned.'
+                                : (itemType === 'Artifact' && collectionStatus === 'deaccessioned')
+                                ? 'Forced Private: Deaccessioned artifacts are kept private for administrative history and cannot be made public.'
+                                : isPrivate 
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
@@ -824,11 +1170,12 @@ export default function EditItem() {
                 </div>
                 <button
                     type="button"
+                    disabled={itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')}
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isPrivate ? 'bg-amber-500' : 'bg-tan/30'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-500' : 'bg-tan/30'} ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                 </button>
             </div>
@@ -840,7 +1187,7 @@ export default function EditItem() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
+            <form id="edit-item-form" onSubmit={handleSubmit} className="bg-white rounded-xl border border-tan-light/50 shadow-sm flex flex-col overflow-hidden">
 
                 {/* Top Section: Item Type & Primary File */}
                 <div className="p-8 border-b border-tan-light/50 bg-cream/30">
@@ -860,21 +1207,23 @@ export default function EditItem() {
                                 ))}
                             </div>
 
-                            <div className="flex items-center justify-between mb-3 underline underline-offset-4 decoration-tan/30">
+                             <div className="flex items-center justify-between mb-3 underline underline-offset-4 decoration-tan/30">
                                 <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider">Archive Gallery / Media</label>
-                                {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setExistingFileUrls([]);
-                                            setSelectedFiles([]);
-                                            setFeaturedImageUrl(null);
-                                        }}
-                                        className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
-                                    >
-                                        <X size={10} /> Wipe Gallery
-                                    </button>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    <GoogleDrivePicker onFilesSelected={handleDriveFiles} onError={setError} />
+                                    {mediaItems.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMediaItems([]);
+                                                setFeaturedImageUrl(null);
+                                            }}
+                                            className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
+                                        >
+                                            <X size={10} /> Wipe Gallery
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div
@@ -887,44 +1236,12 @@ export default function EditItem() {
                                     ref={fileInputRef}
                                     className="hidden"
                                     multiple
-                                    accept="image/png, image/jpeg, image/webp, application/pdf"
+                                    accept="image/png, image/jpeg, image/webp, image/heic, image/heif, .heic, .heif, application/pdf"
                                     onChange={async (e) => {
-                                        const files = e.target.files;
-                                        if (!files) return;
-                                        
-                                        const fileArray = Array.from(files);
-                                        const finalFiles: File[] = [];
-                                        
-                                        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-                                        if (hasPdf) {
-                                            setIsConvertingPdf(true);
-                                            setPdfConvertProgress(0);
-                                        }
-
-                                        try {
-                                            for (let i = 0; i < fileArray.length; i++) {
-                                                const file = fileArray[i];
-                                                if (file.type === 'application/pdf') {
-                                                    const pngs = await convertPdfToPngs(file, (p) => {
-                                                        setPdfConvertProgress(p);
-                                                    });
-                                                    finalFiles.push(...pngs);
-                                                } else {
-                                                    finalFiles.push(file);
-                                                }
-                                            }
-                                        } catch (error) {
-                                            console.error("Failed to convert PDF:", error);
-                                            alert("Failed to read PDF file.");
-                                        } finally {
-                                            setIsConvertingPdf(false);
-                                            setPdfConvertProgress(0);
+                                        if (e.target.files) {
+                                            await processFiles(e.target.files);
                                             e.target.value = '';
                                         }
-
-                                        setSelectedFiles(prev => {
-                                            return [...prev, ...finalFiles];
-                                        });
                                     }}
                                 />
                                 <div className="w-10 h-10 bg-cream rounded-full flex items-center justify-center text-tan shadow-sm mb-2 group-hover:scale-110 transition-transform">
@@ -944,64 +1261,110 @@ export default function EditItem() {
                                 </div>
                             )}
 
-                            {/* Image Grid: Existing and New */}
-                            {(existingFileUrls.length > 0 || selectedFiles.length > 0) && (
+                            {/* Image Grid: Unified Ordered Media */}
+                            {mediaItems.length > 0 && (
                                 <div className="space-y-4 mb-6">
                                     <div className="grid grid-cols-4 gap-2">
-                                        {/* Existing Files */}
-                                        {existingFileUrls.map((url, idx) => (
-                                            <div key={`existing-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
-                                                <img src={url} className="w-full h-full object-cover" alt="existing" />
-                                                <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setFeaturedImageUrl(url)}
-                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Set as Featured"
-                                                        >
-                                                            <CheckCircle size={14} />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => cropExistingImage(url)}
-                                                            className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
-                                                            title="Crop & Center"
-                                                        >
-                                                            <Maximize2 size={12} />
-                                                            Center
-                                                        </button>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeExistingFile(url)}
-                                                    className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
-                                                    title="Remove from Record"
-                                                >
-                                                    <X size={10} />
-                                                </button>
-                                                {featuredImageUrl === url && (
-                                                    <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                        <CheckCircle size={10} />
+                                        {mediaItems.map((item, idx) => {
+                                            if (item.type === 'existing') {
+                                                const url = item.value as string;
+                                                return (
+                                                    <div key={item.id} className="flex flex-col gap-1">
+                                                        <div className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
+                                                            <img src={url} className="w-full h-full object-cover" alt="existing" />
+                                                            <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setFeaturedImageUrl(url)}
+                                                                        className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                        title="Set as Featured"
+                                                                    >
+                                                                        <CheckCircle size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            cropExistingImage(url);
+                                                                        }}
+                                                                        className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
+                                                                        title="Edit & Rotate"
+                                                                    >
+                                                                        <RotateCw size={12} />
+                                                                        Edit / Rotate
+                                                                    </button>
+                                                                    <div className="flex gap-1">
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={idx === 0}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                moveMediaItem(idx, 'left');
+                                                                            }}
+                                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                            title="Move Left"
+                                                                        >
+                                                                            <ChevronLeft size={14} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            disabled={idx === mediaItems.length - 1}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                moveMediaItem(idx, 'right');
+                                                                            }}
+                                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20"
+                                                                            title="Move Right"
+                                                                        >
+                                                                            <ChevronRight size={14} />
+                                                                        </button>
+                                                                    </div>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeMediaItem(item.id)}
+                                                                className="absolute top-1 right-1 bg-red-600/80 text-white p-0.5 rounded-full shadow-sm z-20 opacity-0 group-hover/thumb:opacity-100 hover:bg-red-700 transition-all scale-75 group-hover/thumb:scale-100"
+                                                                title="Remove from Record"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                            {featuredImageUrl === url && (
+                                                                <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                                    <CheckCircle size={10} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input
+                                                            type="text"
+                                                            value={item.caption || ''}
+                                                            onChange={(e) => updateMediaCaption(item.id, e.target.value)}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            placeholder="Add caption..."
+                                                            className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+                                                        />
                                                     </div>
-                                                )}
-                                            </div>
-                                        ))}
-
-                                        {/* New Pending Files */}
-                                        {selectedFiles.map((file, idx) => {
-                                            const url = fileObjectURLs.get(file) || '';
-                                            return (
-                                                <PendingFilePreview
-                                                    key={`new-${idx}-${file.name}`}
-                                                    file={file}
-                                                    url={url}
-                                                    isFeatured={featuredImageUrl === url}
-                                                    onSetFeatured={(url) => setFeaturedImageUrl(url)}
-                                                    onRemove={() => removeNewFile(idx)}
-                                                    onCrop={() => setCroppingImageIndex(idx)}
-                                                    onZoom={(url) => setZoomedImage(url)}
-                                                />
-                                            );
+                                                );
+                                            } else {
+                                                const file = item.value as File;
+                                                const url = fileObjectURLs.get(file) || '';
+                                                return (
+                                                    <PendingFilePreview
+                                                        key={item.id}
+                                                        file={file}
+                                                        url={url}
+                                                        caption={item.caption}
+                                                        isFeatured={featuredImageUrl === url}
+                                                        onSetFeatured={(url) => setFeaturedImageUrl(url)}
+                                                        onRemove={() => removeMediaItem(item.id)}
+                                                        onCrop={() => setCroppingImageIndex(idx)}
+                                                        onZoom={(url) => setZoomedImage(url)}
+                                                        onMove={(dir) => moveMediaItem(idx, dir)}
+                                                        isFirst={idx === 0}
+                                                        isLast={idx === mediaItems.length - 1}
+                                                        onCaptionChange={(cap) => updateMediaCaption(item.id, cap)}
+                                                    />
+                                                );
+                                            }
                                         })}
                                     </div>
                                     <p className="text-[10px] text-charcoal/40 italic flex items-center gap-1">
@@ -1010,122 +1373,104 @@ export default function EditItem() {
                                 </div>
                             )}
 
-                            {isSAHSUser && (
-                                <div className="space-y-3 mt-6">
-                                    {isAdmin && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleAutoExtract('full')}
-                                            disabled={isExtracting || (selectedFiles.length === 0 && !featuredImageUrl)}
-                                            className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-bold text-sm transition-all border ${isExtracting
-                                                ? 'bg-tan-light/20 text-tan border-tan-light/50 cursor-not-allowed'
-                                                : (selectedFiles.length === 0 && !featuredImageUrl)
-                                                    ? 'bg-cream/50 text-charcoal/30 border-tan-light/30 cursor-not-allowed'
-                                                    : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:shadow-sm'
-                                                }`}
-                                        >
-                                            <Sparkles size={16} className={isExtracting ? 'animate-pulse' : ''} />
-                                            {isExtracting ? 'Analyzing Document Content...' : 'Full AI Extraction'}
-                                        </button>
-                                    )}
-                                    
-                                    <button
-                                        type="button"
-                                        onClick={() => handleAutoExtract('transcription')}
-                                        disabled={isExtracting || (selectedFiles.length === 0 && !featuredImageUrl)}
-                                        className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-bold text-xs transition-all border ${isExtracting || (selectedFiles.length === 0 && !featuredImageUrl)
-                                            ? 'bg-cream/20 text-charcoal/20 border-tan-light/10 cursor-not-allowed'
-                                            : 'bg-white text-indigo-500 border-indigo-100 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
-                                            }`}
-                                    >
-                                        <FileText size={14} />
-                                        AI Transcription Only
-                                    </button>
-                                </div>
-                            )}
+
                         </div>
 
                         <div className="space-y-6">
                             {/* NEW: Supplemental Media & Documentation */}
                             <div className="bg-white/50 border border-tan-light/30 rounded-2xl p-6 space-y-8">
-                                <div>
-                                    <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                        <FileText size={14} /> Accessioning Paperwork
-                                        <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
-                                            <Lock size={10} /> Admin & Curators Only
-                                        </span>
-                                    </label>
-                                    
-                                    <div className="space-y-4">
-                                        {/* Existing Paperwork */}
-                                        {existingAccessionUrls.length > 0 && (
-                                            <div className="flex flex-wrap gap-2">
-                                                {existingAccessionUrls.map((url, i) => (
-                                                    <div key={i} className="relative group/file">
-                                                        <div className="bg-tan/10 text-tan p-2 rounded-lg border border-tan-light/30 flex items-center gap-2 pr-8">
-                                                            <FileText size={14} />
-                                                            <span className="text-[10px] font-bold max-w-[120px] truncate">Paperwork {i + 1}</span>
-                                                            <a href={url} target="_blank" rel="noopener noreferrer" className="ml-1 text-tan hover:text-charcoal transition-colors">
-                                                                <Maximize2 size={10} />
-                                                            </a>
-                                                        </div>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => removeExistingAccession(url)}
-                                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
-                                                        >
-                                                            <X size={10} />
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* New Paperwork */}
-                                        <div 
-                                            onClick={() => document.getElementById('accession-upload')?.click()}
-                                            className="border-2 border-dashed border-tan-light/40 bg-white/50 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-all min-h-[5rem] group"
-                                        >
-                                            <input 
-                                                id="accession-upload"
-                                                type="file" 
-                                                multiple 
-                                                className="hidden" 
-                                                accept="image/*,application/pdf"
-                                                onChange={(e) => {
-                                                    if (e.target.files) setAccessionFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-                                                }}
-                                            />
-                                            {accessionFiles.length > 0 ? (
-                                                <div className="flex flex-wrap gap-2 justify-center">
-                                                    {accessionFiles.map((f, i) => (
-                                                        <div key={i} className="relative group/file">
-                                                            <div className="bg-tan/5 text-tan/70 p-2 rounded-lg border border-tan-light/20 flex items-center gap-2 pr-8">
-                                                                <FileText size={14} />
-                                                                <span className="text-[10px] font-bold max-w-[80px] truncate">{f.name}</span>
+                                    {!['Historic Figure', 'Historic Organization'].includes(itemType.trim()) && (
+                                        <div>
+                                            <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                <FileText size={14} /> Accessioning Paperwork
+                                                <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
+                                                    <Lock size={10} /> Admin & Curators Only
+                                                </span>
+                                            </label>
+                                            
+                                            <div className="space-y-4">
+                                                {/* Existing Paperwork */}
+                                                {existingAccessionUrls.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {existingAccessionUrls.map((url, i) => (
+                                                            <div key={i} className="relative group/file">
+                                                                <div className="bg-tan/10 text-tan p-2 rounded-lg border border-tan-light/30 flex items-center gap-2 pr-8">
+                                                                    <FileText size={14} />
+                                                                    <span className="text-[10px] font-bold max-w-[120px] truncate">Paperwork {i + 1}</span>
+                                                                    <a href={url} target="_blank" rel="noopener noreferrer" className="ml-1 text-tan hover:text-charcoal transition-colors">
+                                                                        <Maximize2 size={10} />
+                                                                    </a>
+                                                                </div>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => removeExistingAccession(url)}
+                                                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
                                                             </div>
-                                                            <button 
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    removeNewAccession(i);
-                                                                }}
-                                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
-                                                            >
-                                                                <X size={10} />
-                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* New Paperwork */}
+                                                <div 
+                                                    onClick={() => document.getElementById('accession-upload')?.click()}
+                                                    className="border-2 border-dashed border-tan-light/40 bg-white/50 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-all min-h-[5rem] group"
+                                                >
+                                                    <input 
+                                                        id="accession-upload"
+                                                        type="file" 
+                                                        multiple 
+                                                        className="hidden" 
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => {
+                                                            if (e.target.files) processAccessionFiles(e.target.files);
+                                                            e.target.value = '';
+                                                        }}
+                                                    />
+                                                    {isConvertingAccessionPdf && (
+                                                        <div className="flex flex-col items-center justify-center p-4">
+                                                            <div className="w-full bg-tan/10 h-1 rounded-full overflow-hidden mb-2">
+                                                                <div 
+                                                                    className="bg-tan h-full transition-all duration-300" 
+                                                                    style={{ width: `${accessionPdfProgress}%` }}
+                                                                />
+                                                            </div>
+                                                            <span className="text-[9px] font-bold text-tan uppercase tracking-widest animate-pulse">Converting Paperwork... {accessionPdfProgress}%</span>
                                                         </div>
-                                                    ))}
+                                                    )}
+                                                    {!isConvertingAccessionPdf && accessionFiles.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2 justify-center">
+                                                            {accessionFiles.map((f, i) => (
+                                                                <div key={i} className="relative group/file">
+                                                                    <div className="bg-tan/5 text-tan/70 p-2 rounded-lg border border-tan-light/20 flex items-center gap-2 pr-8">
+                                                                        <FileText size={14} />
+                                                                        <span className="text-[10px] font-bold max-w-[80px] truncate">{f.name}</span>
+                                                                    </div>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            removeNewAccession(i);
+                                                                        }}
+                                                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
+                                                                    >
+                                                                        <X size={10} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center">
+                                                            <Upload size={18} className="text-tan/40 mb-1 group-hover:scale-110 transition-transform" />
+                                                            <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Add Paperwork</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center">
-                                                    <Upload size={18} className="text-tan/40 mb-1 group-hover:scale-110 transition-transform" />
-                                                    <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Add Paperwork</span>
-                                                </div>
-                                            )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    )}
 
                                 <div>
                                     <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -1270,32 +1615,42 @@ export default function EditItem() {
                                 </>
                             ) : null}
 
-                                    <div className="mb-6">
-                                        <label htmlFor="collection_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                        <div className="relative">
-                                            <select 
-                                                name="collection_id" 
-                                                id="collection_id" 
-                                                value={item.collection_id || ""} 
-                                                onChange={handleCollectionChange}
-                                                className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans appearance-none text-sm"
+                                    {!['Historic Figure', 'Historic Organization'].includes(itemType.trim()) && (
+                                        <div className="mb-6">
+                                            <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collections</label>
+                                            <div className="bg-white border border-tan-light/50 rounded-lg p-3 max-h-[200px] overflow-y-auto flex flex-col gap-2 shadow-inner">
+                                                {collections.map(c => {
+                                                    const currentIds = item.collection_ids || (item.collection_id ? [item.collection_id] : []);
+                                                    return (
+                                                        <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-cream/50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-tan-light/30">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={currentIds.includes(c.id)} 
+                                                                onChange={() => handleCollectionToggle(c.id)}
+                                                                className="w-4 h-4 text-tan border-tan-light rounded focus:ring-tan/20"
+                                                            />
+                                                            <span className="text-sm text-charcoal font-medium">{c.title}</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                                {collections.length === 0 && <p className="text-sm text-charcoal/40 italic p-2">No collections available.</p>}
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleCreateNewCollection}
+                                                className="mt-2 text-xs font-bold text-tan hover:text-tan-light flex items-center gap-1 transition-colors"
                                             >
-                                                <option value="">-- No Collection --</option>
-                                                {collections.map(c => (
-                                                    <option key={c.id} value={c.id}>{c.title}</option>
-                                                ))}
-                                                <option value="NEW_COLLECTION" className="font-bold text-tan">+ Create New Collection...</option>
-                                            </select>
-                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                                <Plus size={14} /> Create New Collection
+                                            </button>
                                         </div>
-                                    </div>
+                                    )}
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        {itemType !== 'Historic Organization' && (
+                                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                             <>
                                                 {itemType === 'Artifact' ? (
                                                     <div>
-                                                        <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Type</label>
+                                                        <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact Type</label>
                                                         <div className="relative">
                                                             <select name="artifact_type" id="artifact_type" defaultValue={item.artifact_type ?? undefined} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                                 {["textile", "photo", "print", "award/trophy", "memorabilia", "furniture", "ceramics", "miscellaneous", "technology", "signs", "jewelry", "metal", "glass", "agriculture"].map(t => (
@@ -1310,7 +1665,7 @@ export default function EditItem() {
                                                         <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
                                                         <div className="relative">
                                                             <select name="category" id="category" defaultValue={item.category ?? undefined} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                                {["Manuscript", "Photograph", "Map", "Artifact", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                                {["Manuscript", "Photograph", "Map", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
                                                             </select>
                                                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                                         </div>
@@ -1318,7 +1673,7 @@ export default function EditItem() {
                                                 )}
                                             </>
                                         )}
-                                        {itemType !== 'Historic Organization' && (
+                                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                             <div>
                                                 <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
                                                 <div className="relative">
@@ -1329,7 +1684,7 @@ export default function EditItem() {
                                                 </div>
                                             </div>
                                         )}
-                                        {itemType !== 'Historic Organization' && (
+                                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                             <div>
                                                 <label htmlFor="date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Date (e.g. 1920, c. 1905)</label>
                                                 <input type="text" name="date" id="date" defaultValue={item.date ?? undefined} placeholder="Approximate or Exact Date" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
@@ -1342,16 +1697,18 @@ export default function EditItem() {
                                             <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
                                             <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
-                                        <div>
-                                            <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
-                                            <div className="relative">
-                                                <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
-                                                    <option value="Digital Archive">Digital Archive</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
+                                            <div>
+                                                <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
+                                                <div className="relative">
+                                                    <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                        <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                        <option value="Digital Archive">Digital Archive</option>
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
 
 
@@ -1385,10 +1742,12 @@ export default function EditItem() {
                     </h3>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div>
-                            <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact ID #</label>
-                            <input type="text" name="artifact_id" id="artifact_id" defaultValue={item.artifact_id ?? undefined} placeholder="e.g. 2024.01.05" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
+                        {itemType !== 'Document' && (
+                            <div>
+                                <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact ID #</label>
+                                <input type="text" name="artifact_id" id="artifact_id" defaultValue={item.artifact_id ?? undefined} placeholder="e.g. 2024.01.05" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            </div>
+                        )}
                         {itemType !== 'Artifact' && (
                             <>
                                 <div>
@@ -1419,21 +1778,24 @@ export default function EditItem() {
                             <input type="text" name="donor" id="donor" defaultValue={item.donor ?? undefined} placeholder="Donated by" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
+                            <label htmlFor="accession_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Accession Date</label>
+                            <input type="text" name="accession_date" id="accession_date" defaultValue={item.accession_date ?? undefined} placeholder="MM/DD/YYYY" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                        </div>
+                        <div>
                             <label htmlFor="tags" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Tags (Comma Separated)</label>
                             <input type="text" name="tags" id="tags" defaultValue={item.tags?.join(', ')} placeholder="e.g. Civil War, Main Street, Architecture" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                         </div>
                         <div>
                             {/* Handled by the conditional rendering logic */}
                         </div>
-                        <div>
-                            <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Address (For Map)</label>
-                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
-                        <div className="md:col-span-2">
-                            <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>
-                            <input type="text" name="museum_location" id="museum_location" defaultValue={item.museum_location ?? undefined} placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
-                        </div>
-                        {(itemType === 'Historic Figure' || itemType === 'Historic Organization') && (
+                        {/* Duplicate historical_address input removed */}
+                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
+                            <div className="md:col-span-2">
+                                <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>
+                                <input type="text" name="museum_location" id="museum_location" defaultValue={item.museum_location ?? undefined} placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                            </div>
+                        )}
+                        {['Historic Figure', 'Historic Organization'].includes(itemType) && (
                             <div className="md:col-span-2">
                                 <label htmlFor="source_institution" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Source Institution / Media Acknowledgement</label>
                                 <input type="text" name="source_institution" id="source_institution" defaultValue={item.source ?? undefined} placeholder="e.g. Courtesy of the National Archives" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />

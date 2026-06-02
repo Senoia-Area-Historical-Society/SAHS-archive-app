@@ -4,11 +4,12 @@ service cloud.firestore {
 
     // Helper function for admin/curator roles
     function isSAHSUser() {
-      let email = request.auth.token.email.lower();
-      return request.auth != null && (
-        email == 'catnolan@senoiahistory.com' || 
-        email == 'jeremywarren@senoiahistory.com' ||
-        get(/databases/$(database)/documents/user_roles/$(email)).data.role in ['admin', 'curator']
+      return request.auth != null && 
+        request.auth.token.email != null && (
+        request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
+        request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
+        request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
+        get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role in ['admin', 'curator']
       );
     }
 
@@ -29,6 +30,30 @@ service cloud.firestore {
 
     // collections collection: Anyone can read, only SAHS users can write
     match /collections/{collection} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // site_settings collection: Anyone can read, only SAHS users can write
+    match /site_settings/{document} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // settings collection: Anyone can read, only SAHS users can write
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // rooms collection for interactive map: Anyone can read, only SAHS users can write
+    match /rooms/{room} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // locations collection for interactive map: Anyone can read, only SAHS users can write
+    match /locations/{location} {
       allow read: if true;
       allow write: if isSAHSUser();
     }

@@ -4,12 +4,14 @@ service firebase.storage {
 
     // Helper function for admin/curator roles
     function isSAHSUser() {
-      let email = request.auth.token.email.lower();
-      return request.auth != null && (
-        email == 'catnolan@senoiahistory.com' || 
-        email == 'jeremywarren@senoiahistory.com' ||
-        firestore.get(/databases/(default)/documents/user_roles/$(email)).data.role in ['admin', 'curator']
-      );
+      return request.auth != null && 
+             request.auth.token != null && 
+             request.auth.token.email != null && (
+               request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
+               request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
+               request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
+               request.auth.token.email.matches('(?i)sahsintern@senoiahistory\\.com')
+             );
     }
 
     // archive_media folder: Everyone can read, only SAHS users can write
@@ -31,6 +33,12 @@ service firebase.storage {
 
     // collections folder: Everyone can read, only SAHS users can write
     match /collections/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
+    // site_assets folder: Everyone can read, only SAHS users can write
+    match /site_assets/{allPaths=**} {
       allow read: if true;
       allow write: if isSAHSUser();
     }

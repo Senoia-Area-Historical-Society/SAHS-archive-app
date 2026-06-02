@@ -9,7 +9,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Updated to v4 to match deploy.yml and resolve IDE resolution error
         with:
           path: website-content
 

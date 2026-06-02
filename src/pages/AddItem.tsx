@@ -1,14 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Maximize2, Lock, Camera } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
-import { useSearchParams } from 'react-router-dom';
-import { collection, addDoc, getDocs, query } from 'firebase/firestore';
+import { useSearchParams, Link } from 'react-router-dom';
+import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { extractMetadataFromFile } from '../lib/gemini';
 import type { ItemType, Collection, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
+import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
     useEffect(() => {
@@ -29,17 +30,22 @@ function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
 
 export function AddItem() {
     const [searchParams] = useSearchParams();
-    const { isSAHSUser, isAdmin, user } = useAuth();
+    const { user } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [createdItemId, setCreatedItemId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [accessionFiles, setAccessionFiles] = useState<File[]>([]);
+    const [isConvertingAccessionPdf, setIsConvertingAccessionPdf] = useState(false);
+    const [accessionPdfProgress, setAccessionPdfProgress] = useState(0);
     const [additionalMediaFiles, setAdditionalMediaFiles] = useState<File[]>([]);
     const [featuredImageIndex, setFeaturedImageIndex] = useState(0);
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
+    const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
+    const [isConvertingHeic, setIsConvertingHeic] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -92,7 +98,6 @@ export function AddItem() {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
-    const [isExtracting, setIsExtracting] = useState(false);
 
     // New Fields & Data State
     const [collections, setCollections] = useState<Collection[]>([]);
@@ -118,35 +123,39 @@ export function AddItem() {
     const [docSearch, setDocSearch] = useState('');
     const [showDocResults, setShowDocResults] = useState(false);
 
-    const [selectedCollectionId, setSelectedCollectionId] = useState(searchParams.get('collection_id') || "");
+    const initialCollectionParam = searchParams.get('collection_id');
+    const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(initialCollectionParam ? [initialCollectionParam] : []);
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
     const [isPrivate, setIsPrivate] = useState(false);
+    const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
 
-    const handleCollectionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const val = e.target.value;
-        if (val === 'NEW_COLLECTION') {
-            const title = window.prompt("Enter the name of the new collection:");
-            if (title && title.trim()) {
-                try {
-                    const newCollData = {
-                        title: title.trim(),
-                        description: '',
-                        created_at: new Date().toISOString()
-                    };
-                    const docRef = await addDoc(collection(db, 'collections'), newCollData);
-                    const newColl = { id: docRef.id, ...newCollData } as Collection;
-                    setCollections(prev => [...prev, newColl].sort((a, b) => a.title.localeCompare(b.title)));
-                    setSelectedCollectionId(docRef.id);
-                } catch (err) {
-                    alert("Failed to create collection.");
-                    setSelectedCollectionId("");
-                }
-            } else {
-                setSelectedCollectionId("");
+    useEffect(() => {
+        if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
+            setIsPrivate(true);
+        }
+    }, [collectionStatus, itemType]);
+
+    const handleCollectionToggle = (collId: string) => {
+        setSelectedCollectionIds(prev => prev.includes(collId) ? prev.filter(id => id !== collId) : [...prev, collId]);
+    };
+
+    const handleCreateNewCollection = async () => {
+        const title = window.prompt("Enter the name of the new collection:");
+        if (title && title.trim()) {
+            try {
+                const newCollData = {
+                    title: title.trim(),
+                    description: '',
+                    created_at: new Date().toISOString()
+                };
+                const docRef = await addDoc(collection(db, 'collections'), newCollData);
+                const newColl = { id: docRef.id, ...newCollData } as Collection;
+                setCollections(prev => [...prev, newColl].sort((a, b) => a.title.localeCompare(b.title)));
+                setSelectedCollectionIds(prev => [...prev, docRef.id]);
+            } catch (err) {
+                alert("Failed to create collection.");
             }
-        } else {
-            setSelectedCollectionId(val);
         }
     };
 
@@ -186,8 +195,8 @@ export function AddItem() {
                 allItemsData.forEach(item => {
                     if (item.tags) item.tags.forEach((t: string) => tags.add(t));
                     
-                    // Collect numeric artifact IDs for suggestion logic
-                    if (item.artifact_id) {
+                    // Collect numeric artifact IDs for suggestion logic (ignoring figures and organizations)
+                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
                         const num = parseInt(item.artifact_id, 10);
                         if (!isNaN(num) && num > 0) {
                             artifactIds.add(num);
@@ -215,74 +224,110 @@ export function AddItem() {
         fetchInitialData();
     }, []);
 
-    const handleAutoExtract = async (mode: 'full' | 'transcription' = 'full') => {
-        if (selectedFiles.length === 0) {
-            setError("Please select a file first before extracting metadata.");
-            return;
-        }
 
-        const file = selectedFiles[0];
-        setIsExtracting(true);
-        setError(null);
+    const moveFile = (index: number, direction: 'left' | 'right') => {
+        const newFiles = [...selectedFiles];
+        const newIndex = direction === 'left' ? index - 1 : index + 1;
+        
+        if (newIndex < 0 || newIndex >= newFiles.length) return;
+        
+        // Swap files
+        [newFiles[index], newFiles[newIndex]] = [newFiles[newIndex], newFiles[index]];
+        
+        // Swap captions
+        const newCaptions = [...fileCaptions];
+        [newCaptions[index], newCaptions[newIndex]] = [newCaptions[newIndex], newCaptions[index]];
+        setFileCaptions(newCaptions);
+        
+        // Update featured index if it was one of the swapped files
+        if (featuredImageIndex === index) {
+            setFeaturedImageIndex(newIndex);
+        } else if (featuredImageIndex === newIndex) {
+            setFeaturedImageIndex(index);
+        }
+        
+        setSelectedFiles(newFiles);
+    };
+
+    const processFiles = async (files: FileList | File[]) => {
+        const fileArray = Array.from(files);
+        const finalFiles: File[] = [];
+        
+        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
+        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
+        
+        if (hasPdf) {
+            setIsConvertingPdf(true);
+            setPdfConvertProgress(0);
+        }
+        if (hasHeic) {
+            setIsConvertingHeic(true);
+        }
 
         try {
-            const metadata = await extractMetadataFromFile(file, mode);
-            console.log("Extracted Metadata:", metadata);
+            for (let i = 0; i < fileArray.length; i++) {
+                let file = fileArray[i];
+                
+                // HEIC Conversion
+                if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    file = await convertHeicToPng(file);
+                    file = await compressImage(file);
+                } else if (file.type.startsWith('image/')) {
+                    file = await compressImage(file);
+                }
 
-            const form = document.getElementById('add-item-form') as HTMLFormElement;
-            if (!form) return;
-
-            const setVal = (name: string, val?: string | null) => {
-                const el = form.elements.namedItem(name);
-                if (el) (el as HTMLInputElement).value = val || '';
+                if (file.type === 'application/pdf') {
+                    const pngs = await convertPdfToPngs(file, (p) => {
+                        setPdfConvertProgress(p);
+                    });
+                    finalFiles.push(...pngs);
+                } else {
+                    finalFiles.push(file);
+                }
             }
-
-            if (mode === 'transcription') {
-                setVal('transcription', metadata.transcription);
-                (form.elements.namedItem('transcription') as HTMLTextAreaElement)?.focus();
-                return;
-            }
-
-            if (metadata.dc_type?.toLowerCase().includes('text') || metadata.dc_type?.toLowerCase().includes('document')) {
-                setItemType('Document');
-            } else if (metadata.dc_type?.toLowerCase().includes('person') || metadata.dc_type?.toLowerCase().includes('figure')) {
-                setItemType('Historic Figure');
-            } else if (metadata.dc_type?.toLowerCase().includes('organization') || metadata.dc_type?.toLowerCase().includes('business') || metadata.dc_type?.toLowerCase().includes('church')) {
-                setItemType('Historic Organization');
-            }
-
-            setVal('title', metadata.title);
-            setVal('description', metadata.description);
-            setVal('transcription', metadata.transcription);
-            setVal('date', metadata.date);
-            setVal('creator', metadata.creator);
-            setVal('subject', metadata.subject);
-            setVal('archive_reference', metadata.archive_reference);
-            setVal('location', metadata.coverage);
-
-            if (metadata.tags) {
-                setCurrentTags(prev => Array.from(new Set([...prev, ...(metadata.tags || [])])));
-            }
-
-            // Extended fields
-            setVal('publisher', metadata.publisher);
-            setVal('language', metadata.language);
-            setVal('format', metadata.format);
-            setVal('identifier', metadata.identifier);
-            setVal('source', metadata.source);
-
-            if (metadata.publisher || metadata.language || metadata.format || metadata.identifier) {
-                setShowAdvancedDC(true);
-            }
-
-            (form.elements.namedItem('title') as HTMLInputElement)?.focus();
-
-        } catch (err: any) {
-            setError(err.message || "Something went wrong during AI extraction.");
+            setSelectedFiles(prev => [...prev, ...finalFiles]);
+            setFileCaptions(prev => [...prev, ...Array(finalFiles.length).fill('')]);
+        } catch (error) {
+            console.error("Failed to process files:", error);
+            alert("Failed to read or convert one or more files.");
         } finally {
-            setIsExtracting(false);
+            setIsConvertingPdf(false);
+            setIsConvertingHeic(false);
+            setPdfConvertProgress(0);
         }
     };
+
+    const processAccessionFiles = async (files: FileList | File[]) => {
+        const fileArray = Array.from(files);
+        setIsConvertingAccessionPdf(true);
+        setAccessionPdfProgress(0);
+
+        try {
+            const finalFiles: File[] = [];
+            for (let i = 0; i < fileArray.length; i++) {
+                const file = fileArray[i];
+                if (file.type === 'application/pdf') {
+                    const pngs = await convertPdfToPngs(file, (p) => {
+                        setAccessionPdfProgress(p);
+                    });
+                    finalFiles.push(...pngs);
+                } else {
+                    finalFiles.push(file);
+                }
+            }
+            setAccessionFiles(prev => [...prev, ...finalFiles]);
+        } catch (error) {
+            console.error("Failed to process accession files:", error);
+            alert("Failed to read or convert one or more accession files.");
+        } finally {
+            setIsConvertingAccessionPdf(false);
+            setAccessionPdfProgress(0);
+        }
+    };
+
+    const handleDriveFiles = useCallback((files: File[]) => {
+        processFiles(files);
+    }, []);
 
     const getCoordinatesFromAddress = async (address: string) => {
         try {
@@ -392,18 +437,54 @@ export function AddItem() {
     - [x] Verify UI/UX matches reference site aesthetics (Premium layout)
             */
 
+            let final_historical_address = historical_address;
+            let final_coordinates = coordinates;
+
+            if (itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && !final_historical_address) {
+                if (selectedRelatedOrgs.length > 0) {
+                    for (const org of selectedRelatedOrgs) {
+                        const orgDoc = await getDoc(doc(db, 'archive_items', org.id));
+                        if (orgDoc.exists()) {
+                            const orgData = orgDoc.data();
+                            if (orgData.historical_address) {
+                                final_historical_address = orgData.historical_address;
+                                final_coordinates = orgData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!final_historical_address && selectedRelatedFigures.length > 0) {
+                    for (const fig of selectedRelatedFigures) {
+                        const figDoc = await getDoc(doc(db, 'archive_items', fig.id));
+                        if (figDoc.exists()) {
+                            const figData = figDoc.data();
+                            if (figData.historical_address) {
+                                final_historical_address = figData.historical_address;
+                                final_coordinates = figData.coordinates || null;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             const itemData: Omit<ArchiveItem, 'id'> = {
                 item_type: itemType,
                 file_urls: fileUrls,
+                file_captions: fileCaptions,
                 featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : null),
                 accession_paperwork_urls: accessionUrls,
                 additional_media_urls: additionalMediaUrls,
                 tags: currentTags,
-                collection_id: (formData.get('collection_id') as string) || "",
+                collection_id: selectedCollectionIds.length > 0 ? selectedCollectionIds[0] : null,
+                collection_ids: selectedCollectionIds,
                 created_at: new Date().toISOString(),
                 uploaded_by_email: user?.email || null,
                 uploaded_by_name: user?.displayName || null,
-                is_private: isPrivate,
+                is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
                 title: formData.get('title') as string || "",
                 description: formData.get('description') as string || "",
@@ -414,13 +495,13 @@ export function AddItem() {
                 subject: formData.get('subject') as string || "",
                 coverage: formData.get('location') as string || "",
 
-                category: formData.get('category') as string || "",
+                category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
 
                 // SAHS Specific
                 condition: (formData.get('condition') as any) || null,
                 physical_location: (formData.get('physical_location') as any) || null,
-                historical_address: historical_address,
-                coordinates: coordinates,
+                historical_address: final_historical_address,
+                coordinates: final_coordinates,
                 related_figures: selectedRelatedFigures.map(f => f.id),
                 related_documents: selectedRelatedDocs.map(d => d.id),
                 related_organizations: selectedRelatedOrgs.map(o => o.id),
@@ -455,9 +536,51 @@ export function AddItem() {
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
                 museum_location: formData.get('museum_location') as string || "",
+                accession_date: formData.get('accession_date') as string || "",
             };
 
-            await addDoc(collection(db, 'archive_items'), itemData);
+            const docRef = await addDoc(collection(db, 'archive_items'), itemData);
+
+            // --- Two-Way Linking Synchronization (Add Item) ---
+            for (const org of selectedRelatedOrgs) {
+                await updateDoc(doc(db, 'archive_items', org.id), {
+                    related_documents: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            
+            for (const fig of selectedRelatedFigures) {
+                await updateDoc(doc(db, 'archive_items', fig.id), {
+                    related_documents: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            
+            for (const d of selectedRelatedDocs) {
+                const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';
+                await updateDoc(doc(db, 'archive_items', d.id), {
+                    [arrayField]: arrayUnion(docRef.id)
+                }).catch(e => console.error("Two-way link failed:", e));
+            }
+            // ----------------------------------------
+
+            if ((itemType === 'Historic Organization' || itemType === 'Historic Figure') && final_historical_address) {
+                const new_address = final_historical_address;
+                const allLinkedIds = new Set(selectedRelatedDocs.map(d => d.id));
+                for (const artId of allLinkedIds) {
+                    const artDoc = await getDoc(doc(db, 'archive_items', artId));
+                    if (artDoc.exists()) {
+                        const artData = artDoc.data();
+                        const artAddr = artData.historical_address || "";
+                        if (artAddr === "") {
+                            await updateDoc(doc(db, 'archive_items', artId), {
+                                historical_address: new_address,
+                                coordinates: final_coordinates
+                            });
+                        }
+                    }
+                }
+            }
+
+            setCreatedItemId(docRef.id);
             setSuccess(true);
         } catch (err: any) {
             console.error("Error adding item: ", err);
@@ -520,10 +643,21 @@ export function AddItem() {
                 </div>
                 <h2 className="text-3xl font-serif font-bold text-charcoal mb-2">Item Archived</h2>
                 <p className="text-charcoal/70 mb-8 text-center max-w-md">The item has been successfully preserved in the archive database.</p>
-                <button
-                    onClick={() => {
-                        setSuccess(false);
-                        setSelectedFiles([]);
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                    {createdItemId && (
+                        <Link 
+                            to={`/items/${createdItemId}`}
+                            className="bg-white text-tan border-2 border-tan px-6 py-3 rounded-lg font-medium hover:bg-tan hover:text-white transition-colors text-center"
+                        >
+                            View Archived Item
+                        </Link>
+                    )}
+                    <button
+                        onClick={() => {
+                            setSuccess(false);
+                            setCreatedItemId(null);
+                            setSelectedFiles([]);
+                        setFileCaptions([]);
                         setAccessionFiles([]);
                         setAdditionalMediaFiles([]);
                         setCurrentTags([]);
@@ -542,7 +676,7 @@ export function AddItem() {
                                 
                                 const artifactIds = new Set<number>();
                                 allItemsData.forEach(item => {
-                                    if (item.artifact_id) {
+                                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
                                         const num = parseInt(item.artifact_id, 10);
                                         if (!isNaN(num) && num > 0) artifactIds.add(num);
                                     }
@@ -567,7 +701,8 @@ export function AddItem() {
                     className="bg-tan text-white px-6 py-3 rounded-lg font-medium hover:bg-charcoal transition-colors"
                 >
                     Archive Another Item
-                </button>
+                    </button>
+                </div>
             </div>
         )
     }
@@ -614,15 +749,59 @@ export function AddItem() {
                 <p className="text-charcoal/70 text-lg">Preserve a new document, photograph, or historic figure in the digital vault.</p>
             </div>
 
+            {/* Preservation / Collection Status Segmented Selector - Only for Artifacts */}
+            {itemType === 'Artifact' && (
+                <div className="mb-6 bg-white p-6 rounded-2xl border border-tan-light/50 shadow-sm space-y-4 text-charcoal">
+                    <div>
+                        <h3 className="font-bold text-sm uppercase tracking-wider text-charcoal/80 mb-1">Preservation Status</h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            Specify how this item is categorized in the museum's collection database. This dynamically controls its public visibility.
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {[
+                            { status: 'permanent', label: 'Permanent Collection', icon: Award, desc: 'Remains in the collection indefinitely.', activeClass: 'bg-tan text-white border-tan shadow-sm hover:bg-tan/90', inactiveClass: 'border-tan-light/30 hover:border-tan/50 hover:bg-tan/5 text-charcoal/70' },
+                            { status: 'pending', label: 'Pending Accessioning', icon: Clock, desc: 'Awaiting formal accessioning. Forced Private.', activeClass: 'bg-amber-600 text-white border-amber-600 shadow-sm hover:bg-amber-600/90', inactiveClass: 'border-amber-600/20 hover:border-amber-600/50 hover:bg-amber-600/5 text-charcoal/70' },
+                            { status: 'deaccessioned', label: 'Deaccessioned', icon: XCircle, desc: 'Removed from the collection. Forced Private.', activeClass: 'bg-red-700 text-white border-red-700 shadow-sm hover:bg-red-700/90', inactiveClass: 'border-red-700/20 hover:border-red-700/50 hover:bg-red-700/5 text-charcoal/70' },
+                            { status: 'loan', label: 'On Loan', icon: Calendar, desc: 'Temporary loan; will not remain indefinitely.', activeClass: 'bg-blue-600 text-white border-blue-600 shadow-sm hover:bg-blue-600/90', inactiveClass: 'border-blue-600/20 hover:border-blue-600/50 hover:bg-blue-600/5 text-charcoal/70' }
+                        ].map(({ status, label, icon: Icon, desc, activeClass, inactiveClass }) => {
+                            const isActive = collectionStatus === status;
+                            return (
+                                <button
+                                    key={status}
+                                    type="button"
+                                    onClick={() => setCollectionStatus(status as any)}
+                                    className={`p-4 rounded-xl border-2 text-left flex flex-col justify-between transition-all duration-200 group/btn h-full ${isActive ? activeClass : inactiveClass}`}
+                                >
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Icon size={18} className={isActive ? 'text-white' : 'text-tan group-hover/btn:scale-110 transition-transform duration-200'} />
+                                        <span className="font-bold text-xs uppercase tracking-wider">{label}</span>
+                                    </div>
+                                    <p className={`text-[11px] leading-snug font-sans ${isActive ? 'text-white/80' : 'text-charcoal/50'}`}>
+                                        {desc}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8 flex items-center justify-between bg-white p-5 rounded-2xl border border-tan-light/50 shadow-sm">
                 <div className="flex items-center gap-4 text-charcoal">
-                    <div className={`p-2.5 rounded-xl transition-colors ${isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
-                        {isPrivate ? <Lock size={20} /> : <Users size={20} />}
+                    <div className={`p-2.5 rounded-xl transition-colors ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-50 text-amber-600' : 'bg-green-50 text-green-600'}`}>
+                        {(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? <Lock size={20} /> : <Users size={20} />}
                     </div>
                     <div>
-                        <h3 className="font-bold text-sm uppercase tracking-wider">{isPrivate ? 'Private Resource' : 'Public Resource'}</h3>
-                        <p className="text-xs text-charcoal/60 leading-relaxed">
-                            {isPrivate 
+                        <h3 className="font-bold text-sm uppercase tracking-wider">
+                            {(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'Forced Private Resource' : isPrivate ? 'Private Resource' : 'Public Resource'}
+                        </h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            {(itemType === 'Artifact' && collectionStatus === 'pending')
+                                ? 'Forced Private: Pending artifacts are automatically hidden from the public archive until they are formally accessioned.'
+                                : (itemType === 'Artifact' && collectionStatus === 'deaccessioned')
+                                ? 'Forced Private: Deaccessioned artifacts are kept private for administrative history and cannot be made public.'
+                                : isPrivate 
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
@@ -630,11 +809,12 @@ export function AddItem() {
                 </div>
                 <button
                     type="button"
+                    disabled={itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')}
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isPrivate ? 'bg-amber-500' : 'bg-tan/30'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-500' : 'bg-tan/30'} ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                 </button>
             </div>
@@ -666,17 +846,20 @@ export function AddItem() {
                                 ))}
                             </div>
 
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30 flex items-center">
+                             <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30 flex items-center gap-2">
                                 {itemType === 'Document' ? 'Document Scans / Photos' : itemType === 'Artifact' ? 'Artifact Photos' : 'Representative Media / Portraits'}
-                                {selectedFiles.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => { setSelectedFiles([]); setFeaturedImageIndex(0); }}
-                                        className="ml-auto text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
-                                    >
-                                        <X size={10} /> Clear All
-                                    </button>
-                                )}
+                                <div className="ml-auto flex items-center gap-2">
+                                    <GoogleDrivePicker onFilesSelected={handleDriveFiles} onError={setError} />
+                                    {selectedFiles.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => { setSelectedFiles([]); setFileCaptions([]); setFeaturedImageIndex(0); }}
+                                            className="text-[10px] font-black uppercase text-red-500 hover:text-red-700 tracking-widest transition-colors flex items-center gap-1"
+                                        >
+                                            <X size={10} /> Clear
+                                        </button>
+                                    )}
+                                </div>
                             </label>
                             <div
                                 onClick={() => fileInputRef.current?.click()}
@@ -688,48 +871,22 @@ export function AddItem() {
                                     ref={fileInputRef}
                                     className="hidden"
                                     multiple
-                                    accept="image/png, image/jpeg, image/webp, application/pdf"
+                                    accept="image/png, image/jpeg, image/webp, image/heic, image/heif, .heic, .heif, application/pdf"
                                     onChange={async (e) => {
-                                        const files = e.target.files;
-                                        if (!files) return;
-                                        
-                                        const fileArray = Array.from(files);
-                                        const finalFiles: File[] = [];
-                                        
-                                        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-                                        if (hasPdf) {
-                                            setIsConvertingPdf(true);
-                                            setPdfConvertProgress(0);
-                                        }
-
-                                        try {
-                                            for (let i = 0; i < fileArray.length; i++) {
-                                                const file = fileArray[i];
-                                                if (file.type === 'application/pdf') {
-                                                    const pngs = await convertPdfToPngs(file, (p) => {
-                                                        setPdfConvertProgress(p);
-                                                    });
-                                                    finalFiles.push(...pngs);
-                                                } else {
-                                                    finalFiles.push(file);
-                                                }
-                                            }
-                                        } catch (error) {
-                                            console.error("Failed to convert PDF:", error);
-                                            alert("Failed to read PDF file.");
-                                        } finally {
-                                            setIsConvertingPdf(false);
-                                            setPdfConvertProgress(0);
+                                        if (e.target.files) {
+                                            await processFiles(e.target.files);
                                             e.target.value = '';
                                         }
-
-                                        setSelectedFiles(prev => {
-                                            return [...prev, ...finalFiles];
-                                        });
                                     }}
                                 />
                                 {/* Image Grid */}
-                                {isConvertingPdf ? (
+                                {isConvertingHeic ? (
+                                    <div className="flex flex-col items-center gap-3 mt-4">
+                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
+                                        <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                    </div>
+                                ) : isConvertingPdf ? (
                                     <div className="flex flex-col items-center gap-3 mt-4">
                                         <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                         <p className="font-bold text-charcoal">Converting Extracted PDF Pages...</p>
@@ -743,58 +900,99 @@ export function AddItem() {
                                             const url = fileObjectURLs.get(file) || '';
                                             const isImage = file.type.startsWith('image/');
                                             return (
-                                                <div key={`pending-${idx}`} className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageIndex === idx ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30 hover:border-tan-light'}`}>
-                                                    {isImage ? (
-                                                        <img src={url} className="w-full h-full object-cover" alt="preview" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center bg-cream/50 text-tan/40">
-                                                            <FileText size={16} />
-                                                        </div>
-                                                    )}
-                                                    <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setFeaturedImageIndex(idx);
-                                                            }}
-                                                            className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Set as Featured"
-                                                        >
-                                                            <CheckCircle size={12} />
-                                                        </button>
-                                                        {isImage && (
+                                                <div key={`pending-${idx}`} className="flex flex-col gap-1">
+                                                    <div className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageIndex === idx ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30 hover:border-tan-light'}`}>
+                                                        {isImage ? (
+                                                            <img src={url} className="w-full h-full object-cover" alt="preview" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-cream/50 text-tan/40">
+                                                                <FileText size={16} />
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                                                             <button
                                                                 type="button"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setCroppingImageIndex(idx);
+                                                                    setFeaturedImageIndex(idx);
                                                                 }}
-                                                                className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
-                                                                title="Crop & Center"
+                                                                className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                title="Set as Featured"
                                                             >
-                                                                <Maximize2 size={12} />
-                                                                Center
+                                                                <CheckCircle size={12} />
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
-                                                                if (featuredImageIndex === idx) setFeaturedImageIndex(0);
-                                                            }}
-                                                            className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
-                                                            title="Remove File"
-                                                        >
-                                                            <X size={12} />
-                                                        </button>
-                                                    </div>
-                                                    {featuredImageIndex === idx && (
-                                                        <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
-                                                            <CheckCircle size={8} />
+                                                            {isImage && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setCroppingImageIndex(idx);
+                                                                    }}
+                                                                    className="flex items-center gap-1.5 px-2 py-1 bg-white/20 hover:bg-tan rounded-full text-white backdrop-blur-sm transition-all text-[10px] font-bold border border-white/30"
+                                                                    title="Edit & Rotate"
+                                                                >
+                                                                     <RotateCw size={12} />
+                                                                     Edit / Rotate
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+                                                                    setFileCaptions(prev => prev.filter((_, i) => i !== idx));
+                                                                    if (featuredImageIndex === idx) setFeaturedImageIndex(0);
+                                                                }}
+                                                                className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                                title="Remove File"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                            <div className="flex gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={idx === 0}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        moveFile(idx, 'left');
+                                                                    }}
+                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                    title="Move Left"
+                                                                >
+                                                                    <ChevronLeft size={12} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={idx === selectedFiles.length - 1}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        moveFile(idx, 'right');
+                                                                    }}
+                                                                    className="p-1 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                                                                    title="Move Right"
+                                                                >
+                                                                    <ChevronRight size={12} />
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    )}
+                                                        {featuredImageIndex === idx && (
+                                                            <div className="absolute top-1 left-1 bg-tan text-white p-0.5 rounded-full shadow-sm z-20">
+                                                                <CheckCircle size={8} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={fileCaptions[idx] || ''}
+                                                        onChange={(e) => {
+                                                            const newCaptions = [...fileCaptions];
+                                                            newCaptions[idx] = e.target.value;
+                                                            setFileCaptions(newCaptions);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        placeholder="Add caption..."
+                                                        className="w-full text-[10px] px-2 py-1 rounded bg-cream/50 border border-tan-light/30 focus:border-tan focus:outline-none font-sans"
+                                                    />
                                                 </div>
                                             );
                                         })}
@@ -815,95 +1013,77 @@ export function AddItem() {
                                 )}
                             </div>
 
-                            {isSAHSUser && (
-                                <div className="space-y-3 mt-6">
-                                    {isAdmin && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleAutoExtract('full')}
-                                            disabled={isExtracting || selectedFiles.length === 0}
-                                            className={`w-full flex items-center justify-center gap-3 py-4 px-4 rounded-xl font-bold text-sm transition-all border-2 ${isExtracting
-                                                ? 'bg-tan-light/10 text-tan border-tan-light/30 cursor-not-allowed'
-                                                : selectedFiles.length === 0
-                                                    ? 'bg-cream/50 text-charcoal/20 border-tan-light/20 cursor-not-allowed'
-                                                    : 'bg-indigo-50/50 text-indigo-700 border-indigo-100 hover:bg-indigo-100 hover:shadow-md'
-                                                }`}
-                                        >
-                                            <Sparkles size={18} className={isExtracting ? 'animate-pulse' : ''} />
-                                            {isExtracting ? 'Analyzing Document Content...' : 'Full AI Extraction'}
-                                        </button>
-                                    )}
-                                    
-                                    <button
-                                        type="button"
-                                        onClick={() => handleAutoExtract('transcription')}
-                                        disabled={isExtracting || selectedFiles.length === 0}
-                                        className={`w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl font-bold text-xs transition-all border-2 ${isExtracting || selectedFiles.length === 0
-                                            ? 'bg-cream/20 text-charcoal/20 border-tan-light/10 cursor-not-allowed'
-                                            : 'bg-white text-indigo-500 border-indigo-100 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
-                                            }`}
-                                    >
-                                        <FileText size={16} />
-                                        AI Transcription Only
-                                    </button>
-                                </div>
-                            )}
+
                         </div>
 
                         <div className="space-y-6">
                             {/* NEW: Supplemental Media & Documentation */}
-                            <div className="bg-white/50 border border-tan-light/30 rounded-2xl p-6 space-y-6">
-                                <div>
-                                    <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                        <FileText size={14} /> Accessioning Paperwork
-                                        <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
-                                            <Lock size={10} /> Admin & Curators Only
-                                        </span>
-                                    </label>
-                                    <div 
-                                        onClick={() => document.getElementById('accession-upload')?.click()}
-                                        className="border-2 border-dashed border-tan-light/40 bg-white/50 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-all min-h-[6rem] group"
-                                    >
-                                        <input 
-                                            id="accession-upload"
-                                            type="file" 
-                                            multiple 
-                                            className="hidden" 
-                                            accept="image/*,application/pdf"
-                                            onChange={(e) => {
-                                                if (e.target.files) setAccessionFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-                                                e.target.value = '';
-                                            }}
-                                        />
-                                        {accessionFiles.length > 0 ? (
-                                            <div className="flex flex-wrap gap-2 justify-center">
-                                                {accessionFiles.map((f, i) => (
-                                                    <div key={i} className="relative group/file">
-                                                        <div className="bg-tan/10 text-tan p-2 rounded-lg border border-tan-light/30 flex items-center gap-2 pr-8">
-                                                            <FileText size={14} />
-                                                            <span className="text-[10px] font-bold max-w-[80px] truncate">{f.name}</span>
-                                                        </div>
-                                                        <button 
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setAccessionFiles(prev => prev.filter((_, idx) => idx !== i));
-                                                            }}
-                                                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
-                                                        >
-                                                            <X size={10} />
-                                                        </button>
+                            {!['Historic Figure', 'Historic Organization'].includes(itemType.trim()) && (
+                                <div className="bg-white/50 border border-tan-light/30 rounded-2xl p-6 space-y-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                            <FileText size={14} /> Accessioning Paperwork
+                                            <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
+                                                <Lock size={10} /> Admin & Curators Only
+                                            </span>
+                                        </label>
+                                        <div 
+                                            onClick={() => document.getElementById('accession-upload')?.click()}
+                                            className="border-2 border-dashed border-tan-light/40 bg-white/50 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-tan-light/10 transition-all min-h-[6rem] group"
+                                        >
+                                            <input 
+                                                id="accession-upload"
+                                                type="file" 
+                                                multiple 
+                                                className="hidden" 
+                                                accept="image/*,application/pdf"
+                                                onChange={(e) => {
+                                                    if (e.target.files) processAccessionFiles(e.target.files);
+                                                    e.target.value = '';
+                                                }}
+                                            />
+                                            {isConvertingAccessionPdf && (
+                                                <div className="flex flex-col items-center justify-center p-4">
+                                                    <div className="w-full bg-tan/10 h-1 rounded-full overflow-hidden mb-2">
+                                                        <div 
+                                                            className="bg-tan h-full transition-all duration-300" 
+                                                            style={{ width: `${accessionPdfProgress}%` }}
+                                                        />
                                                     </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center">
-                                                <Upload size={18} className="text-tan/40 mb-1 group-hover:scale-110 transition-transform" />
-                                                <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Upload Scans</span>
-                                            </div>
-                                        )}
+                                                    <span className="text-[9px] font-bold text-tan uppercase tracking-widest animate-pulse">Converting Paperwork... {accessionPdfProgress}%</span>
+                                                </div>
+                                            )}
+                                            {!isConvertingAccessionPdf && accessionFiles.length > 0 ? (
+                                                <div className="flex flex-wrap gap-2 justify-center">
+                                                    {accessionFiles.map((f, i) => (
+                                                        <div key={i} className="relative group/file">
+                                                            <div className="bg-tan/10 text-tan p-2 rounded-lg border border-tan-light/30 flex items-center gap-2 pr-8">
+                                                                <FileText size={14} />
+                                                                <span className="text-[10px] font-bold max-w-[80px] truncate">{f.name}</span>
+                                                            </div>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setAccessionFiles(prev => prev.filter((_, idx) => idx !== i));
+                                                                }}
+                                                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm opacity-0 group-hover/file:opacity-100 transition-opacity"
+                                                            >
+                                                                <X size={10} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center">
+                                                    <Upload size={18} className="text-tan/40 mb-1 group-hover:scale-110 transition-transform" />
+                                                    <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Add Paperwork</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+                            )}
 
                                 <div>
                                     <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -949,12 +1129,11 @@ export function AddItem() {
                                         ) : (
                                             <div className="flex flex-col items-center">
                                                 <Upload size={18} className="text-indigo-300/40 mb-1 group-hover:scale-110 transition-transform" />
-                                                <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Upload Media</span>
+                                                                <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Upload Media</span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                            </div>
                             <div>
                                 <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Display Title / Name *</label>
                                 <input required type="text" name="title" id="title" placeholder={itemType === 'Historic Figure' ? "e.g. John Doe" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "Descriptive title for the archive"} className="w-full bg-white border border-tan-light/50 px-4 py-4 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-lg font-medium" />
@@ -998,24 +1177,24 @@ export function AddItem() {
                                         <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
                                         <input type="text" name="historical_address" id="historical_address" placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                     </div>
-                                    {itemType !== 'Historic Organization' && (
+                                    {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                         <div>
                                             <label htmlFor="date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Date (e.g. 1920, c. 1905)</label>
                                             <input type="text" name="date" id="date" placeholder="Approximate or Exact Date" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                     )}
-                                    {itemType !== 'Historic Organization' && (
+                                    {itemType !== 'Historic Organization' && itemType !== 'Artifact' && itemType !== 'Historic Figure' && (
                                         <div>
                                             <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
                                             <div className="relative">
                                                 <select name="category" id="category" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    {["Manuscript", "Photograph", "Map", "Artifact", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                    {["Manuscript", "Photograph", "Map", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                             </div>
                                         </div>
                                     )}
-                                    {itemType !== 'Historic Organization' && (
+                                    {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                         <div>
                                             <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
                                             <div className="relative">
@@ -1026,17 +1205,30 @@ export function AddItem() {
                                             </div>
                                         </div>
                                     )}
-                                    {itemType !== 'Historic Organization' && (
+                                    {itemType !== 'Historic Organization' && itemType !== 'Historic Figure' && (
                                         <div>
-                                            <label htmlFor="collection_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection</label>
-                                            <div className="relative">
-                                                <select name="collection_id" id="collection_id" value={selectedCollectionId} onChange={handleCollectionChange} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    <option value="">No Collection</option>
-                                                    {collections.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                                                    <option value="NEW_COLLECTION" className="font-bold text-tan">+ Create New Collection...</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                            <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collections</label>
+                                            <div className="bg-white border border-tan-light/50 rounded-lg p-3 max-h-[200px] overflow-y-auto flex flex-col gap-2 shadow-inner">
+                                                {collections.map(c => (
+                                                    <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-cream/50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-tan-light/30">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={selectedCollectionIds.includes(c.id)} 
+                                                            onChange={() => handleCollectionToggle(c.id)}
+                                                            className="w-4 h-4 text-tan border-tan-light rounded focus:ring-tan/20"
+                                                        />
+                                                        <span className="text-sm text-charcoal font-medium">{c.title}</span>
+                                                    </label>
+                                                ))}
+                                                {collections.length === 0 && <p className="text-sm text-charcoal/40 italic p-2">No collections available.</p>}
                                             </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleCreateNewCollection}
+                                                className="mt-2 text-xs font-bold text-tan hover:text-tan-light flex items-center gap-1 transition-colors"
+                                            >
+                                                <Plus size={14} /> Create New Collection
+                                            </button>
                                         </div>
                                     )}
                                 </div>
@@ -1092,22 +1284,26 @@ export function AddItem() {
                                                 </div>
                                             </div>
                                         )}
-                                        <div>
-                                            <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Location</label>
-                                            <div className="relative">
-                                                <select name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
-                                                    <option value="Digital Archive">Digital Archive</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
-                                            </div>
-                                            {physicalLocationValue === 'SAHS (Physical Archive)' && (
-                                                <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                    <label htmlFor="archive_specific_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Specific Location in Archive</label>
-                                                    <input type="text" name="archive_specific_location" id="archive_specific_location" placeholder="e.g. Filing Cabinet 3, Drawer B, Folder 12" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
+                                            <>
+                                                <div>
+                                                    <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Location</label>
+                                                    <div className="relative">
+                                                        <select name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                            <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                            <option value="Digital Archive">Digital Archive</option>
+                                                        </select>
+                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
+                                                    </div>
+                                                    {physicalLocationValue === 'SAHS (Physical Archive)' && (
+                                                        <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                            <label htmlFor="archive_specific_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Specific Location in Archive</label>
+                                                            <input type="text" name="archive_specific_location" id="archive_specific_location" placeholder="e.g. Filing Cabinet 3, Drawer B, Folder 12" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -1128,11 +1324,11 @@ export function AddItem() {
                                 </div>
                             )}
                         </div>
-                    </div >
-                </div >
+                    </div>
+                </div>
 
                 {/* Section 2: Extended Details & Relationships */}
-                < div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10" >
+                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div className="space-y-6">
                         <h3 className="text-lg font-serif font-bold text-charcoal flex flex-col border-b border-tan-light/50 pb-3 mb-2">
                             <div className="flex items-center gap-2 mb-1">
@@ -1145,30 +1341,32 @@ export function AddItem() {
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Artifact ID #</label>
-                                    {suggestedId && (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setArtifactId(suggestedId)}
-                                            className="text-[10px] font-bold text-tan hover:text-charcoal transition-colors uppercase tracking-widest flex items-center gap-1"
-                                        >
-                                            <Sparkles size={10} /> Suggest: {suggestedId}
-                                        </button>
-                                    )}
+                            {itemType !== 'Document' && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Artifact ID #</label>
+                                        {suggestedId && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setArtifactId(suggestedId)}
+                                                className="text-[10px] font-bold text-tan hover:text-charcoal transition-colors uppercase tracking-widest flex items-center gap-1"
+                                            >
+                                                <Sparkles size={10} /> Suggest: {suggestedId}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <input 
+                                        type="text" 
+                                        name="artifact_id" 
+                                        id="artifact_id" 
+                                        value={artifactId}
+                                        onChange={(e) => setArtifactId(e.target.value)}
+                                        placeholder="e.g. 2024.01.05" 
+                                        className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" 
+                                    />
                                 </div>
-                                <input 
-                                    type="text" 
-                                    name="artifact_id" 
-                                    id="artifact_id" 
-                                    value={artifactId}
-                                    onChange={(e) => setArtifactId(e.target.value)}
-                                    placeholder="e.g. 2024.01.05" 
-                                    className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" 
-                                />
-                            </div>
-                            {itemType !== 'Artifact' && (
+                            )}
+                            {(itemType === 'Document' || itemType === 'Artifact') && (
                                 <>
                                     <div>
                                         <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Code</label>
@@ -1180,10 +1378,12 @@ export function AddItem() {
                                     </div>
                                 </>
                             )}
-                            <div>
-                                <label htmlFor="location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Origin Location</label>
-                                <input type="text" name="location" id="location" placeholder="e.g. Senoia, Main St." className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
-                            </div>
+                            {(itemType !== 'Historic Figure' && itemType !== 'Historic Organization') && (
+                                <div>
+                                    <label htmlFor="location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Origin Location</label>
+                                    <input type="text" name="location" id="location" placeholder="e.g. Senoia, Main St." className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                                </div>
+                            )}
                             <div>
                                 <label htmlFor="creator" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Creator</label>
                                 <input type="text" name="creator" id="creator" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
@@ -1192,10 +1392,16 @@ export function AddItem() {
                                 <label htmlFor="donor" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Original Donor</label>
                                 <input type="text" name="donor" id="donor" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
                             </div>
-                            <div className="md:col-span-2">
-                                <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>
-                                <input type="text" name="museum_location" id="museum_location" placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                            <div>
+                                <label htmlFor="accession_date" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Accession Date</label>
+                                <input type="text" name="accession_date" id="accession_date" placeholder="MM/DD/YYYY" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
                             </div>
+                            {(itemType !== 'Historic Figure' && itemType !== 'Historic Organization') && (
+                                <div className="md:col-span-2">
+                                    <label htmlFor="museum_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Museum Location (Specific Shelf/Box)</label>
+                                    <input type="text" name="museum_location" id="museum_location" placeholder="e.g. Shelf 4, Drawer B, Box 12" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                                </div>
+                            )}
                             {(itemType === 'Historic Figure' || itemType === 'Historic Organization') && (
                                 <div className="md:col-span-2">
                                     <label htmlFor="source_institution" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Source Institution / Media Acknowledgement</label>
@@ -1434,10 +1640,10 @@ export function AddItem() {
                             <textarea id="transcription" name="transcription" placeholder="Exact word-for-word record of the document contents..." className="w-full min-h-[160px] bg-white border border-tan-light/50 px-4 py-3 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-mono text-sm resize-none leading-relaxed"></textarea>
                         </div>
                     </div>
-                </div >
+                </div>
 
                 {/* Section 3: Extended Metadata Accordion */}
-                < div className="px-8 pb-8" >
+                <div className="px-8 pb-8">
                     <div className="border border-tan-light/50 rounded-2xl overflow-hidden shadow-inner bg-cream/5">
                         <button
                             type="button"
@@ -1459,7 +1665,7 @@ export function AddItem() {
                             </div>
                         )}
                     </div>
-                </div >
+                </div>
 
                 <div className="p-8 bg-cream border-t border-tan-light/50 flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="flex-1 w-full">
@@ -1487,7 +1693,7 @@ export function AddItem() {
                     </button>
                 </div>
 
-            </form >
-        </div >
+            </form>
+        </div>
     );
 }

@@ -1,24 +1,29 @@
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
-import { BrowseArchive } from './pages/BrowseArchive';
-import { ItemDetail } from './pages/ItemDetail';
-import { AddItem } from './pages/AddItem';
-import EditItem from './pages/EditItem';
-import { Collections } from './pages/Collections';
-import { CollectionDetail } from './pages/CollectionDetail';
-import { AddCollection } from './pages/AddCollection';
-import { EditCollection } from './pages/EditCollection';
-import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Home } from './pages/Home';
-import { SearchArchive } from './pages/SearchArchive';
-import { AdminSettings } from './pages/AdminSettings';
-import { ManageLocations } from './pages/ManageLocations';
-import { ManageRoomLocations } from './pages/ManageRoomLocations';
-import { TaggingHub } from './pages/TaggingHub';
-import { LocationDetail } from './pages/LocationDetail';
-import { RoomDetail } from './pages/RoomDetail';
-import { InteractiveMap } from './pages/InteractiveMap';
+
+// Lazy load pages for better initial bundle size
+const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const BrowseArchive = lazy(() => import('./pages/BrowseArchive').then(m => ({ default: m.BrowseArchive })));
+const ItemDetail = lazy(() => import('./pages/ItemDetail').then(m => ({ default: m.ItemDetail })));
+const AddItem = lazy(() => import('./pages/AddItem').then(m => ({ default: m.AddItem })));
+const EditItem = lazy(() => import('./pages/EditItem'));
+const Collections = lazy(() => import('./pages/Collections').then(m => ({ default: m.Collections })));
+const CollectionDetail = lazy(() => import('./pages/CollectionDetail').then(m => ({ default: m.CollectionDetail })));
+const AddCollection = lazy(() => import('./pages/AddCollection').then(m => ({ default: m.AddCollection })));
+const EditCollection = lazy(() => import('./pages/EditCollection').then(m => ({ default: m.EditCollection })));
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const SearchArchive = lazy(() => import('./pages/SearchArchive').then(m => ({ default: m.SearchArchive })));
+const AdminSettings = lazy(() => import('./pages/AdminSettings').then(m => ({ default: m.AdminSettings })));
+const ManageLocations = lazy(() => import('./pages/ManageLocations').then(m => ({ default: m.ManageLocations })));
+const ManageRoomLocations = lazy(() => import('./pages/ManageRoomLocations').then(m => ({ default: m.ManageRoomLocations })));
+const TaggingHub = lazy(() => import('./pages/TaggingHub').then(m => ({ default: m.TaggingHub })));
+const LocationDetail = lazy(() => import('./pages/LocationDetail').then(m => ({ default: m.LocationDetail })));
+const RoomDetail = lazy(() => import('./pages/RoomDetail').then(m => ({ default: m.RoomDetail })));
+const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ default: m.InteractiveMap })));
+const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
+const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
 
 function PageWrapper() {
   return (
@@ -28,17 +33,21 @@ function PageWrapper() {
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+      <div className="w-12 h-12 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>
+      <p className="font-serif text-charcoal/60 text-lg italic">Loading archive assets...</p>
+    </div>
+  );
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isSAHSUser, realIsAdmin, loading } = useAuth();
   const location = useLocation();
   
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>
-        <p className="font-serif text-charcoal/60 text-lg">Verifying access...</p>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // Admins always have access to /settings to toggle simulation
@@ -54,39 +63,59 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Disable right-click on all images to prevent downloading
+    // Future iteration: check if user is a member/admin to bypass this
+    const handleContextMenu = (e: MouseEvent) => {
+      if (e.target instanceof HTMLImageElement) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
 
-            <Route element={<PageWrapper />}>
-              <Route path="archive" element={<BrowseArchive />} />
-              <Route path="collections" element={<Collections />} />
-              <Route path="collections/:id" element={<CollectionDetail />} />
+              <Route element={<PageWrapper />}>
+                <Route path="archive" element={<BrowseArchive />} />
+                <Route path="collections" element={<Collections />} />
+                <Route path="collections/:id" element={<CollectionDetail />} />
 
-              {/* Authentication and Admin routes */}
-              <Route path="items/:id" element={<ItemDetail />} />
-              <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
-              <Route path="search" element={<SearchArchive />} />
-              <Route path="login" element={<Login />} />
+                {/* Authentication and Admin routes */}
+                <Route path="items/:id" element={<ItemDetail />} />
+                <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
+                <Route path="search" element={<SearchArchive />} />
+                <Route path="map" element={<BrowseMap />} />
+                <Route path="login" element={<Login />} />
 
-              {/* Protected Curator Routes */}
-              <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-              <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
-              <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
-              <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
-              <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
-              <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
-              <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
-              <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
-              <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
-              <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
-              <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
+                {/* Protected Curator Routes */}
+                <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+                <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
+                <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+                <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
+                <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+                <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
+                <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
+                <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
+                <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
+                <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
+                <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
+                <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
+              </Route>
             </Route>
-          </Route>
-        </Routes>
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -221,7 +221,7 @@ export function TaggingHub() {
         <div className="max-w-5xl mx-auto flex flex-col h-full animate-in fade-in duration-500 pb-20">
             {/* Conflict Resolution Modal */}
             {currentConflictIndex >= 0 && conflictedItems[currentConflictIndex] && (
-                <div className="fixed inset-0 bg-charcoal/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-charcoal/60 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-tan/10 p-8 border-b border-tan/20 text-center">
                             <div className="w-16 h-16 bg-tan/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -283,32 +283,32 @@ export function TaggingHub() {
                 </div>
             )}
 
-            <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-8 border-b border-tan-light/50 pb-6 gap-4">
-                <div>
-                    <h1 className="text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">
+            <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end mb-8 border-b border-tan-light/50 pb-6 gap-6">
+                <div className="flex-1">
+                    <h1 className="text-3xl md:text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">
                         <History className="text-tan" size={32} />
                         Tagging Hub
                     </h1>
-                    <p className="text-charcoal/70 text-lg max-w-2xl">
+                    <p className="text-charcoal/70 text-base md:text-lg max-w-2xl">
                         Batch process artifacts by scanning or entering their ID numbers.
                     </p>
                 </div>
                 
-                <form onSubmit={handleManualSearch} className="flex gap-2 w-full md:w-auto">
-                    <div className="relative flex-1 md:min-w-[400px]">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal/20" size={20} />
+                <form onSubmit={handleManualSearch} className="flex gap-2 w-full lg:w-auto">
+                    <div className="relative flex-1 lg:min-w-[350px]">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={20} />
                         <input
                             type="text"
                             placeholder="Enter Artifact ID # (e.g. 1429)"
                             value={searchId}
                             onChange={(e) => setSearchId(e.target.value)}
-                            className="w-full pl-12 pr-4 py-5 bg-white border-2 border-tan-light/50 text-xl font-serif rounded-2xl focus:ring-2 focus:ring-tan/20 shadow-md transition-all outline-none placeholder:text-charcoal/20"
+                            className="w-full pl-12 pr-4 py-4 md:py-5 bg-white border-2 border-tan-light/50 text-lg md:text-xl font-serif rounded-2xl focus:ring-2 focus:ring-tan/20 shadow-md transition-all outline-none placeholder:text-charcoal/20"
                         />
                     </div>
                     <button 
                         type="submit"
                         disabled={!searchId.trim() || isLoading}
-                        className="bg-tan text-white px-6 py-3 rounded-xl font-bold hover:bg-charcoal transition-all disabled:opacity-50"
+                        className="bg-tan text-white px-8 py-3 rounded-xl font-bold hover:bg-charcoal transition-all disabled:opacity-50 shadow-sm active:scale-95"
                     >
                         Add
                     </button>
@@ -327,7 +327,7 @@ export function TaggingHub() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-8">
                 {/* Items Selection Panel */}
                 <div className="md:col-span-2 space-y-4">
                     <div className="flex justify-between items-center mb-2">
@@ -366,9 +366,9 @@ export function TaggingHub() {
                                         </div>
                                         <button 
                                             onClick={() => removeItem(item.id)}
-                                            className="p-2 text-charcoal/20 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            className="p-3 text-charcoal/20 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                         >
-                                            <Trash2 size={18} />
+                                            <Trash2 size={20} />
                                         </button>
                                     </div>
                                 ))}
@@ -431,18 +431,18 @@ export function TaggingHub() {
             </div>
 
             {/* Confirmation Section */}
-            <div className={`bg-white rounded-[2.5rem] border border-tan-light/50 p-10 flex flex-col items-center transition-all duration-700 shadow-xl ${
+            <div className={`bg-white rounded-[2rem] md:rounded-[2.5rem] border border-tan-light/50 p-6 md:p-10 flex flex-col items-center transition-all duration-700 shadow-xl ${
                 selectedItems.length > 0 && selectedLocation ? 'opacity-100 translate-y-0' : 'opacity-20 pointer-events-none translate-y-8 grayscale'
             }`}>
-                <div className="flex flex-col md:flex-row items-center gap-10 mb-12 w-full justify-center">
+                <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10 mb-8 md:mb-12 w-full justify-center">
                     <div className="flex -space-x-4 overflow-hidden p-2">
                         {selectedItems.slice(0, 5).map((item, idx) => (
-                            <div key={item.id} className="w-16 h-16 rounded-2xl bg-cream border-4 border-white flex items-center justify-center text-tan shadow-sm" style={{ zIndex: 10 - idx }}>
+                            <div key={item.id} className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-cream border-4 border-white flex items-center justify-center text-tan shadow-sm" style={{ zIndex: 10 - idx }}>
                                 <Box size={24} />
                             </div>
                         ))}
                         {selectedItems.length > 5 && (
-                            <div className="w-16 h-16 rounded-2xl bg-tan text-white border-4 border-white flex items-center justify-center font-bold shadow-sm" style={{ zIndex: 0 }}>
+                            <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-tan text-white border-4 border-white flex items-center justify-center font-bold text-sm md:text-base shadow-sm" style={{ zIndex: 0 }}>
                                 +{selectedItems.length - 5}
                             </div>
                         )}
@@ -451,28 +451,31 @@ export function TaggingHub() {
                     <div className="hidden md:block">
                         <ArrowRight className="text-tan/20" size={48} />
                     </div>
+                    <div className="md:hidden">
+                        <ArrowRight className="text-tan/20 rotate-90" size={32} />
+                    </div>
 
-                    <div className="bg-tan/10 px-8 py-4 rounded-3xl border border-tan/20 text-center">
+                    <div className="bg-tan/10 px-8 py-4 rounded-3xl border border-tan/20 text-center w-full md:w-auto">
                         <p className="text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-1">Destination</p>
-                        <p className="font-serif font-bold text-2xl text-charcoal">{selectedLocation?.name}</p>
+                        <p className="font-serif font-bold text-xl md:text-2xl text-charcoal">{selectedLocation?.name}</p>
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 w-full">
+                <div className="flex flex-col sm:flex-row gap-4 w-full">
                     <button 
                         onClick={resetFlow}
-                        className="px-10 py-5 rounded-2xl font-bold text-charcoal-light bg-cream hover:bg-tan/10 transition-all order-2 md:order-1"
+                        className="px-10 py-4 md:py-5 rounded-2xl font-bold text-charcoal-light bg-cream hover:bg-tan/10 transition-all order-2 sm:order-1"
                     >
                         Reset Process
                     </button>
                     <button 
                         onClick={() => performTagging()}
                         disabled={isLoading || selectedItems.length === 0 || !selectedLocation}
-                        className="flex-1 bg-tan text-white px-10 py-5 rounded-2xl font-bold text-xl hover:bg-charcoal transition-all shadow-xl flex items-center justify-center gap-4 active:scale-[0.98] order-1 md:order-2"
+                        className="flex-1 bg-tan text-white px-10 py-4 md:py-5 rounded-2xl font-bold text-lg md:text-xl hover:bg-charcoal transition-all shadow-xl flex items-center justify-center gap-4 active:scale-[0.98] order-1 sm:order-2"
                     >
                         {isLoading ? <Loader2 className="animate-spin" size={24} /> : (
                             <>
-                                <CheckCircle2 size={24} /> Tag {selectedItems.length} Artifacts In
+                                <CheckCircle2 size={24} /> Tag {selectedItems.length} Artifacts
                             </>
                         )}
                     </button>

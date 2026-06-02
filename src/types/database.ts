@@ -11,6 +11,7 @@ export interface Room {
         height: number;
         rotation?: number;
         z_index?: number;
+        display_type?: 'pin' | 'block';
     } | null;
     geometries?: Array<{
         x: number;
@@ -19,8 +20,16 @@ export interface Room {
         height: number;
         rotation?: number;
         z_index?: number;
+        display_type?: 'pin' | 'block';
     }>;
     group_id?: string;
+    floor_id?: string;
+}
+
+export interface MapFloor {
+    id: string;
+    name: string;
+    level: number;
 }
 
 export interface Collection {
@@ -41,6 +50,8 @@ export interface MuseumLocation {
     description?: string;
     created_at: string;
     room_id?: string;
+    parent_location_id?: string; // Links a Box to a parent Shelf/Case Location
+    display_type?: 'pin' | 'block';
     map_coordinates?: {
         x: number;
         y: number;
@@ -48,7 +59,9 @@ export interface MuseumLocation {
         height: number;
         rotation?: number;
         z_index?: number;
+        display_type?: 'pin' | 'block';
     } | null;
+    floor_id?: string;
 }
 
 export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization' | 'Artifact';
@@ -60,9 +73,11 @@ export interface ArchiveItem {
     // System Fields
     item_type: ItemType;
     collection_id?: string | null;
+    collection_ids?: string[];
     tags: string[];
     category?: string | null;
     file_urls: string[]; // For documents, scans, or portraits
+    file_captions?: string[]; // Corresponding captions for file_urls
     created_at: string;
     uploaded_by_email?: string | null;
     uploaded_by_name?: string | null;
@@ -124,7 +139,10 @@ export interface ArchiveItem {
     museum_location_ids?: string[];     // Support for multiple active locations
     last_tagged_at?: string | null;
     last_tagged_by?: string | null;
+    stage?: 'Housed' | 'Staged' | 'In Processing' | null;
     featured_image_url?: string | null; // Primary display image selected from file_urls
     accession_paperwork_urls?: string[]; // Admin/Curator only scans of paperwork
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
+    accession_date?: string | null;
+    collection_status?: 'permanent' | 'pending' | 'deaccessioned' | 'loan' | null;
 }

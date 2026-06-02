@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus } from 'lucide-react';
-import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Star, Upload, Image as ImageIcon, Save, Check } from 'lucide-react';
+import { db, storage } from '../lib/firebase';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface UserRole {
     id: string; // the email
@@ -19,10 +20,38 @@ export function AdminSettings() {
     const [newRole, setNewRole] = useState<'admin' | 'curator'>('curator');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Intern Spotlight State
+    const [spotlightEnabled, setSpotlightEnabled] = useState(false);
+    const [spotlightName, setSpotlightName] = useState('');
+    const [spotlightRole, setSpotlightRole] = useState('');
+    const [spotlightBio, setSpotlightBio] = useState('');
+    const [spotlightLinkedIn, setSpotlightLinkedIn] = useState('');
+    const [spotlightImageUrl, setSpotlightImageUrl] = useState('');
+    const [spotlightImageFile, setSpotlightImageFile] = useState<File | null>(null);
+    const [isSavingSpotlight, setIsSavingSpotlight] = useState(false);
+
     useEffect(() => {
         if (!realIsAdmin) return;
         fetchRoles();
+        fetchSpotlightSettings();
     }, [realIsAdmin]);
+
+    const fetchSpotlightSettings = async () => {
+        try {
+            const docSnap = await getDoc(doc(db, 'site_settings', 'intern_spotlight'));
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setSpotlightEnabled(data.enabled || false);
+                setSpotlightName(data.name || '');
+                setSpotlightRole(data.role || '');
+                setSpotlightBio(data.bio || '');
+                setSpotlightLinkedIn(data.linkedInUrl || '');
+                setSpotlightImageUrl(data.imageUrl || '');
+            }
+        } catch (error) {
+            console.error("Error fetching spotlight settings:", error);
+        }
+    };
 
     const fetchRoles = async () => {
         try {
@@ -69,6 +98,43 @@ export function AdminSettings() {
         } catch (error) {
             console.error('Error deleting user role', error);
             alert('Failed to delete user role.');
+        }
+    };
+
+    const handleSaveSpotlight = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSavingSpotlight(true);
+        try {
+            let finalImageUrl = spotlightImageUrl;
+            
+            if (spotlightImageFile) {
+                const fileRef = ref(storage, `site_assets/intern_spotlight_${Date.now()}_${spotlightImageFile.name}`);
+                await uploadBytes(fileRef, spotlightImageFile);
+                finalImageUrl = await getDownloadURL(fileRef);
+                setSpotlightImageUrl(finalImageUrl);
+                setSpotlightImageFile(null); // Clear pending file
+            }
+
+            await setDoc(doc(db, 'site_settings', 'intern_spotlight'), {
+                enabled: spotlightEnabled,
+                name: spotlightName,
+                role: spotlightRole,
+                bio: spotlightBio,
+                linkedInUrl: spotlightLinkedIn,
+                imageUrl: finalImageUrl,
+                updatedAt: new Date().toISOString()
+            });
+
+            alert('Spotlight saved successfully!');
+        } catch (error) {
+            console.error('Error saving spotlight details:', error);
+            if (error instanceof Error) {
+                alert(`Failed to save spotlight settings: ${error.message}`);
+            } else {
+                alert(`Failed to save spotlight settings. Check console for details.`);
+            }
+        } finally {
+            setIsSavingSpotlight(false);
         }
     };
 
@@ -132,8 +198,8 @@ export function AdminSettings() {
                 </div>
                 {simulatedRole && (
                     <div className="mt-4 px-4 py-2 bg-tan/10 rounded-lg inline-flex items-center gap-2 text-tan text-xs font-bold uppercase tracking-wider">
-                        <Loader2 className="animate-spin" size={14} />
-                        Simulating {simulatedRole} View
+                        <Shield size={14} />
+                        Active: Simulating {simulatedRole} View
                     </div>
                 )}
             </div>
@@ -235,6 +301,96 @@ export function AdminSettings() {
                     <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-6 text-sm text-blue-900/70 font-sans leading-relaxed">
                         <strong>Permanent Admins:</strong> <code>catnolan@senoiahistory.com</code> and <code>jeremywarren@senoiahistory.com</code> are hardcoded as permanent system administrators. You cannot revoke their access here.
                     </div>
+                </div>
+            </div>
+
+            {/* Homepage Content Settings */}
+            <div className="mt-12 mb-8 border-t border-tan-light/50 pt-12">
+                <div className="mb-8">
+                    <h2 className="text-3xl font-serif font-bold text-charcoal flex items-center gap-3">
+                        <Star className="text-tan" size={28} />
+                        Homepage Content
+                    </h2>
+                    <p className="text-charcoal/70 max-w-2xl mt-2">Manage the dynamic content areas displayed on the public landing page.</p>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-tan-light/50 shadow-sm overflow-hidden">
+                    <div className="p-6 bg-cream/30 border-b border-tan-light/50 flex items-center justify-between">
+                         <h3 className="text-xl font-serif font-bold text-charcoal">Spotlight</h3>
+                         <label className="flex items-center gap-3 cursor-pointer">
+                            <span className="text-sm font-bold text-charcoal/60 uppercase tracking-widest">{spotlightEnabled ? 'Enabled' : 'Hidden'}</span>
+                            <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${spotlightEnabled ? 'bg-tan' : 'bg-charcoal/20'}`}>
+                                <input type="checkbox" className="sr-only" checked={spotlightEnabled} onChange={(e) => setSpotlightEnabled(e.target.checked)} />
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${spotlightEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </div>
+                         </label>
+                    </div>
+                    
+                    <form onSubmit={handleSaveSpotlight} className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">Name</label>
+                                <input type="text" value={spotlightName} onChange={(e) => setSpotlightName(e.target.value)} placeholder="e.g. Jane Doe" className="w-full bg-cream px-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">Title / Role</label>
+                                <input type="text" value={spotlightRole} onChange={(e) => setSpotlightRole(e.target.value)} placeholder="e.g. Summer Archives Intern" className="w-full bg-cream px-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">LinkedIn URL (Optional)</label>
+                                <input type="url" value={spotlightLinkedIn} onChange={(e) => setSpotlightLinkedIn(e.target.value)} placeholder="e.g. https://linkedin.com/in/username" className="w-full bg-cream px-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">Spotlight Biography</label>
+                                <textarea value={spotlightBio} onChange={(e) => setSpotlightBio(e.target.value)} rows={4} placeholder="Describe their contributions to the archive..." className="w-full bg-cream px-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal resize-none"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div className="flex flex-col h-full">
+                            <div className="flex-grow space-y-6">
+                                <div>
+                                    <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">Headshot Image</label>
+                                    <div className="border-2 border-dashed border-tan-light/50 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-cream/30 transition-colors relative group min-h-[200px]">
+                                    {spotlightImageFile ? (
+                                        <div className="text-charcoal flex flex-col items-center">
+                                            <Check size={32} className="text-green-500 mb-2" />
+                                            <span className="font-bold">{spotlightImageFile.name}</span>
+                                            <span className="text-sm text-charcoal/60">Ready to upload on save</span>
+                                        </div>
+                                    ) : spotlightImageUrl ? (
+                                        <div className="flex flex-col items-center w-full">
+                                            <img src={spotlightImageUrl} alt="Current Spotlight" className="w-32 h-32 object-cover rounded-full shadow-md mb-4 border-2 border-tan" />
+                                            <span className="text-sm font-bold text-tan">Current Image Active</span>
+                                            <span className="text-xs text-charcoal/40 mt-1">Upload a new file below to replace this</span>
+                                        </div>
+                                    ) : (
+                                        <div className="text-charcoal/40 flex flex-col items-center">
+                                            <ImageIcon size={48} className="mb-3 opacity-50" />
+                                            <span className="font-medium">No image uploaded</span>
+                                        </div>
+                                    )}
+                                    
+                                    <label className="mt-4 flex items-center justify-center gap-2 bg-white border border-tan text-tan px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-tan hover:text-white transition-all shadow-sm">
+                                        <Upload size={16} />
+                                        {spotlightImageUrl || spotlightImageFile ? 'Choose Different File' : 'Upload Image File'}
+                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setSpotlightImageFile(e.target.files[0]);
+                                            }
+                                        }} />
+                                    </label>
+                                </div>
+                            </div>
+                            </div>
+                            
+                            <div className="pt-6 mt-auto">
+                                <button type="submit" disabled={isSavingSpotlight} className="w-full bg-tan text-white px-8 py-4 rounded-xl font-bold hover:bg-charcoal transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
+                                    {isSavingSpotlight ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+                                    {isSavingSpotlight ? 'Saving...' : 'Save Spotlight Configuration'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

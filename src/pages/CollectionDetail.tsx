@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, AlertTriangle, Minus } from 'lucide-react';
+import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, Minus, Edit2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
 import { CollectionGridImage } from '../components/CollectionGridImage';
 import type { Collection, ArchiveItem } from '../types/database';
@@ -22,34 +22,85 @@ export function CollectionDetail() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
     const [isAdding, setIsAdding] = useState(false);
-    const [warningModalItem, setWarningModalItem] = useState<ArchiveItem | null>(null);
-    const [pendingItemToAdd, setPendingItemToAdd] = useState<ArchiveItem | null>(null);
+
 
     useEffect(() => {
         const fetchCollectionAndItems = async () => {
             if (!id) return;
             try {
-                // Fetch collection details
-                const docRef = doc(db, 'collections', id);
-                const docSnap = await getDoc(docRef);
-                
-                if (docSnap.exists()) {
-                    setCollectionData({ id: docSnap.id, ...docSnap.data() } as Collection);
-                } else {
-                    console.error("No such collection!");
-                }
+                let itemsData: ArchiveItem[] = [];
 
-                // Fetch items in this collection
-                const q = query(
-                    collection(db, 'archive_items'), 
-                    where('collection_id', '==', id)
-                );
-                
-                const querySnapshot = await getDocs(q);
-                const itemsData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as ArchiveItem[];
+                if (id === 'pending-acquisitions') {
+                    setCollectionData({
+                        id: 'pending-acquisitions',
+                        title: 'Pending Acquisitions',
+                        description: 'Curated repository of items awaiting formal accessioning. These items are strictly confidential and visible to archive staff only.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'pending')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else if (id === 'deaccessioned-artifacts') {
+                    setCollectionData({
+                        id: 'deaccessioned-artifacts',
+                        title: 'Deaccessioned & Stolen',
+                        description: 'Preservation records for items that have been legally deaccessioned, retired, or stolen from our physical collection.',
+                        is_private: true,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'deaccessioned')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else if (id === 'on-loan') {
+                    setCollectionData({
+                        id: 'on-loan',
+                        title: 'Items on Loan',
+                        description: 'A curated showcase of items currently on loan to the Senoia Area Historical Society for temporary exhibition.',
+                        is_private: false,
+                        created_at: new Date(0).toISOString()
+                    } as Collection);
+                    
+                    const q = query(
+                        collection(db, 'archive_items'),
+                        where('item_type', '==', 'Artifact'),
+                        where('collection_status', '==', 'loan')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ArchiveItem));
+                } else {
+                    // Fetch collection details
+                    const docRef = doc(db, 'collections', id);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        setCollectionData({ id: docSnap.id, ...docSnap.data() } as Collection);
+                    } else {
+                        console.error("No such collection!");
+                    }
+
+                    // Fetch items in this collection
+                    const q = query(
+                        collection(db, 'archive_items'), 
+                        or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
+                    );
+                    
+                    const querySnapshot = await getDocs(q);
+                    itemsData = querySnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })) as ArchiveItem[];
+                }
                 
                 // Sort client-side to avoid needing a Firestore composite index
                 itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
@@ -81,7 +132,11 @@ export function CollectionDetail() {
             const allItems = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchiveItem));
             
             // Filter out items already in this collection
-            setAllOtherItems(allItems.filter(item => item.collection_id !== id));
+            setAllOtherItems(allItems.filter(item => {
+                const legacyMatch = item.collection_id === id;
+                const arrayMatch = id ? item.collection_ids?.includes(id) : false;
+                return !(legacyMatch || arrayMatch);
+            }));
 
             // Fetch all collections for warning context
             const colsSnap = await getDocs(query(collection(db, 'collections')));
@@ -97,31 +152,10 @@ export function CollectionDetail() {
             next.delete(item.id || '');
             setSelectedItemIds(next);
         } else {
-            // Check if it belongs to another named collection
-            if (item.collection_id && item.collection_id !== id && item.collection_id.trim() !== '') {
-                setPendingItemToAdd(item);
-                setWarningModalItem(item);
-            } else {
-                const next = new Set(selectedItemIds);
-                next.add(item.id || '');
-                setSelectedItemIds(next);
-            }
-        }
-    };
-
-    const confirmWarningSelection = () => {
-        if (pendingItemToAdd) {
             const next = new Set(selectedItemIds);
-            next.add(pendingItemToAdd.id || '');
+            next.add(item.id || '');
             setSelectedItemIds(next);
         }
-        setWarningModalItem(null);
-        setPendingItemToAdd(null);
-    };
-
-    const cancelWarningSelection = () => {
-        setWarningModalItem(null);
-        setPendingItemToAdd(null);
     };
 
     const handleAddSelectedItems = async () => {
@@ -129,14 +163,16 @@ export function CollectionDetail() {
         setIsAdding(true);
         try {
             const promises = Array.from(selectedItemIds).map(itemId => 
-                updateDoc(doc(db, 'archive_items', itemId), { collection_id: id })
+                updateDoc(doc(db, 'archive_items', itemId), { 
+                    collection_ids: arrayUnion(id)
+                })
             );
             await Promise.all(promises);
             
             // Refresh current items
             const q = query(
                 collection(db, 'archive_items'), 
-                where('collection_id', '==', id)
+                or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
             );
             const querySnapshot = await getDocs(q);
             const itemsData = querySnapshot.docs.map(d => ({
@@ -169,7 +205,10 @@ export function CollectionDetail() {
         }
         
         try {
-            await updateDoc(doc(db, 'archive_items', itemId), { collection_id: null });
+            await updateDoc(doc(db, 'archive_items', itemId), { 
+                collection_id: null,
+                collection_ids: arrayRemove(id)
+            });
             setItems(prev => prev.filter(item => item.id !== itemId));
         } catch (error) {
             console.error("Error removing item:", error);
@@ -208,9 +247,16 @@ export function CollectionDetail() {
 
     return (
         <div className="max-w-full mx-auto h-full flex flex-col animate-in fade-in duration-500">
-            <Link to="/collections" className="inline-flex items-center text-sm font-bold text-tan uppercase tracking-wider mb-6 hover:text-charcoal transition-colors">
-                <ChevronLeft size={16} className="mr-1" /> Back to Collections
-            </Link>
+            <div className="flex justify-between items-center mb-6">
+                <Link to="/collections" className="inline-flex items-center text-sm font-bold text-tan uppercase tracking-wider hover:text-charcoal transition-colors">
+                    <ChevronLeft size={16} className="mr-1" /> Back to Collections
+                </Link>
+                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                    <Link to={`/edit-collection/${collectionData.id}`} className="inline-flex items-center gap-2 text-sm font-bold bg-tan/10 text-tan hover:bg-tan hover:text-white px-4 py-2 rounded-lg transition-colors">
+                        <Edit2 size={16} /> Edit Collection
+                    </Link>
+                )}
+            </div>
 
             <div className="bg-white rounded-2xl border border-tan-light/50 overflow-hidden mb-10 shadow-sm flex flex-col md:flex-row">
                 <div className="md:w-1/3 bg-tan-light/20 relative min-h-[250px] md:min-h-full flex-shrink-0">
@@ -242,6 +288,11 @@ export function CollectionDetail() {
                                 <Users size={12} /> Public Collection
                             </div>
                         )}
+                        {['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-tan/10 text-tan border border-tan/20 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
+                                <FolderOpen size={12} /> Automatic Collection
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -251,7 +302,7 @@ export function CollectionDetail() {
                     Items in this Collection
                     <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{items.length}</span>
                 </h2>
-                {isSAHSUser && (
+                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                     <button 
                         onClick={handleOpenAddModal}
                         className="bg-tan text-white px-4 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors flex items-center gap-2 shadow-sm text-sm"
@@ -266,8 +317,8 @@ export function CollectionDetail() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
                         {items.map(item => (
                             <div key={item.id} className="relative group">
-                                <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} />
-                                {isSAHSUser && (
+                                <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} collectionId={id} />
+                                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                                     <button 
                                         onClick={(e) => handleRemoveItem(item.id || '', e)}
                                         className="absolute top-3 right-3 p-2 bg-charcoal/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500 shadow-md"
@@ -391,34 +442,6 @@ export function CollectionDetail() {
                 </div>
             )}
 
-            {/* Warning Modal */}
-            {warningModalItem && (
-                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-charcoal/80 backdrop-blur-sm animate-in fade-in duration-200">
-                     <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl relative text-center">
-                         <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                             <AlertTriangle size={32} />
-                         </div>
-                         <h3 className="text-2xl font-serif font-bold text-charcoal mb-2">Move Item?</h3>
-                         <p className="text-charcoal/70 mb-8">
-                             <strong>"{warningModalItem.title}"</strong> is currently in another collection (<strong>{allCollections.find(c => c.id === warningModalItem.collection_id)?.title || 'Unknown'}</strong>). Adding it here will remove it from its current collection.
-                         </p>
-                         <div className="flex gap-4">
-                             <button 
-                                 onClick={cancelWarningSelection}
-                                 className="flex-1 py-3 rounded-xl font-bold text-charcoal bg-cream hover:bg-charcoal/10 transition-colors"
-                             >
-                                 Cancel
-                             </button>
-                             <button 
-                                 onClick={confirmWarningSelection}
-                                 className="flex-1 py-3 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors shadow-md"
-                             >
-                                 Yes, Move It
-                             </button>
-                         </div>
-                     </div>
-                 </div>
-            )}
         </div>
     );
 }

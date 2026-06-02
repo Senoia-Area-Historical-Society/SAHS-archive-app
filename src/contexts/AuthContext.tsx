@@ -54,6 +54,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com') {
                     setIsAdmin(true);
                     setIsCurator(false);
+                } else if (email.endsWith('@senoiahistory.com')) {
+                    setIsAdmin(false);
+                    setIsCurator(true);
                 } else {
                     try {
                         const roleDoc = await getDoc(doc(db, 'user_roles', email));
@@ -111,12 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const email = userEmail.toLowerCase();
             
-            // Check for hardcoded admins first
-            if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com') {
+            // Check for hardcoded admins and domain-wide curators
+            if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com' || email.endsWith('@senoiahistory.com')) {
                 return;
             }
 
-            // Check Firestore for roles
+            // Check Firestore for roles (for other domains or specific overrides)
             const roleDoc = await getDoc(doc(db, 'user_roles', email));
             if (!roleDoc.exists() || !['admin', 'curator'].includes(roleDoc.data().role)) {
                 // If not valid, immediately sign them out

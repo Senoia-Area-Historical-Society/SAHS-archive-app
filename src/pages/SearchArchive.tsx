@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Filter, Calendar, MapPin, Tag, SlidersHorizontal, X } from 'lucide-react';
+import { Search, Filter, Calendar, MapPin, Tag, SlidersHorizontal, X, ChevronDown, Info } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
@@ -22,6 +22,14 @@ export function SearchArchive() {
     const [localTag, setLocalTag] = useState(searchParams.get('tag') || '');
     const [localArtifactId, setLocalArtifactId] = useState(searchParams.get('id') || '');
     const [localLocId, setLocalLocId] = useState(searchParams.get('loc_id') || '');
+    const [localStage, setLocalStage] = useState(searchParams.get('stage') || '');
+    const [localMissingLocation, setLocalMissingLocation] = useState(searchParams.get('missing_loc') === 'true');
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    
+    // Multi-Exclusion States
+    const [localExcludeKeyword, setLocalExcludeKeyword] = useState(searchParams.get('ex_q') || '');
+    const [localExcludeTag, setLocalExcludeTag] = useState(searchParams.get('ex_tag') || '');
+    const [localExcludeTypes, setLocalExcludeTypes] = useState<string[]>(searchParams.get('ex_types')?.split(',').filter(Boolean) || []);
 
     const selectedType = (searchParams.get('type') as ItemType | null) || 'All Items';
     const sortBy = (searchParams.get('sort') as any) || 'newest';
@@ -81,6 +89,52 @@ export function SearchArchive() {
         return () => clearTimeout(h);
     }, [localLocId]);
 
+    useEffect(() => {
+        const h = setTimeout(() => {
+            const params = new URLSearchParams(searchParams);
+            if (localStage) params.set('stage', localStage); else params.delete('stage');
+            setSearchParams(params, { replace: true });
+        }, 300);
+        return () => clearTimeout(h);
+    }, [localStage]);
+
+    useEffect(() => {
+        const h = setTimeout(() => {
+            const params = new URLSearchParams(searchParams);
+            if (localMissingLocation) params.set('missing_loc', 'true'); else params.delete('missing_loc');
+            setSearchParams(params, { replace: true });
+        }, 300);
+        return () => clearTimeout(h);
+    }, [localMissingLocation]);
+
+    // Exclusion Debounce Effects
+    useEffect(() => {
+        const h = setTimeout(() => {
+            const params = new URLSearchParams(searchParams);
+            if (localExcludeKeyword) params.set('ex_q', localExcludeKeyword); else params.delete('ex_q');
+            setSearchParams(params, { replace: true });
+        }, 300);
+        return () => clearTimeout(h);
+    }, [localExcludeKeyword]);
+
+    useEffect(() => {
+        const h = setTimeout(() => {
+            const params = new URLSearchParams(searchParams);
+            if (localExcludeTag) params.set('ex_tag', localExcludeTag); else params.delete('ex_tag');
+            setSearchParams(params, { replace: true });
+        }, 300);
+        return () => clearTimeout(h);
+    }, [localExcludeTag]);
+
+    useEffect(() => {
+        const h = setTimeout(() => {
+            const params = new URLSearchParams(searchParams);
+            if (localExcludeTypes.length > 0) params.set('ex_types', localExcludeTypes.join(',')); else params.delete('ex_types');
+            setSearchParams(params, { replace: true });
+        }, 300);
+        return () => clearTimeout(h);
+    }, [localExcludeTypes]);
+
     const updateParam = (key: string, value: string, defaultValue: string = '') => {
         const params = new URLSearchParams(searchParams);
         if (!value || value === defaultValue) {
@@ -120,7 +174,7 @@ export function SearchArchive() {
         };
 
         fetchItems();
-    }, []);
+    }, [isSAHSUser]);
 
     const filteredItems = useMemo(() => {
         return items.filter(item => {
@@ -130,7 +184,7 @@ export function SearchArchive() {
                 item.title?.toLowerCase().includes(kw) ||
                 item.description?.toLowerCase().includes(kw) ||
                 item.subject?.toLowerCase().includes(kw) ||
-                item.artifact_id?.toString().toLowerCase().includes(kw) ||
+                item.artifact_id?.toString().toLowerCase().startsWith(kw) ||
                 item.id?.toLowerCase().includes(kw) ||
                 item.identifier?.toLowerCase().includes(kw) ||
                 item.transcription?.toLowerCase().includes(kw) ||
@@ -156,13 +210,43 @@ export function SearchArchive() {
             // Tag match (partial match)
             const matchesTag = !localTag || (item.tags && item.tags.some(t => t.toLowerCase().includes(localTag.toLowerCase())));
 
-            // Artifact ID match (exact match)
-            const matchesArtifactId = !localArtifactId || (item.artifact_id && item.artifact_id.toLowerCase() === localArtifactId.toLowerCase());
+            // Artifact ID match (starts with match)
+            const matchesArtifactId = !localArtifactId || (item.artifact_id && item.artifact_id.toString().toLowerCase().startsWith(localArtifactId.toLowerCase()));
             
             // Location ID match (exact match)
             const matchesLocId = !localLocId || 
                 item.museum_location_id === localLocId || 
                 (item.museum_location_ids && item.museum_location_ids.includes(localLocId));
+
+            // Stage match
+            const matchesStage = !localStage || item.stage === localStage;
+
+            // Missing Location match
+            const matchesMissingLoc = !localMissingLocation || 
+                (!item.museum_location_id && (!item.museum_location_ids || item.museum_location_ids.length === 0));
+
+            // --- EXCLUSION LOGIC ---
+            
+            // 1. Exclude Keywords (checks if ANY of the excluded terms appear)
+            const exKwTerms = localExcludeKeyword.toLowerCase().split(/[\s,]+/).filter(Boolean);
+            const isExcludedByKeyword = exKwTerms.some(term => 
+                item.title?.toLowerCase().includes(term) ||
+                item.description?.toLowerCase().includes(term) ||
+                item.subject?.toLowerCase().includes(term) ||
+                item.artifact_id?.toString().toLowerCase().includes(term) ||
+                item.id?.toLowerCase().includes(term) ||
+                item.identifier?.toLowerCase().includes(term) ||
+                item.transcription?.toLowerCase().includes(term)
+            );
+
+            // 2. Exclude Tags (checks if ANY of the excluded tags appear in item tags)
+            const exTags = localExcludeTag.toLowerCase().split(/[\s,]+/).filter(Boolean);
+            const isExcludedByTag = item.tags && exTags.some(exTag => 
+                item.tags?.some(t => t.toLowerCase().includes(exTag))
+            );
+
+            // 3. Exclude Types
+            const isExcludedByType = localExcludeTypes.includes(item.item_type as string);
 
             if (!isSAHSUser) {
                 const isItemPrivate = item.is_private === true;
@@ -170,7 +254,8 @@ export function SearchArchive() {
                 if (isItemPrivate || isCollectionPrivate) return false;
             }
 
-            return matchesKeyword && matchesType && matchesYear && matchesPlace && matchesTag && matchesArtifactId && matchesLocId;
+            return matchesKeyword && matchesType && matchesYear && matchesPlace && matchesTag && matchesArtifactId && matchesLocId && matchesStage && matchesMissingLoc &&
+                   !isExcludedByKeyword && !isExcludedByTag && !isExcludedByType;
         }).sort((a, b) => {
             if (sortBy === 'newest') {
                 return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
@@ -200,7 +285,7 @@ export function SearchArchive() {
 
             return 0;
         });
-    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, selectedType, sortBy]);
+    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, sortBy, isSAHSUser, collectionPrivacyMap]);
 
     const resetFilters = () => {
         setLocalKeyword('');
@@ -208,6 +293,12 @@ export function SearchArchive() {
         setLocalPlace('');
         setLocalTag('');
         setLocalArtifactId('');
+        setLocalLocId('');
+        setLocalStage('');
+        setLocalMissingLocation(false);
+        setLocalExcludeKeyword('');
+        setLocalExcludeTag('');
+        setLocalExcludeTypes([]);
         setSearchParams(new URLSearchParams(), { replace: true });
     };
 
@@ -217,12 +308,12 @@ export function SearchArchive() {
 
     return (
         <div className="max-w-6xl mx-auto h-full flex flex-col pb-12">
-            <div className="mb-10">
-                <h1 className="text-5xl font-serif font-bold mb-4 text-charcoal tracking-tight flex items-center gap-4">
-                    <SlidersHorizontal className="text-tan" size={40} />
+            <div className="mb-6 md:mb-10">
+                <h1 className="text-3xl md:text-5xl font-serif font-bold mb-3 md:mb-4 text-charcoal tracking-tight flex items-center gap-3 md:gap-4">
+                    <SlidersHorizontal className="text-tan" size={32} />
                     Advanced Search
                 </h1>
-                <p className="text-charcoal-light text-xl">
+                <p className="text-charcoal-light text-base md:text-xl max-w-3xl leading-relaxed">
                     Query the entire database of documents, figures, and organizations using specific criteria.
                 </p>
             </div>
@@ -234,61 +325,52 @@ export function SearchArchive() {
                 }}
                 className="bg-white p-6 md:p-8 rounded-2xl border border-tan-light shadow-sm mb-10"
             >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Keyword Search */}
-                    <div className="lg:col-span-3 pb-6 border-b border-tan-light/50">
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Keyword Search</label>
-                        <div className="flex gap-3">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="Search by title, description, transcriptions, or creator..."
-                                    className="w-full bg-cream pl-12 pr-4 py-4 rounded-xl border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-lg shadow-inner"
-                                    value={localKeyword}
-                                    onChange={(e) => setLocalKeyword(e.target.value)}
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                className="bg-tan text-white px-8 py-4 rounded-xl font-bold hover:bg-charcoal transition-all shadow-md hidden md:block"
-                            >
-                                Search
-                            </button>
+                    <div className="col-span-full border-b border-tan-light/30 pb-8 mb-2">
+                        <label className="block text-xl font-serif font-black text-charcoal/80 uppercase tracking-widest mb-4">Keyword Search</label>
+                        <div className="relative">
+                            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-tan" size={24} />
+                            <input
+                                type="text"
+                                placeholder="Search by name, object, or historical event..."
+                                className="w-full bg-cream/50 pl-16 pr-8 py-6 rounded-2xl border-2 border-tan-light/20 focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal text-xl shadow-lg placeholder:text-charcoal/30 placeholder:italic"
+                                value={localKeyword}
+                                onChange={(e) => setLocalKeyword(e.target.value)}
+                            />
                         </div>
                     </div>
 
-                    {/* Filter: Item Type */}
-                    <div>
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Item Type</label>
-                        <div className="relative">
-                            <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
-                            <select
-                                className="w-full bg-cream pl-11 pr-10 py-3 rounded-lg border border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal"
-                                value={selectedType}
-                                onChange={(e) => updateParam('type', e.target.value, 'All Items')}
-                            >
-                                <option value="All Items">All Types</option>
-                                <option value="Document">Documents</option>
-                                <option value="Historic Figure">Historic Figures</option>
-                                <option value="Historic Organization">Historic Organizations</option>
-                                <option value="Artifact">Artifacts</option>
-                            </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                <ChevronDownIcon />
+                    {/* Secondary Filters Section */}
+                    <div className="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {/* Item Type */}
+                        <div>
+                            <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-[0.2em] mb-3">Item Type</label>
+                            <div className="relative group">
+                                <Filter className="absolute left-5 top-1/2 -translate-y-1/2 text-tan transition-colors group-focus-within:text-charcoal" size={24} />
+                                <select
+                                    className="w-full bg-cream pl-14 pr-10 py-6 rounded-2xl border-2 border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan transition-all font-sans text-charcoal text-xl shadow-sm"
+                                    value={selectedType}
+                                    onChange={(e) => updateParam('type', e.target.value, 'All Items')}
+                                >
+                                    <option value="All Items">All Categories</option>
+                                    <option value="Artifact">Artifact</option>
+                                    <option value="Document">Document</option>
+                                    <option value="Historic Figure">Historic Figure</option>
+                                    <option value="Historic Organization">Historic Organization</option>
+                                </select>
+                                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-charcoal/30 pointer-events-none" size={20} />
                             </div>
                         </div>
-                    </div>
+
 
                     {/* Filter: Date/Year */}
                     <div>
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Year / Date</label>
+                        <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Year / Date</label>
                         <div className="relative">
-                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={24} />
                             <input
                                 type="text"
                                 placeholder="e.g. 1920, 1850-1900..."
-                                className="w-full bg-cream pl-11 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
+                                className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border-2 border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
                                 value={localYear}
                                 onChange={(e) => setLocalYear(e.target.value)}
                             />
@@ -297,13 +379,13 @@ export function SearchArchive() {
 
                     {/* Filter: Place */}
                     <div>
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Place / Location</label>
+                        <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Place / Location</label>
                         <div className="relative">
-                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={24} />
                             <input
                                 type="text"
                                 placeholder="e.g. Main Street, Newnan..."
-                                className="w-full bg-cream pl-11 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
+                                className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border-2 border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
                                 value={localPlace}
                                 onChange={(e) => setLocalPlace(e.target.value)}
                             />
@@ -311,13 +393,13 @@ export function SearchArchive() {
                     </div>
 
                     <div className="md:col-span-2 lg:col-span-1">
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Subject Tag</label>
+                        <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Subject Tag</label>
                         <div className="relative">
-                            <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                            <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={24} />
                             <input
                                 type="text"
                                 placeholder="Search by tag..."
-                                className="w-full bg-cream pl-11 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
+                                className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border-2 border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
                                 value={localTag}
                                 onChange={(e) => setLocalTag(e.target.value)}
                             />
@@ -326,11 +408,11 @@ export function SearchArchive() {
 
                     {/* Filter: Sort By */}
                     <div>
-                        <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Sort By</label>
+                        <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Sort By</label>
                         <div className="relative">
-                            <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                            <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={24} />
                             <select
-                                className="w-full bg-cream pl-11 pr-10 py-3 rounded-lg border border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal"
+                                className="w-full bg-cream pl-12 pr-10 py-6 rounded-xl border-2 border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal text-xl shadow-sm"
                                 value={sortBy}
                                 onChange={(e) => updateParam('sort', e.target.value, 'newest')}
                             >
@@ -340,46 +422,165 @@ export function SearchArchive() {
                                 <option value="id_asc">Numerical (ID # Low-High)</option>
                                 <option value="id_desc">Numerical (ID # High-Low)</option>
                             </select>
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                <ChevronDownIcon />
-                            </div>
+                            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-charcoal/30 pointer-events-none" size={20} />
                         </div>
                     </div>
 
-                    {/* Filter: Artifact ID */}
-                    {(selectedType === 'All Items' || selectedType === 'Artifact') && (
-                        <div className="md:col-span-1 border-t md:border-t-0 pt-4 md:pt-0">
-                            <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact ID #</label>
-                            <div className="relative">
-                                <InfoIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" />
-                                <input
-                                    type="text"
-                                    placeholder="Enter artifact ID number..."
-                                    className="w-full bg-cream pl-11 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
-                                    value={localArtifactId}
-                                    onChange={(e) => setLocalArtifactId(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    )}
+                    <div className="col-span-full pt-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="flex items-center gap-2 text-tan hover:text-charcoal font-bold text-sm uppercase tracking-widest transition-all"
+                        >
+                            <SlidersHorizontal size={18} />
+                            {showAdvanced ? 'Hide Advanced Filters' : 'Show Advanced Filters'}
+                            <ChevronDown size={18} className={`transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`} />
+                        </button>
+                    </div>
 
-                    {/* Reset Button */}
-                    <div className="md:col-span-2 lg:col-span-3 flex justify-between items-center mt-2">
+                    {showAdvanced && (
+                        <>
+                            {/* Filter: Artifact ID */}
+                            {(selectedType === 'All Items' || selectedType === 'Artifact') && (
+                                <div className="md:col-span-1 border-t md:border-t-0 pt-4 md:pt-0">
+                                    <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Artifact ID #</label>
+                                    <div className="relative">
+                                        <Info className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30 transition-colors group-focus-within:text-charcoal" size={24} />
+                                        <input
+                                            type="text"
+                                            placeholder="Enter artifact ID..."
+                                            className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
+                                            value={localArtifactId}
+                                            onChange={(e) => setLocalArtifactId(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Filter: Processing Stage */}
+                            <div>
+                                <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Processing Stage</label>
+                                <div className="relative group">
+                                    <Tag className="absolute left-5 top-1/2 -translate-y-1/2 text-tan transition-colors group-focus-within:text-charcoal" size={24} />
+                                    <select
+                                        className="w-full bg-cream pl-14 pr-10 py-6 rounded-xl border-2 border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal text-xl shadow-sm"
+                                        value={localStage}
+                                        onChange={(e) => setLocalStage(e.target.value)}
+                                    >
+                                        <option value="">All Stages</option>
+                                        <option value="Housed">Housed (On Map)</option>
+                                        <option value="Staged">Staged (In Transit)</option>
+                                        <option value="In Processing">In Processing</option>
+                                    </select>
+                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-charcoal/30 pointer-events-none" size={20} />
+                                </div>
+                            </div>
+
+                            {/* Filter: Missing Location */}
+                            <div className="flex items-center gap-3 pt-6 border-t border-tan-light/30 md:col-span-2">
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        className="sr-only peer"
+                                        checked={localMissingLocation}
+                                        onChange={(e) => setLocalMissingLocation(e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-cream peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-tan"></div>
+                                    <span className="ml-3 text-sm font-bold text-charcoal/70 uppercase tracking-widest">Only show items without a physical location</span>
+                                </label>
+                            </div>
+
+                            {/* --- EXCLUSION SECTION --- */}
+                            <div className="col-span-full mt-8 pt-8 border-t border-tan-light/30">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 rounded-full bg-red-400/10 flex items-center justify-center">
+                                        <X size={18} className="text-red-500" />
+                                    </div>
+                                    <h3 className="text-xl font-serif font-bold text-charcoal">Filter Exclusions <span className="text-sm font-sans font-normal text-charcoal/40 ml-2 italic">(None of these)</span></h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    {/* Exclude Keywords */}
+                                    <div>
+                                        <label className="block text-xs font-black text-red-500/60 uppercase tracking-widest mb-3">Omit Keywords</label>
+                                        <div className="relative">
+                                            <X className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400/40" size={20} />
+                                            <input 
+                                                type="text"
+                                                placeholder="Exclude terms (comma separated)..."
+                                                className="w-full bg-red-50/10 pl-12 pr-4 py-5 rounded-xl border-2 border-transparent focus:bg-white focus:border-red-200 outline-none transition-all font-sans text-charcoal text-lg shadow-inner"
+                                                value={localExcludeKeyword}
+                                                onChange={(e) => setLocalExcludeKeyword(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Exclude Tags */}
+                                    <div>
+                                        <label className="block text-xs font-black text-red-500/60 uppercase tracking-widest mb-3">Omit Tags</label>
+                                        <div className="relative">
+                                            <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-red-400/40" size={20} />
+                                            <input 
+                                                type="text"
+                                                placeholder="Exclude tags (comma separated)..."
+                                                className="w-full bg-red-50/10 pl-12 pr-4 py-5 rounded-xl border-2 border-transparent focus:bg-white focus:border-red-200 outline-none transition-all font-sans text-charcoal text-lg shadow-inner"
+                                                value={localExcludeTag}
+                                                onChange={(e) => setLocalExcludeTag(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Exclude Categories */}
+                                    <div className="col-span-full">
+                                        <label className="block text-xs font-black text-red-500/60 uppercase tracking-widest mb-4">Omit Entire Categories</label>
+                                        <div className="flex flex-wrap gap-3">
+                                            {['Artifact', 'Document', 'Historic Figure', 'Historic Organization'].map((type) => {
+                                                const isExcluded = localExcludeTypes.includes(type);
+                                                return (
+                                                    <button
+                                                        key={type}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setLocalExcludeTypes(prev => 
+                                                                isExcluded ? prev.filter(t => t !== type) : [...prev, type]
+                                                            );
+                                                        }}
+                                                        className={`px-5 py-3 rounded-xl font-bold text-sm transition-all flex items-center gap-2 border-2 ${
+                                                            isExcluded 
+                                                                ? 'bg-red-500 border-red-500 text-white shadow-md' 
+                                                                : 'bg-white border-tan-light/30 text-charcoal/40 hover:border-red-200 hover:text-red-400'
+                                                        }`}
+                                                    >
+                                                        {isExcluded && <X size={14} />}
+                                                        {type}s
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Action Button Row */}
+                    <div className="col-span-full pt-10 flex flex-col md:flex-row gap-6 items-center justify-between border-t border-tan-light/20 mt-8">
                         <button
                             type="button"
                             onClick={resetFilters}
-                            className="text-sm font-bold text-charcoal hover:text-tan underline underline-offset-4 transition-colors p-2"
+                            className="text-tan hover:text-charcoal font-black text-xs uppercase tracking-[0.2em] px-8 py-3 rounded-full hover:bg-tan/5 transition-all order-2 md:order-1"
                         >
-                            Reset Filters
+                            Reset All Filters
                         </button>
                         <button
                             type="submit"
-                            className="bg-tan text-white px-8 py-3 rounded-lg font-bold hover:bg-charcoal transition-all md:hidden"
+                            className="w-full md:w-auto bg-tan text-white px-12 py-5 rounded-2xl font-black text-xl hover:bg-charcoal transition-all shadow-xl flex items-center justify-center gap-3 active:scale-[0.98] order-1 md:order-2"
                         >
-                            Search
+                            <Search size={22} />
+                            Search Archive
                         </button>
                     </div>
-                </div>
             </form>
 
             <div className="flex-1">
@@ -417,23 +618,5 @@ export function SearchArchive() {
                 )}
             </div>
         </div>
-    );
-}
-
-function ChevronDownIcon() {
-    return (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-charcoal-light">
-            <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
-    );
-}
-
-function InfoIcon({ className }: { className?: string }) {
-    return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
     );
 }

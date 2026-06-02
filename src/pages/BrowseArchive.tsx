@@ -23,6 +23,10 @@ export function BrowseArchive() {
     const [localSearch, setLocalSearch] = useState(search);
     const { isSAHSUser } = useAuth();
 
+    // Pagination state
+    const [visibleCount, setVisibleCount] = useState(24);
+    const PAGE_SIZE = 24;
+
     // Sync local search with URL search param initially
     useEffect(() => {
         setLocalSearch(search);
@@ -92,11 +96,14 @@ export function BrowseArchive() {
                 item.tags?.some(tag => tag.toLowerCase().includes(searchLower));
 
             const matchesType = selectedType === 'All Items' || item.item_type === selectedType;
-            const matchesCollection = selectedCollection === 'All Collections' || item.collection_id === selectedCollection;
+            const matchesCollection = selectedCollection === 'All Collections' || 
+                item.collection_id === selectedCollection || 
+                item.collection_ids?.includes(selectedCollection);
 
             if (!isSAHSUser) {
                 const isItemPrivate = item.is_private === true;
-                const isCollectionPrivate = item.collection_id ? collectionPrivacyMap[item.collection_id] === true : false;
+                const cIds = item.collection_ids || (item.collection_id ? [item.collection_id] : []);
+                const isCollectionPrivate = cIds.some(cid => collectionPrivacyMap[cid] === true);
                 if (isItemPrivate || isCollectionPrivate) return false;
             }
 
@@ -174,6 +181,10 @@ export function BrowseArchive() {
     };
 
     const headerText = getHeaderText();
+
+    useEffect(() => {
+        document.title = `${headerText.title} | SAHS Digital Archive`;
+    }, [headerText.title]);
 
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;
@@ -261,11 +272,24 @@ export function BrowseArchive() {
             <div className="flex-1">
                 {sortedItems.length > 0 ? (
                     viewMode === 'grid' ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
-                            {sortedItems.map(item => (
-                                <DocumentCard key={item.id} item={item} galleryIds={sortedItems.map(i => i.id || '')} />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
+                                {sortedItems.slice(0, visibleCount).map(item => (
+                                    <DocumentCard key={item.id} item={item} galleryIds={sortedItems.map(i => i.id || '')} />
+                                ))}
+                            </div>
+                            
+                            {sortedItems.length > visibleCount && (
+                                <div className="mt-12 flex justify-center pb-12">
+                                    <button 
+                                        onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                                        className="px-12 py-4 bg-tan text-white rounded-full font-bold hover:bg-charcoal transition-all shadow-xl hover:shadow-tan/20 hover:-translate-y-1 active:translate-y-0.5 active:shadow-inner"
+                                    >
+                                        Show More Archive Records
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <ArchiveMap items={sortedItems} />
                     )
