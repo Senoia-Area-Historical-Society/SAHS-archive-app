@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "sahs-archives"
-  }
+  },
+  "targets": {
+    "sahs-archives": {
+      "hosting": {
+        "archives": [
+          "sahs-archives"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

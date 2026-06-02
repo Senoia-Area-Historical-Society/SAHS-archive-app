@@ -7,7 +7,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
-    "site": "sahs-archives",
+    "target": "archives",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -24,7 +24,7 @@
   "functions": [
     {
       "source": "functions",
-      "codebase": "default",
+      "codebase": "archives",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",
