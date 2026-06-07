@@ -255,9 +255,9 @@ export function LocationDetail() {
                                    identifierStr.includes(kw);
                 }
                 
-                // Exclude items already here
+                // Include items already here — they'll be shown with an "Already Here" badge
                 const isAlreadyLinked = item.museum_location_id === id || (item.museum_location_ids || []).includes(id!);
-                return matchesQuery && !isAlreadyLinked;
+                return matchesQuery;
             });
 
             // Sort results to prioritize exact matches and prefix matches
@@ -952,14 +952,18 @@ export function LocationDetail() {
                                         Searching items...
                                     </div>
                                 ) : searchResults.length > 0 ? (
-                                    searchResults.map(result => (
+                                    searchResults.map(result => {
+                                        const isAlreadyLinked = result.museum_location_id === id || (result.museum_location_ids || []).includes(id!);
+                                        return (
                                         <div 
                                             key={result.id}
-                                            onClick={() => toggleItemSelection(result)}
-                                            className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                                                selectedItems.some(i => i.id === result.id) 
-                                                    ? 'bg-tan/10 border-tan shadow-sm' 
-                                                    : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                            onClick={() => !isAlreadyLinked && toggleItemSelection(result)}
+                                            className={`p-4 rounded-xl border transition-all flex items-center justify-between group ${
+                                                isAlreadyLinked
+                                                    ? 'bg-amber-50 border-amber-200 cursor-default'
+                                                    : selectedItems.some(i => i.id === result.id) 
+                                                        ? 'bg-tan/10 border-tan shadow-sm cursor-pointer' 
+                                                        : 'bg-white border-tan-light/30 hover:border-tan/50 cursor-pointer'
                                             }`}
                                         >
                                             <div className="flex items-center gap-4">
@@ -971,12 +975,17 @@ export function LocationDetail() {
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <h4 className="font-bold text-charcoal group-hover:text-tan transition-colors">{result.title}</h4>
-                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/40 uppercase">
+                                                    <h4 className={`font-bold transition-colors ${isAlreadyLinked ? 'text-amber-800' : 'text-charcoal group-hover:text-tan'}`}>{result.title}</h4>
+                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/40 uppercase flex-wrap">
                                                         <span className="bg-tan/10 text-tan px-1.5 py-0.5 rounded">ID: {result.artifact_id || 'NO-ID'}</span>
                                                         <span>&bull;</span>
                                                         <span>{result.item_type}</span>
-                                                        {result.museum_location_id?.trim() && (
+                                                        {isAlreadyLinked && (
+                                                            <span className="bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded font-black">
+                                                                ✓ Already Here
+                                                            </span>
+                                                        )}
+                                                        {!isAlreadyLinked && result.museum_location_id?.trim() && (
                                                             <>
                                                                 <span className="text-red-400">&bull; Currently at: {result.museum_location_id}</span>
                                                             </>
@@ -984,13 +993,20 @@ export function LocationDetail() {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all ${
-                                                selectedItems.some(i => i.id === result.id) ? 'bg-tan border-tan text-white' : 'border-tan-light group-hover:border-tan'
-                                            }`}>
-                                                {selectedItems.some(i => i.id === result.id) && <Check size={14} strokeWidth={3} />}
-                                            </div>
+                                            {isAlreadyLinked ? (
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-200 border border-amber-300 text-amber-700 shrink-0">
+                                                    <Check size={14} strokeWidth={3} />
+                                                </div>
+                                            ) : (
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all shrink-0 ${
+                                                    selectedItems.some(i => i.id === result.id) ? 'bg-tan border-tan text-white' : 'border-tan-light group-hover:border-tan'
+                                                }`}>
+                                                    {selectedItems.some(i => i.id === result.id) && <Check size={14} strokeWidth={3} />}
+                                                </div>
+                                            )}
                                         </div>
-                                    ))
+                                        );
+                                    })
                                 ) : searchQuery.length >= (searchMode === 'id' ? 1 : 2) ? (
                                     <div className="text-center py-8 text-charcoal/40 italic">No items found matching "{searchQuery}"</div>
                                 ) : (

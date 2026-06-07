@@ -17,6 +17,9 @@ export function TaggingHub() {
     const [searchId, setSearchId] = useState('');
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+    // Items already in the selected location
+    const [alreadyHereItems, setAlreadyHereItems] = useState<string[]>([]); // item IDs
+
     // Conflict State
     const [conflictedItems, setConflictedItems] = useState<ArchiveItem[]>([]);
     const [currentConflictIndex, setCurrentConflictIndex] = useState(-1);
@@ -51,6 +54,16 @@ export function TaggingHub() {
                     const newItem = { id: itemDoc.id, ...itemDoc.data() } as ArchiveItem;
                     setSelectedItems(prev => {
                         if (!prev.find(i => i.id === newItem.id)) {
+                            // Check if already in the selected location
+                            if (selectedLocation) {
+                                const locIds = newItem.museum_location_ids || [];
+                                const isAlreadyHere =
+                                    newItem.museum_location_id === selectedLocation.id ||
+                                    locIds.includes(selectedLocation.id);
+                                if (isAlreadyHere) {
+                                    setAlreadyHereItems(a => [...new Set([...a, newItem.id])]);
+                                }
+                            }
                             return [...prev, newItem];
                         }
                         setMessage({ type: 'error', text: "Item already in list." });
@@ -109,25 +122,34 @@ export function TaggingHub() {
                 }
             }
 
-            if (foundDoc) {
-                const newItem = { id: foundDoc.id, ...foundDoc.data() } as ArchiveItem;
+            const addItemToList = (newItem: ArchiveItem) => {
                 if (!selectedItems.find(i => i.id === newItem.id)) {
+                    // Check if already in the selected location
+                    if (selectedLocation) {
+                        const locIds = newItem.museum_location_ids || [];
+                        const isAlreadyHere =
+                            newItem.museum_location_id === selectedLocation.id ||
+                            locIds.includes(selectedLocation.id);
+                        if (isAlreadyHere) {
+                            setAlreadyHereItems(a => [...new Set([...a, newItem.id])]);
+                        }
+                    }
                     setSelectedItems(prev => [...prev, newItem]);
                     setSearchId('');
                 } else {
                     setMessage({ type: 'error', text: "Item already in list." });
                 }
+            };
+
+            if (foundDoc) {
+                const newItem = { id: foundDoc.id, ...foundDoc.data() } as ArchiveItem;
+                addItemToList(newItem);
             } else {
                 // If not found by artifact_id, try searching by Firestore Doc ID
                 const itemDoc = await getDoc(doc(db, 'archive_items', trimmedId));
                 if (itemDoc.exists()) {
                     const newItem = { id: itemDoc.id, ...itemDoc.data() } as ArchiveItem;
-                    if (!selectedItems.find(i => i.id === newItem.id)) {
-                        setSelectedItems(prev => [...prev, newItem]);
-                        setSearchId('');
-                    } else {
-                        setMessage({ type: 'error', text: "Item already in list." });
-                    }
+                    addItemToList(newItem);
                 } else {
                     setMessage({ type: 'error', text: "Item not found by ID or system ID." });
                 }
@@ -142,6 +164,7 @@ export function TaggingHub() {
 
     const removeItem = (id: string) => {
         setSelectedItems(prev => prev.filter(item => item.id !== id));
+        setAlreadyHereItems(prev => prev.filter(aid => aid !== id));
     };
 
     const performTagging = async (forceResolution?: { itemId: string, mode: 'move' | 'both' }[]) => {
@@ -149,7 +172,16 @@ export function TaggingHub() {
 
         // 1. Check for conflicts if not already resolving
         if (!forceResolution) {
-            const conflicts = selectedItems.filter(item => {
+            // Filter out items that are already in this location — they don't need re-tagging
+            const itemsAlreadyHere = selectedItems.filter(item => alreadyHereItems.includes(item.id));
+            const itemsToTag = selectedItems.filter(item => !alreadyHereItems.includes(item.id));
+
+            if (itemsAlreadyHere.length > 0 && itemsToTag.length === 0) {
+                setMessage({ type: 'error', text: `All selected items are already registered at "${selectedLocation.name}". No changes needed.` });
+                return;
+            }
+
+            const conflicts = itemsToTag.filter(item => {
                 const hasExisting = (item.museum_location_id && item.museum_location_id !== selectedLocation.id) || 
                                    (item.museum_location_ids && item.museum_location_ids.length > 0 && !item.museum_location_ids.includes(selectedLocation.id)) ||
                                    (item.museum_location && !item.museum_location_ids?.includes(selectedLocation.id) && item.museum_location_id !== selectedLocation.id);
@@ -214,6 +246,7 @@ export function TaggingHub() {
     const resetFlow = () => {
         setSelectedItems([]);
         setSelectedLocation(null);
+        setAlreadyHereItems([]);
         setMessage(null);
     };
 
@@ -353,15 +386,38 @@ export function TaggingHub() {
                             </div>
                         ) : (
                             <div className="p-4 space-y-2">
-                                {selectedItems.map(item => (
-                                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-tan-light/30 shadow-sm flex items-center justify-between group animate-in slide-in-from-left-2 duration-300">
+                                {alreadyHereItems.length > 0 && selectedLocation && (
+                                    <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 mb-2 animate-in slide-in-from-top-2 duration-300">
+                                        <AlertCircle size={18} className="shrink-0 mt-0.5 text-amber-500" />
+                                        <p className="text-xs font-bold leading-relaxed">
+                                            {alreadyHereItems.length === 1 ? '1 item is' : `${alreadyHereItems.length} items are`} already registered at <span className="underline underline-offset-2">{selectedLocation.name}</span> and will be skipped.
+                                        </p>
+                                    </div>
+                                )}
+                                {selectedItems.map(item => {
+                                    const isAlreadyHere = alreadyHereItems.includes(item.id);
+                                    return (
+                                    <div key={item.id} className={`p-4 rounded-2xl border shadow-sm flex items-center justify-between group animate-in slide-in-from-left-2 duration-300 ${
+                                        isAlreadyHere
+                                            ? 'bg-amber-50 border-amber-200'
+                                            : 'bg-white border-tan-light/30'
+                                    }`}>
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 bg-cream rounded-lg flex items-center justify-center text-tan">
-                                                <Box size={20} />
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                                isAlreadyHere ? 'bg-amber-100 text-amber-500' : 'bg-cream text-tan'
+                                            }`}>
+                                                {isAlreadyHere ? <AlertCircle size={20} /> : <Box size={20} />}
                                             </div>
                                             <div>
                                                 <h4 className="font-bold text-charcoal leading-tight">{item.title}</h4>
-                                                <p className="text-[10px] font-black text-tan/60 uppercase tracking-widest">{item.artifact_id || 'ID UNKNOWN'}</p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-[10px] font-black text-tan/60 uppercase tracking-widest">{item.artifact_id || 'ID UNKNOWN'}</p>
+                                                    {isAlreadyHere && (
+                                                        <span className="text-[9px] font-black uppercase tracking-widest bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full">
+                                                            Already Here
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <button 
@@ -371,7 +427,8 @@ export function TaggingHub() {
                                             <Trash2 size={20} />
                                         </button>
                                     </div>
-                                ))}
+                                    );
+                                })}
                                 <button 
                                     onClick={() => { setIsScannerOpen(true); }}
                                     className="w-full py-5 bg-tan/10 border-4 border-dashed border-tan/40 rounded-2xl flex items-center justify-center gap-3 text-tan font-black text-lg hover:bg-tan hover:text-white hover:border-tan transition-all duration-300 mt-4 shadow-sm"

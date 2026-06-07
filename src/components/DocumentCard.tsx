@@ -79,6 +79,11 @@ export function DocumentCard({
                         {totalImages} Images
                     </span>
                 )}
+                {(item.artifact_id || item.archive_reference) && (
+                    <span className="absolute bottom-3 left-3 bg-charcoal/75 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-mono font-bold tracking-wider z-10">
+                        #{item.artifact_id || item.archive_reference}
+                    </span>
+                )}
                 {onRemove && isSAHSUser && (
                     <button
                         onClick={onRemove}
