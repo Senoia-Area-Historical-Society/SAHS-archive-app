@@ -1535,7 +1535,7 @@ export function AddItem() {
 
                             </div>
                         )}
-                        {itemType !== 'Oral History' && (
+                        {(itemType as string) !== 'Oral History' && (
                             <div ref={docRef} className={itemType !== 'Historic Figure' ? "pt-8 border-t border-tan-light/30" : ""}>
                                 <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Link To Documents & Artifacts</label>
                                 <div className="relative">

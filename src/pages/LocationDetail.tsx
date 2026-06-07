@@ -255,8 +255,7 @@ export function LocationDetail() {
                                    identifierStr.includes(kw);
                 }
                 
-                // Include items already here — they'll be shown with an "Already Here" badge
-                const isAlreadyLinked = item.museum_location_id === id || (item.museum_location_ids || []).includes(id!);
+                // Items already here are included — they'll be shown with an "Already Here" badge in the UI
                 return matchesQuery;
             });
 
