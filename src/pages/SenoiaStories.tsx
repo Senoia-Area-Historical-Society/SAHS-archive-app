@@ -223,27 +223,27 @@ export function SenoiaStories() {
             )}
 
             {/* Bespoke Premium Dark-Mode Hero Header */}
-            <div className="relative rounded-3xl overflow-hidden bg-charcoal text-cream shadow-2xl border border-white/10 p-8 sm:p-12 md:p-16 flex flex-col md:flex-row items-center gap-12">
+            <div className="relative rounded-3xl overflow-hidden bg-charcoal text-cream shadow-2xl border border-white/10 p-6 sm:p-10 lg:p-16 flex flex-col lg:flex-row items-center gap-10 lg:gap-12">
                 {/* Glowing backdrop meshes */}
                 <div className="absolute -top-32 -left-32 w-96 h-96 bg-tan/20 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-amber-700/10 rounded-full blur-3xl pointer-events-none" />
 
                 {/* Hero Left Content */}
-                <div className="flex-1 space-y-6 relative z-10 text-center md:text-left">
+                <div className="flex-1 space-y-6 relative z-10 text-center lg:text-left">
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-tan/10 rounded-full border border-tan/30 text-tan text-xs font-bold uppercase tracking-widest font-sans">
                         <Sparkles size={14} className="animate-spin" style={{ animationDuration: '3s' }} /> Featured Community Project
                     </div>
                     
-                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold leading-tight tracking-tight text-white">
+                    <h1 className="text-4xl sm:text-5xl lg:text-7xl font-serif font-bold leading-tight tracking-tight text-white">
                         Senoia <span className="text-tan italic">Stories</span>
                     </h1>
                     
-                    <p className="text-lg text-cream/70 font-sans max-w-xl leading-relaxed">
+                    <p className="text-base sm:text-lg text-cream/70 font-sans max-w-xl leading-relaxed">
                         A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped the Senoia Area community over the decades.
                     </p>
 
                     {allStories.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4 text-sm font-sans text-cream/50">
+                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 pt-4 text-sm font-sans text-cream/50">
                             <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
                                 <Mic size={16} className="text-tan" />
                                 <span>{allStories.length} Voices Recorded</span>
@@ -257,13 +257,13 @@ export function SenoiaStories() {
                 </div>
 
                 {/* Hero Right Content: Logo */}
-                <div className="w-full md:w-auto shrink-0 relative z-10 flex justify-center md:justify-end animate-in fade-in duration-1000">
+                <div className="w-full lg:w-auto shrink-0 relative z-10 flex justify-center lg:justify-end animate-in fade-in duration-1000">
                     <div className="relative group bg-white rounded-3xl p-5 border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                         <img 
                             src="/senoia_stories_logo.png" 
                             alt="Senoia Stories Logo" 
-                            className="h-40 md:h-44 w-auto object-contain opacity-95 transition-all duration-300 transform group-hover:scale-105"
+                            className="h-32 sm:h-40 lg:h-44 w-auto object-contain opacity-95 transition-all duration-300 transform group-hover:scale-105"
                         />
                     </div>
                 </div>
@@ -300,13 +300,13 @@ export function SenoiaStories() {
             ) : (
                 <>
                     {/* Search and Filters Section */}
-                    <div className="bg-white rounded-2xl border border-tan-light/40 p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div className="space-y-1 text-center md:text-left">
+                    <div className="bg-white rounded-2xl border border-tan-light/40 p-6 shadow-xl flex flex-col lg:flex-row items-center justify-between gap-6">
+                        <div className="space-y-1 text-center lg:text-left">
                             <h2 className="text-2xl font-serif font-bold text-charcoal">Browse the Histories</h2>
                             <p className="text-sm text-charcoal/60 font-sans">Search names, keywords, dates, or stories instantly.</p>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto shrink-0">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto shrink-0">
                             {/* Instant Search Bar */}
                             <div className="relative w-full sm:w-[280px] md:w-[320px]">
                                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
