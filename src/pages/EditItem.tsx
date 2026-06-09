@@ -185,6 +185,8 @@ export default function EditItem() {
     const [collections, setCollections] = useState<Collection[]>([]);
     const [isPrivate, setIsPrivate] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
+    const [artifactId, setArtifactId] = useState('');
+    const [suggestedId, setSuggestedId] = useState<string | null>(null);
 
     useEffect(() => {
         if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
@@ -435,6 +437,7 @@ export default function EditItem() {
                 if (docSnap.exists()) {
                     const data = { id: docSnap.id, ...(docSnap.data() || {}) } as ArchiveItem;
                     setItem(data);
+                    setArtifactId(data.artifact_id || '');
                     const rawType = data.item_type || 'Document';
             setItemType(rawType.trim() as ItemType);
                     setFeaturedImageUrl(data.featured_image_url || null);
@@ -472,6 +475,24 @@ export default function EditItem() {
                 const qItemsAll = query(collection(db, 'archive_items'));
                 const itemsSnapAll = await getDocs(qItemsAll);
                 const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+
+                // Collect purely numeric artifact IDs for suggestion logic (only focusing on Artifacts to avoid hex/garbage IDs)
+                let maxId = 0;
+                allItemsData.forEach(item => {
+                    if (item.item_type === 'Artifact' && item.artifact_id) {
+                        const trimmed = item.artifact_id.trim();
+                        if (/^\d+$/.test(trimmed)) {
+                            const num = parseInt(trimmed, 10);
+                            if (!isNaN(num) && num > maxId) {
+                                maxId = num;
+                            }
+                        }
+                    }
+                });
+
+                // Calculate next ID (highest ID + 1)
+                const next = maxId + 1;
+                setSuggestedId(next.toString());
 
                 const figsList = allItemsData
                     .filter(i => i.item_type === 'Historic Figure')
@@ -1808,8 +1829,27 @@ export default function EditItem() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         {itemType !== 'Document' && (
                             <div>
-                                <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact ID #</label>
-                                <input type="text" name="artifact_id" id="artifact_id" defaultValue={item.artifact_id ?? undefined} placeholder="e.g. 2024.01.05" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                                <div className="flex items-center justify-between mb-2">
+                                    <label htmlFor="artifact_id" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Artifact ID #</label>
+                                    {suggestedId && (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setArtifactId(suggestedId)}
+                                            className="text-[10px] font-bold text-tan hover:text-charcoal transition-colors uppercase tracking-widest flex items-center gap-1"
+                                        >
+                                            <Sparkles size={10} /> Suggest: {suggestedId}
+                                        </button>
+                                    )}
+                                </div>
+                                <input 
+                                    type="text" 
+                                    name="artifact_id" 
+                                    id="artifact_id" 
+                                    value={artifactId} 
+                                    onChange={(e) => setArtifactId(e.target.value)} 
+                                    placeholder="e.g. 2024.01.05" 
+                                    className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" 
+                                />
                             </div>
                         )}
                         {itemType !== 'Artifact' && (

@@ -191,31 +191,26 @@ export function AddItem() {
 
                 // Fetch All Tags for suggestions
                 const tags = new Set<string>();
-                const artifactIds = new Set<number>();
+                let maxId = 0;
                 
                 allItemsData.forEach(item => {
                     if (item.tags) item.tags.forEach((t: string) => tags.add(t));
                     
-                    // Collect numeric artifact IDs for suggestion logic (ignoring figures and organizations)
-                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
-                        const num = parseInt(item.artifact_id, 10);
-                        if (!isNaN(num) && num > 0) {
-                            artifactIds.add(num);
+                    // Collect purely numeric artifact IDs for suggestion logic (only focusing on Artifacts to avoid hex/garbage IDs)
+                    if (item.item_type === 'Artifact' && item.artifact_id) {
+                        const trimmed = item.artifact_id.trim();
+                        if (/^\d+$/.test(trimmed)) {
+                            const num = parseInt(trimmed, 10);
+                            if (!isNaN(num) && num > maxId) {
+                                maxId = num;
+                            }
                         }
                     }
                 });
                 setAllExistingTags(Array.from(tags).sort());
 
-                // Calculate next available ID (gap-filling)
-                const sortedIds = Array.from(artifactIds).sort((a, b) => a - b);
-                let next = 1;
-                for (const idNum of sortedIds) {
-                    if (idNum === next) {
-                        next++;
-                    } else if (idNum > next) {
-                        break;
-                    }
-                }
+                // Calculate next ID (highest ID + 1)
+                const next = maxId + 1;
                 setSuggestedId(next.toString());
 
             } catch (error) {
@@ -683,23 +678,20 @@ export function AddItem() {
                                 const itemsSnapAll = await getDocs(qItemsAll);
                                 const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
                                 
-                                const artifactIds = new Set<number>();
+                                let maxId = 0;
                                 allItemsData.forEach(item => {
-                                    if (item.artifact_id && item.item_type !== 'Historic Figure' && item.item_type !== 'Historic Organization') {
-                                        const num = parseInt(item.artifact_id, 10);
-                                        if (!isNaN(num) && num > 0) artifactIds.add(num);
+                                    if (item.item_type === 'Artifact' && item.artifact_id) {
+                                        const trimmed = item.artifact_id.trim();
+                                        if (/^\d+$/.test(trimmed)) {
+                                            const num = parseInt(trimmed, 10);
+                                            if (!isNaN(num) && num > maxId) {
+                                                maxId = num;
+                                            }
+                                        }
                                     }
                                 });
                                 
-                                const sortedIds = Array.from(artifactIds).sort((a, b) => a - b);
-                                let next = 1;
-                                for (const idNum of sortedIds) {
-                                    if (idNum === next) {
-                                        next++;
-                                    } else if (idNum > next) {
-                                        break;
-                                    }
-                                }
+                                const next = maxId + 1;
                                 setSuggestedId(next.toString());
                             } catch (e) {
                                 console.error("Error refreshing suggestions:", e);
