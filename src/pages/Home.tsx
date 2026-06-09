@@ -217,13 +217,13 @@ export function Home() {
                     <div className="absolute inset-0 z-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
                     <div className="absolute inset-0 bg-gradient-to-r from-charcoal via-charcoal/90 to-charcoal-light/10 z-0"></div>
                     
-                    <div className="max-w-7xl mx-auto px-8 py-20 relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-20">
+                    <div className="max-w-7xl mx-auto px-6 py-12 md:px-8 md:py-20 relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12 lg:gap-20">
                         {/* Image Side */}
                         {spotlight.imageUrl && (
-                            <div className="w-full md:w-1/3 flex justify-center md:justify-end shrink-0">
+                            <div className="w-full md:w-auto flex justify-center md:justify-end shrink-0">
                                 <div className="relative group">
                                     <div className="absolute inset-0 bg-tan/30 rounded-full blur-2xl transform scale-110 group-hover:scale-125 transition-transform duration-700" />
-                                    <div className="w-64 h-64 md:w-80 md:h-80 rounded-full border-[6px] border-tan/20 overflow-hidden relative z-10 shadow-2xl mx-auto transition-transform duration-500 group-hover:scale-[1.02]">
+                                    <div className="w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80 rounded-full border-[6px] border-tan/20 overflow-hidden relative z-10 shadow-2xl mx-auto transition-transform duration-500 group-hover:scale-[1.02]">
                                         <img 
                                             src={spotlight.imageUrl} 
                                             alt={spotlight.name} 
@@ -238,19 +238,19 @@ export function Home() {
                         )}
                         
                         {/* Text Side */}
-                        <div className={`w-full ${spotlight.imageUrl ? 'md:w-2/3 text-center md:text-left' : 'text-center'}`}>
+                        <div className={`w-full ${spotlight.imageUrl ? 'md:flex-1 text-center md:text-left' : 'text-center'}`}>
                             <div className={`inline-flex items-center gap-3 text-tan text-xs font-black uppercase tracking-[0.25em] mb-6 ${!spotlight.imageUrl && 'mx-auto'}`}>
                                 <span className="w-12 h-px bg-tan/50"></span>
                                 Spotlight
                                 <span className="w-12 h-px bg-tan/50"></span>
                             </div>
-                            <h2 className="text-4xl md:text-6xl font-serif font-bold text-white mb-3 leading-tight tracking-tight drop-shadow-md">
+                            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white mb-3 leading-tight tracking-tight drop-shadow-md">
                                 {spotlight.name}
                             </h2>
-                            <h3 className="text-xl md:text-2xl text-cream/70 font-medium font-serif italic mb-10 pb-8 border-b border-tan/20 max-w-2xl">
+                            <h3 className="text-lg lg:text-xl text-cream/70 font-medium font-serif italic mb-6 lg:mb-10 pb-6 lg:pb-8 border-b border-tan/20 max-w-2xl md:mx-0 mx-auto">
                                 {spotlight.role}
                             </h3>
-                            <p className="text-lg md:text-xl text-cream/90 leading-relaxed font-sans whitespace-pre-line border-l-4 border-tan pl-6 italic mb-8">
+                            <p className="text-base sm:text-lg lg:text-xl text-cream/90 leading-relaxed font-sans whitespace-pre-line border-l-0 md:border-l-4 border-tan pl-0 md:pl-6 italic mb-8">
                                 "{spotlight.bio}"
                             </p>
                             {spotlight.linkedInUrl && (
