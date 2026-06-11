@@ -2020,7 +2020,7 @@ export default function EditItem() {
 
                         </div>
                     )}
-                    {(itemType as string) !== 'Oral History' && (
+
                         <div ref={docRef} className={itemType !== 'Historic Figure' ? "pt-6 border-t border-tan-light/30" : ""}>
                             <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-3">Link To Documents & Artifacts</label>
                             <div className="relative">
@@ -2074,7 +2074,6 @@ export default function EditItem() {
                                 </div>
                             )}
                         </div>
-                    )}
                     <div className="pt-6 border-t border-tan-light/30" ref={orgRef}>
                         <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-3">Connect Historic Organizations</label>
                         <div className="relative">
