@@ -163,5 +163,7 @@ export interface Member {
     status: 'active' | 'expired';
     joinedAt: string;
     expiresAt: string; // ISO date string or 'Never'
+    isRecurring?: boolean;
+    isFreeOneYear?: boolean;
 }
 

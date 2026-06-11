@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Star, Upload, Image as ImageIcon, Save, Check, Users, UserCheck, CalendarClock, Search } from 'lucide-react';
+import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Star, Upload, Image as ImageIcon, Save, Check, Users, UserCheck, CalendarClock, Search, Pencil, X } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -20,6 +20,8 @@ export function AdminSettings() {
     const [newEmail, setNewEmail] = useState('');
     const [newRole, setNewRole] = useState<'admin' | 'curator'>('curator');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editingRole, setEditingRole] = useState<UserRole | null>(null);
+    const [isSavingRole, setIsSavingRole] = useState(false);
 
     // Intern Spotlight State
     const [spotlightEnabled, setSpotlightEnabled] = useState(false);
@@ -45,6 +47,9 @@ export function AdminSettings() {
         return nextYear.toISOString().split('T')[0];
     });
     const [newMemberIsLifetime, setNewMemberIsLifetime] = useState(false);
+    const [newMemberIsRecurring, setNewMemberIsRecurring] = useState(false);
+    const [newMemberIsFreeOneYear, setNewMemberIsFreeOneYear] = useState(false);
+    const [newMemberNoEmail, setNewMemberNoEmail] = useState(false);
     const [isSubmittingMember, setIsSubmittingMember] = useState(false);
     const [memberSearchQuery, setMemberSearchQuery] = useState('');
 
@@ -59,13 +64,13 @@ export function AdminSettings() {
         setMembersLoading(true);
         try {
             const querySnapshot = await getDocs(collection(db, 'members'));
-            const membersData = querySnapshot.docs.map(doc => ({
+            const list = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
-            })) as Member[];
-            setMembers(membersData);
+            } as Member));
+            setMembers(list);
         } catch (error) {
-            console.error("Error fetching members:", error);
+            console.error('Error fetching members:', error);
         } finally {
             setMembersLoading(false);
         }
@@ -73,28 +78,37 @@ export function AdminSettings() {
 
     const handleAddMember = async (e: React.FormEvent) => {
         e.preventDefault();
-        const email = newMemberEmail.toLowerCase().trim();
         const name = newMemberName.trim();
+        const email = newMemberNoEmail ? '' : newMemberEmail.toLowerCase().trim();
         
-        if (!email || !name) return;
+        if (!name || (!newMemberNoEmail && !email)) return;
         
         setIsSubmittingMember(true);
         try {
             const joinedAt = new Date().toISOString();
             const expiresAt = newMemberIsLifetime ? 'Never' : new Date(newMemberExpiresAt).toISOString().split('T')[0];
             
-            await setDoc(doc(db, 'members', email), {
+            const docRef = newMemberNoEmail 
+                ? doc(collection(db, 'members'))
+                : doc(db, 'members', email);
+
+            await setDoc(docRef, {
                 email,
                 name,
                 tier: 'Member',
                 status: 'active',
                 joinedAt,
-                expiresAt
+                expiresAt,
+                isRecurring: newMemberIsRecurring,
+                isFreeOneYear: newMemberIsFreeOneYear
             });
             
             setNewMemberEmail('');
             setNewMemberName('');
             setNewMemberIsLifetime(false);
+            setNewMemberIsRecurring(false);
+            setNewMemberIsFreeOneYear(false);
+            setNewMemberNoEmail(false);
             const nextYear = new Date();
             nextYear.setFullYear(nextYear.getFullYear() + 1);
             setNewMemberExpiresAt(nextYear.toISOString().split('T')[0]);
@@ -220,6 +234,24 @@ export function AdminSettings() {
         } catch (error) {
             console.error('Error deleting user role', error);
             alert('Failed to delete user role.');
+        }
+    };
+
+    const handleUpdateRole = async () => {
+        if (!editingRole) return;
+        setIsSavingRole(true);
+        try {
+            await setDoc(doc(db, 'user_roles', editingRole.id), {
+                role: editingRole.role,
+                addedAt: editingRole.addedAt
+            });
+            setEditingRole(null);
+            fetchRoles();
+        } catch (error) {
+            console.error('Error updating user role', error);
+            alert('Failed to update user role.');
+        } finally {
+            setIsSavingRole(false);
         }
     };
 
@@ -441,25 +473,73 @@ export function AdminSettings() {
                                 ) : (
                                     <div className="divide-y divide-tan-light/30">
                                         {roles.map(role => (
-                                            <div key={role.id} className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-cream/20 transition-colors">
-                                                <div>
-                                                    <p className="font-semibold text-charcoal font-sans">{role.id}</p>
-                                                    <p className="text-xs font-bold uppercase tracking-wider mt-1 flex items-center gap-2">
-                                                        {role.role === 'admin' ? (
-                                                            <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">Admin</span>
-                                                        ) : (
-                                                            <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Curator</span>
-                                                        )}
-                                                        <span className="text-charcoal/40 font-mono text-[10px] lowercase">Since {new Date(role.addedAt || Date.now()).toLocaleDateString()}</span>
-                                                    </p>
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleDeleteUser(role.id)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors self-start sm:self-auto"
-                                                    title="Revoke Overrides"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
+                                            <div key={role.id} className="p-4 sm:px-6 hover:bg-cream/20 transition-colors">
+                                                {editingRole?.id === role.id ? (
+                                                    /* ── Inline edit row ── */
+                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                                                        <div className="flex-1">
+                                                            <p className="font-semibold text-charcoal font-sans mb-2">{role.id}</p>
+                                                            <select
+                                                                value={editingRole.role}
+                                                                onChange={(e) => setEditingRole({ ...editingRole, role: e.target.value as 'admin' | 'curator' })}
+                                                                className="bg-cream px-3 py-2 rounded-lg border border-tan/40 focus:border-tan outline-none text-sm font-sans text-charcoal"
+                                                            >
+                                                                <option value="curator">Curator (Add, Edit, Delete)</option>
+                                                                <option value="admin">Admin (All + Settings + AI)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                                                            <button
+                                                                onClick={handleUpdateRole}
+                                                                disabled={isSavingRole}
+                                                                className="flex items-center gap-1.5 bg-tan text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-charcoal transition-colors"
+                                                                title="Save changes"
+                                                            >
+                                                                {isSavingRole ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                                                                Save
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingRole(null)}
+                                                                className="flex items-center gap-1.5 text-charcoal/60 hover:text-charcoal bg-cream hover:bg-tan-light/40 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                                                                title="Cancel"
+                                                            >
+                                                                <X size={15} />
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    /* ── Normal display row ── */
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div>
+                                                            <p className="font-semibold text-charcoal font-sans">{role.id}</p>
+                                                            <p className="text-xs font-bold uppercase tracking-wider mt-1 flex items-center gap-2">
+                                                                {role.role === 'admin' ? (
+                                                                    <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200">Admin</span>
+                                                                ) : (
+                                                                    <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Curator</span>
+                                                                )}
+                                                                <span className="text-charcoal/40 font-mono text-[10px] lowercase">Since {new Date(role.addedAt || Date.now()).toLocaleDateString()}</span>
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                                                            <button
+                                                                onClick={() => setEditingRole(role)}
+                                                                className="text-tan hover:text-charcoal hover:bg-tan/10 p-2 rounded transition-colors"
+                                                                title="Edit role"
+                                                            >
+                                                                <Pencil size={16} />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleDeleteUser(role.id)}
+                                                                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition-colors"
+                                                                title="Revoke privileges"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -545,16 +625,35 @@ export function AdminSettings() {
                                     <div>
                                         <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">User Email</label>
                                         <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                                            <Mail className={`absolute left-3 top-1/2 -translate-y-1/2 ${newMemberNoEmail ? 'text-charcoal/20' : 'text-charcoal/40'}`} size={18} />
                                             <input 
                                                 type="email" 
-                                                required 
-                                                placeholder="member@example.com"
-                                                value={newMemberEmail}
+                                                required={!newMemberNoEmail}
+                                                disabled={newMemberNoEmail}
+                                                placeholder={newMemberNoEmail ? "No email address" : "member@example.com"}
+                                                value={newMemberNoEmail ? "" : newMemberEmail}
                                                 onChange={(e) => setNewMemberEmail(e.target.value)}
-                                                className="w-full bg-cream pl-10 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal"
+                                                className={`w-full bg-cream pl-10 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal ${newMemberNoEmail ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 py-1 font-sans">
+                                        <input
+                                            type="checkbox"
+                                            id="noEmail"
+                                            checked={newMemberNoEmail}
+                                            onChange={(e) => {
+                                                setNewMemberNoEmail(e.target.checked);
+                                                if (e.target.checked) {
+                                                    setNewMemberEmail('');
+                                                }
+                                            }}
+                                            className="h-4 w-4 rounded border-tan-light text-tan focus:ring-tan cursor-pointer bg-cream border-transparent"
+                                        />
+                                        <label htmlFor="noEmail" className="text-sm font-bold text-charcoal/70 cursor-pointer select-none">
+                                            No Email Address
+                                        </label>
                                     </div>
 
                                     <div className="flex items-center gap-3 py-2 font-sans">
@@ -567,6 +666,32 @@ export function AdminSettings() {
                                         />
                                         <label htmlFor="isLifetime" className="text-sm font-bold text-charcoal/70 cursor-pointer select-none">
                                             Lifetime / No Expiration
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 py-2 font-sans">
+                                        <input
+                                            type="checkbox"
+                                            id="isRecurring"
+                                            checked={newMemberIsRecurring}
+                                            onChange={(e) => setNewMemberIsRecurring(e.target.checked)}
+                                            className="h-4 w-4 rounded border-tan-light text-tan focus:ring-tan cursor-pointer bg-cream border-transparent"
+                                        />
+                                        <label htmlFor="isRecurring" className="text-sm font-bold text-charcoal/70 cursor-pointer select-none">
+                                            Recurring Payment
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 py-2 font-sans">
+                                        <input
+                                            type="checkbox"
+                                            id="isFreeOneYear"
+                                            checked={newMemberIsFreeOneYear}
+                                            onChange={(e) => setNewMemberIsFreeOneYear(e.target.checked)}
+                                            className="h-4 w-4 rounded border-tan-light text-tan focus:ring-tan cursor-pointer bg-cream border-transparent"
+                                        />
+                                        <label htmlFor="isFreeOneYear" className="text-sm font-bold text-charcoal/70 cursor-pointer select-none">
+                                            1-Yr Free (Realtor Paid)
                                         </label>
                                     </div>
 
@@ -656,8 +781,23 @@ export function AdminSettings() {
                                                                         Expired
                                                                     </span>
                                                                 )}
+                                                                {m.isRecurring && (
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                                                        Recurring
+                                                                    </span>
+                                                                )}
+                                                                {m.isFreeOneYear && (
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                                                                        1-Yr Free
+                                                                    </span>
+                                                                )}
+                                                                {m.expiresAt === 'Never' && (
+                                                                    <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                                                        Lifetime
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            <p className="text-sm text-charcoal/60 font-sans">{m.email}</p>
+                                                            <p className="text-sm text-charcoal/60 font-sans italic">{m.email || 'No email address'}</p>
                                                             <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
                                                                 <span>Joined: {new Date(m.joinedAt).toLocaleDateString()}</span>
                                                                 <span>•</span>

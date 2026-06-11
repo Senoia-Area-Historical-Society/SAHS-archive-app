@@ -59,9 +59,26 @@ export function MembershipStatus() {
                                     <h2 className="text-2xl font-serif font-bold text-charcoal">{memberName}</h2>
                                     <p className="text-sm text-charcoal/60">{memberEmail}</p>
                                 </div>
-                                <span className="sm:self-start bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest">
-                                    Active Registered
-                                </span>
+                                <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                                    <span className="sm:self-start bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-center">
+                                        Active Registered
+                                    </span>
+                                    {(memberData?.isRecurring || displayAsSimulated) && (
+                                        <span className="sm:self-end bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                            Recurring
+                                        </span>
+                                    )}
+                                    {memberData?.isFreeOneYear && (
+                                        <span className="sm:self-end bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                            1-Yr Free (Realtor Paid)
+                                        </span>
+                                    )}
+                                    {memberData?.expiresAt === 'Never' && (
+                                        <span className="sm:self-end bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                            Lifetime
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Card Detailed Grid */}

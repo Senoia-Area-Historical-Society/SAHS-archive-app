@@ -14,6 +14,14 @@ service cloud.firestore {
         );
     }
 
+    // Helper function to check if user has access to a folder
+    function isFolderOwnerOrCollaborator(folderId, userEmail) {
+      return exists(/databases/$(database)/documents/research_folders/$(folderId)) && (
+        get(/databases/$(database)/documents/research_folders/$(folderId)).data.get('ownerEmail', '').lower() == userEmail ||
+        userEmail in get(/databases/$(database)/documents/research_folders/$(folderId)).data.get('sharedWith', [])
+      );
+    }
+
     // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles
     match /user_roles/{email} {
       allow read: if isSAHSUser();
@@ -92,23 +100,25 @@ service cloud.firestore {
     match /research_folders/{folderId} {
       allow read: if isSAHSUser() || (
         request.auth != null && (
-          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || 
-          request.auth.token.email.lower() in resource.data.sharedWith
+          (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || 
+          (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
         )
       );
       allow create: if isSAHSUser() || (
         request.auth != null && 
-        request.resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+        request.resource.data.ownerEmail != null &&
+        request.resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow update: if isSAHSUser() || (
         request.auth != null && (
-          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || 
-          request.auth.token.email.lower() in resource.data.sharedWith
+          (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || 
+          (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
         )
       );
       allow delete: if isSAHSUser() || (
         request.auth != null && 
-        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+        resource.data.ownerEmail != null &&
+        resource.data.ownerEmail == request.auth.token.email.lower()
       );
     }
 
@@ -116,27 +126,29 @@ service cloud.firestore {
     match /research_notes/{noteId} {
       allow read: if isSAHSUser() || (
         request.auth != null && (
-          resource.data.ownerEmail.lower() == request.auth.token.email.lower() || (
+          (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || (
+            resource.data.isPrivate != null &&
             resource.data.isPrivate == false && 
+            resource.data.folderId != null &&
             resource.data.folderId != 'global' &&
-            (
-              get(/databases/$(database)/documents/research_folders/$(resource.data.folderId)).data.ownerEmail.lower() == request.auth.token.email.lower() ||
-              request.auth.token.email.lower() in get(/databases/$(database)/documents/research_folders/$(resource.data.folderId)).data.sharedWith
-            )
+            isFolderOwnerOrCollaborator(resource.data.folderId, request.auth.token.email.lower())
           )
         )
       );
       allow create: if isSAHSUser() || (
         request.auth != null && 
-        request.resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+        request.resource.data.ownerEmail != null &&
+        request.resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow update: if isSAHSUser() || (
         request.auth != null && 
-        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+        resource.data.ownerEmail != null &&
+        resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow delete: if isSAHSUser() || (
         request.auth != null && 
-        resource.data.ownerEmail.lower() == request.auth.token.email.lower()
+        resource.data.ownerEmail != null &&
+        resource.data.ownerEmail == request.auth.token.email.lower()
       );
     }
 
@@ -147,10 +159,10 @@ service cloud.firestore {
 
     // Root-level personal_pins: Only the owner can read/write their personal pins
     match /personal_pins/{pinId} {
-      allow read: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower();
-      allow create: if request.auth != null && request.resource.data.ownerEmail.lower() == request.auth.token.email.lower();
-      allow update: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower() && request.resource.data.ownerEmail.lower() == request.auth.token.email.lower();
-      allow delete: if request.auth != null && resource.data.ownerEmail.lower() == request.auth.token.email.lower();
+      allow read: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
+      allow create: if request.auth != null && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow update: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower() && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow delete: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
     }
 
     // Default deny for everything else

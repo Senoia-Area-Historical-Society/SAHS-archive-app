@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 import { containsBannedWords } from '../utils/profanityFilter';
@@ -454,8 +454,15 @@ export function ItemDetail() {
         const fetchUserFolders = async () => {
             setLoadingFolders(true);
             try {
-                const foldersCol = collection(db, 'members', email, 'research_folders');
-                const snap = await getDocs(foldersCol);
+                const foldersCol = collection(db, 'research_folders');
+                const q = query(
+                    foldersCol,
+                    or(
+                        where('ownerEmail', '==', email),
+                        where('sharedWith', 'array-contains', email)
+                    )
+                );
+                const snap = await getDocs(q);
                 const foldersData = snap.docs.map(doc => ({
                     id: doc.id,
                     name: doc.data().name || '',
@@ -474,7 +481,6 @@ export function ItemDetail() {
 
     const handleToggleBookmark = async (folderId: string, itemIds: string[]) => {
         if (!user || !user.email || !id) return;
-        const email = user.email.toLowerCase();
         
         const isBookmarked = itemIds.includes(id);
         const updatedItemIds = isBookmarked 
@@ -482,7 +488,7 @@ export function ItemDetail() {
             : [...itemIds, id];
 
         try {
-            const folderRef = doc(db, 'members', email, 'research_folders', folderId);
+            const folderRef = doc(db, 'research_folders', folderId);
             await updateDoc(folderRef, { itemIds: updatedItemIds });
             
             setUserFolders(prev => prev.map(f => f.id === folderId ? { ...f, itemIds: updatedItemIds } : f));
@@ -501,13 +507,15 @@ export function ItemDetail() {
 
         setIsCreatingFolder(true);
         try {
-            const foldersCol = collection(db, 'members', email, 'research_folders');
+            const foldersCol = collection(db, 'research_folders');
             const newDocRef = doc(foldersCol);
             
             await setDoc(newDocRef, {
                 name: newFolderName.trim(),
                 createdAt: new Date().toISOString(),
-                itemIds: [id]
+                itemIds: [id],
+                ownerEmail: email,
+                sharedWith: []
             });
 
             setUserFolders(prev => [...prev, {
@@ -2498,6 +2506,7 @@ function StickyNoteWidget({ id, user, hasResearchAccess }: StickyNoteWidgetProps
     const [noteContent, setNoteContent] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
     const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+    const [noteDocId, setNoteDocId] = useState<string | null>(null);
     const isInitialLoad = useRef(true);
 
     // Fetch Note Content
@@ -2508,11 +2517,20 @@ function StickyNoteWidget({ id, user, hasResearchAccess }: StickyNoteWidgetProps
 
         const fetchNote = async () => {
             try {
-                const noteRef = doc(db, 'members', email, 'research_notes', id);
-                const noteSnap = await getDoc(noteRef);
-                if (noteSnap.exists()) {
-                    setNoteContent(noteSnap.data().content || '');
+                const notesCol = collection(db, 'research_notes');
+                const q = query(
+                    notesCol,
+                    where('itemId', '==', id),
+                    where('ownerEmail', '==', email),
+                    where('folderId', '==', 'global')
+                );
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const docSnap = snap.docs[0];
+                    setNoteDocId(docSnap.id);
+                    setNoteContent(docSnap.data().content || '');
                 } else {
+                    setNoteDocId(null);
                     setNoteContent('');
                 }
             } catch (err) {
@@ -2536,13 +2554,24 @@ function StickyNoteWidget({ id, user, hasResearchAccess }: StickyNoteWidgetProps
         const saveTimeout = setTimeout(async () => {
             try {
                 setIsSavingNote(true);
-                const noteRef = doc(db, 'members', email, 'research_notes', id);
-                
-                await setDoc(noteRef, {
-                    itemId: id,
-                    content: noteContent,
-                    lastUpdated: new Date().toISOString()
-                });
+                if (noteDocId) {
+                    const noteRef = doc(db, 'research_notes', noteDocId);
+                    await updateDoc(noteRef, {
+                        content: noteContent,
+                        lastUpdated: new Date().toISOString()
+                    });
+                } else {
+                    const notesCol = collection(db, 'research_notes');
+                    const newDocRef = await addDoc(notesCol, {
+                        itemId: id,
+                        folderId: 'global',
+                        ownerEmail: email,
+                        content: noteContent,
+                        isPrivate: true,
+                        lastUpdated: new Date().toISOString()
+                    });
+                    setNoteDocId(newDocRef.id);
+                }
                 
                 setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             } catch (err) {
@@ -2553,7 +2582,7 @@ function StickyNoteWidget({ id, user, hasResearchAccess }: StickyNoteWidgetProps
         }, 1200);
 
         return () => clearTimeout(saveTimeout);
-    }, [noteContent, user, hasResearchAccess, id]);
+    }, [noteContent, user, hasResearchAccess, id, noteDocId]);
 
     if (!hasResearchAccess) return null;
 
