@@ -1,15 +1,15 @@
 import { useAuth } from '../contexts/AuthContext';
-import { Shield, Award, Calendar, ArrowRight, CheckCircle, Info, Landmark } from 'lucide-react';
+import { Shield, Award, Calendar, ArrowRight, CheckCircle, Info, Landmark, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function MembershipStatus() {
-    const { user, isMember, memberData, simulatedRole } = useAuth();
+    const { user, isMember, isExpiredMember, memberData, simulatedRole } = useAuth();
 
     // Determine what display data to show based on real/simulated roles
     const displayAsSimulated = simulatedRole === 'member';
     const hasMembership = isMember || displayAsSimulated;
 
-    // Construct membership details
+    // Construct membership details (shown for active, expired, and simulated)
     const memberName = displayAsSimulated 
         ? (user?.displayName || 'Jane Doe (Simulated)') 
         : (memberData?.name || user?.displayName || 'Active Researcher');
@@ -42,6 +42,19 @@ export function MembershipStatus() {
                 <div className="bg-tan/10 border border-tan/20 rounded-xl p-4 flex items-center gap-3 text-tan text-sm font-bold uppercase tracking-wider">
                     <Shield size={18} />
                     <span>Role Simulation Active: Viewing as Simulated Paying Member</span>
+                </div>
+            )}
+
+            {/* Expired membership banner */}
+            {isExpiredMember && !displayAsSimulated && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                    <AlertCircle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                        <p className="font-bold text-amber-800">Your membership has expired</p>
+                        <p className="text-amber-700 mt-0.5 leading-relaxed">
+                            You can still view your saved research, but new notes, folders, and comments are paused until you renew. Contact SAHS or use the Stripe portal below to reinstate your membership.
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -129,6 +142,65 @@ export function MembershipStatus() {
                                     className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
                                 >
                                     Stripe Portal <ArrowRight size={14} />
+                                </a>
+                            </div>
+                        </div>
+                    ) : isExpiredMember && memberData ? (
+                        /* Expired member — show their details in a muted state with renewal CTA */
+                        <div className="bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
+                            <div className="bg-amber-50/50 p-6 md:p-8 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <p className="text-xs font-black text-amber-600 uppercase tracking-widest">Senoia Area Historical Society</p>
+                                    <h2 className="text-2xl font-serif font-bold text-charcoal">{memberData.name || user?.displayName}</h2>
+                                    <p className="text-sm text-charcoal/60">{user?.email}</p>
+                                </div>
+                                <span className="self-start bg-amber-100 text-amber-800 border border-amber-300 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest">
+                                    Membership Expired
+                                </span>
+                            </div>
+
+                            <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6 opacity-60">
+                                <div className="flex gap-3.5 items-start">
+                                    <div className="p-2.5 bg-charcoal/5 text-charcoal/40 rounded-lg shrink-0"><Award size={20} /></div>
+                                    <div>
+                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Tier</p>
+                                        <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberData.tier || 'Member'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3.5 items-start">
+                                    <div className="p-2.5 bg-charcoal/5 text-charcoal/40 rounded-lg shrink-0"><Calendar size={20} /></div>
+                                    <div>
+                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Originally Joined</p>
+                                        <p className="text-base font-serif font-bold text-charcoal leading-snug">
+                                            {memberData.joinedAt ? new Date(memberData.joinedAt).toLocaleDateString() : 'N/A'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3.5 items-start sm:col-span-2">
+                                    <div className="p-2.5 bg-red-50 text-red-400 rounded-lg shrink-0"><Calendar size={20} /></div>
+                                    <div>
+                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Expired On</p>
+                                        <p className="text-base font-serif font-bold text-red-600 leading-snug">
+                                            {memberData.expiresAt ? new Date(memberData.expiresAt).toLocaleDateString() : 'N/A'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 border-t border-amber-100 px-6 py-5 md:px-8 md:py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                    <h4 className="text-sm font-bold text-amber-900 font-serif">Renew Your Membership</h4>
+                                    <p className="text-xs text-amber-800/70 leading-relaxed max-w-md">
+                                        Renew to restore full research access — your saved folders, notes, and pins are all waiting for you.
+                                    </p>
+                                </div>
+                                <a
+                                    href="https://billing.stripe.com/p/login/3cscOSe99bt8bvi000"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-600 text-white hover:bg-amber-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
+                                >
+                                    Renew Now <ArrowRight size={14} />
                                 </a>
                             </div>
                         </div>

@@ -22,6 +22,7 @@ interface AuthContextType {
     setIsEditingMode: (value: boolean) => void;
     lastSearchPath: string;
     isMember: boolean;
+    isExpiredMember: boolean; // Logged in but membership has lapsed
     memberData: Member | null;
     hasResearchAccess: boolean;
 }
@@ -39,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return localStorage.getItem('sahs_simulated_role') as any || null;
     });
     const [isMember, setIsMember] = useState(false);
+    const [isExpiredMember, setIsExpiredMember] = useState(false);
     const [memberData, setMemberData] = useState<Member | null>(null);
 
     const location = useLocation();
@@ -90,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
                 }
 
-                // Verify active member status
+                // Verify member status — keep expired members logged in with data intact
                 try {
                     const memberDoc = await getDoc(doc(db, 'members', email));
                     if (memberDoc.exists()) {
@@ -98,24 +100,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
                         if (mData.status === 'active' && !isExpired) {
                             setIsMember(true);
+                            setIsExpiredMember(false);
                             setMemberData(mData);
                         } else {
+                            // Expired or manually set to inactive — allow login but block write features
                             setIsMember(false);
-                            setMemberData(null);
+                            setIsExpiredMember(true);
+                            setMemberData(mData); // Keep data so UI can show renewal details
                         }
                     } else {
                         setIsMember(false);
+                        setIsExpiredMember(false);
                         setMemberData(null);
                     }
                 } catch (memberErr) {
                     console.error('Error fetching member status:', memberErr);
                     setIsMember(false);
+                    setIsExpiredMember(false);
                     setMemberData(null);
                 }
             } else {
                 setIsAdmin(false);
                 setIsCurator(false);
                 setIsMember(false);
+                setIsExpiredMember(false);
                 setMemberData(null);
             }
             setUser(currentUser);
@@ -160,17 +168,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Plain members can't read user_roles — fall through to member check
             }
 
-            // 3. Allow active historical society members
+            // 3. Allow members (active OR expired — expired members can log in but get a renewal prompt)
             const memberDoc = await getDoc(doc(db, 'members', email));
             if (memberDoc.exists()) {
-                const mData = memberDoc.data() as Member;
-                const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
-                if (mData.status === 'active' && !isExpired) {
-                    return;
-                }
+                // Any record in members collection = allow login. Expiry is handled in the UI.
+                return;
             }
 
-            // Reject anyone else
+            // Reject anyone with no record at all
             await signOut(auth);
             throw new Error("Unauthorized. Your account is not currently an active curator, administrator, or registered paying member.");
         } catch (error) {
@@ -206,6 +211,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsEditingMode,
             lastSearchPath,
             isMember,
+            isExpiredMember,
             memberData,
             hasResearchAccess
         }}>
