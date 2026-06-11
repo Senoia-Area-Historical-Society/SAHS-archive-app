@@ -154,3 +154,16 @@ export interface ArchiveItem {
     youtube_video_id?: string | null;   // Optional YouTube video ID
     transcript?: string | null;         // Full text transcription of the interview
 }
+
+export interface Member {
+    id: string; // Firebase Document ID (email in lowercase)
+    name: string;
+    email: string;
+    tier: 'Member';
+    status: 'active' | 'expired';
+    joinedAt: string;
+    expiresAt: string; // ISO date string or 'Never'
+    isRecurring?: boolean;
+    isFreeOneYear?: boolean;
+}
+

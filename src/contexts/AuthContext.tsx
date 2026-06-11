@@ -4,6 +4,7 @@ import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useLocation } from 'react-router-dom';
+import type { Member } from '../types/database';
 
 interface AuthContextType {
     user: User | null;
@@ -15,11 +16,14 @@ interface AuthContextType {
     isCurator: boolean;  // Effective role
     realIsAdmin: boolean; // Actual database role
     realIsCurator: boolean; // Actual database role
-    simulatedRole: 'admin' | 'curator' | 'visitor' | null;
-    setSimulatedRole: (role: 'admin' | 'curator' | 'visitor' | null) => void;
+    simulatedRole: 'admin' | 'curator' | 'member' | 'visitor' | null;
+    setSimulatedRole: (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => void;
     isEditingMode: boolean;
     setIsEditingMode: (value: boolean) => void;
     lastSearchPath: string;
+    isMember: boolean;
+    memberData: Member | null;
+    hasResearchAccess: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -31,13 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isCurator, setIsCurator] = useState(false);
     const [isEditingMode, setIsEditingMode] = useState(false);
     const [lastSearchPath, setLastSearchPath] = useState('/archive');
-    const [simulatedRole, setSimulatedRole] = useState<'admin' | 'curator' | 'visitor' | null>(() => {
+    const [simulatedRole, setSimulatedRole] = useState<'admin' | 'curator' | 'member' | 'visitor' | null>(() => {
         return localStorage.getItem('sahs_simulated_role') as any || null;
     });
+    const [isMember, setIsMember] = useState(false);
+    const [memberData, setMemberData] = useState<Member | null>(null);
 
     const location = useLocation();
 
-    const handleSetSimulatedRole = (role: 'admin' | 'curator' | 'visitor' | null) => {
+    const handleSetSimulatedRole = (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => {
         if (!isAdmin) return; // Only real admins can simulate roles
         setSimulatedRole(role);
         if (role) {
@@ -82,9 +88,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setIsCurator(false);
                     }
                 }
+
+                // Verify active member status
+                try {
+                    const memberDoc = await getDoc(doc(db, 'members', email));
+                    if (memberDoc.exists()) {
+                        const mData = memberDoc.data() as Member;
+                        const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
+                        if (mData.status === 'active' && !isExpired) {
+                            setIsMember(true);
+                            setMemberData(mData);
+                        } else {
+                            setIsMember(false);
+                            setMemberData(null);
+                        }
+                    } else {
+                        setIsMember(false);
+                        setMemberData(null);
+                    }
+                } catch (memberErr) {
+                    console.error('Error fetching member status:', memberErr);
+                    setIsMember(false);
+                    setMemberData(null);
+                }
             } else {
                 setIsAdmin(false);
                 setIsCurator(false);
+                setIsMember(false);
+                setMemberData(null);
             }
             setUser(currentUser);
             setLoading(false);
@@ -101,7 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const loginWithGoogle = async () => {
         try {
-            // Optional: You can force prompt select_account to make it easier for users with multiple googles
             googleProvider.setCustomParameters({ prompt: 'select_account' });
 
             const result = await signInWithPopup(auth, googleProvider);
@@ -114,18 +144,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const email = userEmail.toLowerCase();
             
-            // Check for hardcoded admins and domain-wide curators
+            // 1. Allow hardcoded admins/curators
             if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com' || email.endsWith('@senoiahistory.com')) {
                 return;
             }
 
-            // Check Firestore for roles (for other domains or specific overrides)
+            // 2. Allow Firestore role accounts
             const roleDoc = await getDoc(doc(db, 'user_roles', email));
-            if (!roleDoc.exists() || !['admin', 'curator'].includes(roleDoc.data().role)) {
-                // If not valid, immediately sign them out
-                await signOut(auth);
-                throw new Error("Unauthorized. Your account does not have curator or admin privileges.");
+            if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
+                return;
             }
+
+            // 3. Allow active historical society members
+            const memberDoc = await getDoc(doc(db, 'members', email));
+            if (memberDoc.exists()) {
+                const mData = memberDoc.data() as Member;
+                const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
+                if (mData.status === 'active' && !isExpired) {
+                    return;
+                }
+            }
+
+            // Reject anyone else
+            await signOut(auth);
+            throw new Error("Unauthorized. Your account is not currently an active curator, administrator, or registered paying member.");
         } catch (error) {
             console.error("Auth error", error);
             throw error;
@@ -139,6 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const effectiveIsAdmin = isAdmin && (!simulatedRole || simulatedRole === 'admin');
     const effectiveIsCurator = (isAdmin || isCurator) && (!simulatedRole || simulatedRole === 'admin' || simulatedRole === 'curator');
     const effectiveIsSAHSUser = effectiveIsAdmin || effectiveIsCurator;
+    const effectiveIsMember = simulatedRole === 'member' || (isMember && !simulatedRole);
+    const hasResearchAccess = effectiveIsSAHSUser || effectiveIsMember;
 
     return (
         <AuthContext.Provider value={{ 
@@ -155,7 +199,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSimulatedRole: handleSetSimulatedRole,
             isEditingMode,
             setIsEditingMode,
-            lastSearchPath
+            lastSearchPath,
+            isMember,
+            memberData,
+            hasResearchAccess
         }}>
             {loading ? (
                 <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-4">

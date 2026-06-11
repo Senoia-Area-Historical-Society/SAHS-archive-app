@@ -1527,8 +1527,7 @@ export function AddItem() {
 
                             </div>
                         )}
-                        {(itemType as string) !== 'Oral History' && (
-                            <div ref={docRef} className={itemType !== 'Historic Figure' ? "pt-8 border-t border-tan-light/30" : ""}>
+                        <div ref={docRef} className={itemType !== 'Historic Figure' ? "pt-8 border-t border-tan-light/30" : ""}>
                                 <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Link To Documents & Artifacts</label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-3 text-charcoal/30" size={18} />
@@ -1582,7 +1581,6 @@ export function AddItem() {
                                     </div>
                                 )}
                             </div>
-                        )}
                         <div className="pt-8 border-t border-tan-light/30" ref={orgRef}>
                             <label className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-3 underline underline-offset-4 decoration-tan/30">Connect Historic Organizations</label>
                             <div className="relative">
