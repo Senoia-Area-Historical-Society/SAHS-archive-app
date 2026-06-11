@@ -82,8 +82,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             setIsAdmin(false);
                             setIsCurator(false);
                         }
-                    } catch (error) {
-                        console.error('Error fetching user role:', error);
+                    } catch {
+                        // Permission denied is expected for plain members — they cannot
+                        // read user_roles by design. Treat as "no elevated role".
                         setIsAdmin(false);
                         setIsCurator(false);
                     }
@@ -149,10 +150,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            // 2. Allow Firestore role accounts
-            const roleDoc = await getDoc(doc(db, 'user_roles', email));
-            if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
-                return;
+            // 2. Allow Firestore role accounts (permission-denied here is expected for plain members)
+            try {
+                const roleDoc = await getDoc(doc(db, 'user_roles', email));
+                if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
+                    return;
+                }
+            } catch {
+                // Plain members can't read user_roles — fall through to member check
             }
 
             // 3. Allow active historical society members
