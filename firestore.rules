@@ -152,6 +152,11 @@ service cloud.firestore {
       );
     }
 
+    // notifications collection: Curators and admins can read and update them (to mark as read / dismiss)
+    match /notifications/{notificationId} {
+      allow read, update: if isSAHSUser();
+    }
+
     // mail collection for Trigger Email extension: Authenticated users can write emails to trigger notifications
     match /mail/{mailId} {
       allow create: if request.auth != null;

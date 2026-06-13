@@ -1,6 +1,9 @@
+import { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { db } from '../lib/firebase';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 import logo from '../assets/logo2.png';
 
 interface SidebarProps {
@@ -17,6 +20,34 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             ? 'bg-beige text-charcoal font-bold shadow-sm'
             : 'text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold'
         }`;
+
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    useEffect(() => {
+        if (!isSAHSUser || !user?.email) {
+            setUnreadCount(0);
+            return;
+        }
+
+        const q = query(collection(db, 'notifications'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const userEmail = user.email!.toLowerCase();
+            let count = 0;
+            snapshot.docs.forEach((doc) => {
+                const data = doc.data();
+                const readBy = data.readBy || [];
+                const isRead = readBy.map((e: string) => e.toLowerCase()).includes(userEmail);
+                if (!isRead) {
+                    count++;
+                }
+            });
+            setUnreadCount(count);
+        }, (error) => {
+            console.error("Error fetching notifications for sidebar badge:", error);
+        });
+
+        return () => unsubscribe();
+    }, [isSAHSUser, user?.email]);
 
     const location = useLocation();
     const currentParams = new URLSearchParams(location.search);
@@ -238,6 +269,20 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                         {isSAHSUser && (
                                             <NavLink to="/audit" className={navLinkClass} onClick={handleLinkClick}>
                                                 <Activity size={20} /> Data Quality Audit
+                                            </NavLink>
+                                        )}
+                                        {isSAHSUser && (
+                                            <NavLink to="/notifications" className={navLinkClass} onClick={handleLinkClick}>
+                                                <div className="relative flex items-center justify-between w-full">
+                                                    <div className="flex items-center gap-3">
+                                                        <Bell size={20} /> Moderation Feed
+                                                    </div>
+                                                    {unreadCount > 0 && (
+                                                        <span className="bg-tan text-white text-xs px-2 py-0.5 rounded-full font-bold min-w-[20px] text-center">
+                                                            {unreadCount}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </NavLink>
                                         )}
                                     </>

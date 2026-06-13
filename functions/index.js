@@ -1,8 +1,12 @@
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { Client } = require("@googlemaps/google-maps-services-js");
 const { logger } = require("firebase-functions");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+const db = admin.firestore("sahs-archives");
 
 // Initialize Google Maps client
 const mapsClient = new Client({});
@@ -159,3 +163,50 @@ exports.geocodeArchiveItemAddress = onDocumentWritten({
         return;
     }
 });
+
+/**
+ * Cloud Function to create a notification when a new comment is posted.
+ * Triggers on any document created in archive_items/{itemId}/comments/{commentId}.
+ */
+exports.onCommentCreated = onDocumentCreated({
+    document: "archive_items/{itemId}/comments/{commentId}",
+    database: "sahs-archives"
+}, async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const commentData = snapshot.data();
+    const itemId = event.params.itemId;
+
+    logger.info(`New comment posted on item ${itemId} by ${commentData.authorEmail}`);
+
+    try {
+        // Fetch the parent archive item to get its title
+        const itemRef = db.collection("archive_items").doc(itemId);
+        const itemSnap = await itemRef.get();
+        let itemTitle = "Unknown Archive Item";
+        if (itemSnap.exists) {
+            itemTitle = itemSnap.data().title || "Untitled Item";
+        }
+
+        // Create the notification document
+        const notificationRef = db.collection("notifications").doc();
+        await notificationRef.set({
+            id: notificationRef.id,
+            type: "new_comment",
+            itemId: itemId,
+            itemTitle: itemTitle,
+            authorName: commentData.authorName || "Anonymous",
+            authorEmail: commentData.authorEmail || "",
+            commentText: commentData.content || "",
+            createdAt: commentData.createdAt || new Date().toISOString(),
+            readBy: [],
+            parentId: commentData.parentId || null
+        });
+
+        logger.info(`Notification created with ID ${notificationRef.id}`);
+    } catch (error) {
+        logger.error("Error creating notification on comment creation:", error);
+    }
+});
+
