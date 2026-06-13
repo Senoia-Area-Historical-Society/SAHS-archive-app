@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
@@ -48,6 +48,27 @@ export function ItemDetail() {
     const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false);
     const [userFolders, setUserFolders] = useState<{ id: string; name: string; itemIds: string[] }[]>([]);
     const [loadingFolders, setLoadingFolders] = useState(false);
+
+    const handleDownloadImage = async () => {
+        if (!item || !file_urls || file_urls.length === 0) return;
+        const url = file_urls[currentImageIndex];
+        const filename = `${item.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_page_${currentImageIndex + 1}.jpg`;
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Error downloading image:', error);
+            window.open(url, '_blank');
+        }
+    };
     const [newFolderName, setNewFolderName] = useState('');
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1133,6 +1154,18 @@ export function ItemDetail() {
                                         }`}
                                     />
                                 ))}
+                            </div>
+                        )}
+
+                        {hasResearchAccess && file_urls && file_urls.length > 0 && (
+                            <div className="flex justify-center mt-2 mb-4">
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadImage}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-tan/10 text-charcoal border border-tan-light/70 hover:border-tan rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 active:scale-98 shadow-sm"
+                                >
+                                    <Download size={14} className="text-tan" /> Download Current Image
+                                </button>
                             </div>
                         )}
 
