@@ -62,9 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com') {
                     setIsAdmin(true);
                     setIsCurator(false);
-                } else if (email.endsWith('@senoiahistory.com')) {
-                    setIsAdmin(false);
-                    setIsCurator(true);
                 } else {
                     try {
                         const roleDoc = await getDoc(doc(db, 'user_roles', email));
@@ -80,15 +77,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                                 setIsAdmin(false);
                                 setIsCurator(false);
                             }
+                        } else if (email.endsWith('@senoiahistory.com')) {
+                            setIsAdmin(false);
+                            setIsCurator(true);
                         } else {
                             setIsAdmin(false);
                             setIsCurator(false);
                         }
                     } catch {
-                        // Permission denied is expected for plain members — they cannot
-                        // read user_roles by design. Treat as "no elevated role".
-                        setIsAdmin(false);
-                        setIsCurator(false);
+                        if (email.endsWith('@senoiahistory.com')) {
+                            setIsAdmin(false);
+                            setIsCurator(true);
+                        } else {
+                            setIsAdmin(false);
+                            setIsCurator(false);
+                        }
                     }
                 }
 
