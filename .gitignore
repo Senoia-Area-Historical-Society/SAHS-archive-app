@@ -37,3 +37,7 @@ migration/service-account.json
 migration/artifacts.json
 migration/assets/
 migration/*.log
+migration/*.xlsx
+migration/*.xls
+migration/*.csv
+migration/members.json

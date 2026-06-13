@@ -4,9 +4,10 @@ const { Client } = require("@googlemaps/google-maps-services-js");
 const { logger } = require("firebase-functions");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const admin = require("firebase-admin");
+const { getFirestore } = require("firebase-admin/firestore");
 
 admin.initializeApp();
-const db = admin.firestore("sahs-archives");
+const db = getFirestore("sahs-archives");
 
 // Initialize Google Maps client
 const mapsClient = new Client({});
