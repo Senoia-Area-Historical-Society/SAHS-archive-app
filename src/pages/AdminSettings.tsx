@@ -52,6 +52,12 @@ export function AdminSettings() {
     const [newMemberNoEmail, setNewMemberNoEmail] = useState(false);
     const [isSubmittingMember, setIsSubmittingMember] = useState(false);
     const [memberSearchQuery, setMemberSearchQuery] = useState('');
+    
+    // Editing Member State
+    const [editingMember, setEditingMember] = useState<Member | null>(null);
+    const [editingMemberNoEmail, setEditingMemberNoEmail] = useState(false);
+    const [editingMemberIsLifetime, setEditingMemberIsLifetime] = useState(false);
+    const [isSavingMember, setIsSavingMember] = useState(false);
 
     useEffect(() => {
         if (!realIsAdmin) return;
@@ -122,11 +128,11 @@ export function AdminSettings() {
         }
     };
 
-    const handleDeleteMember = async (email: string) => {
-        if (!window.confirm(`Are you sure you want to revoke membership for ${email}?`)) return;
+    const handleDeleteMember = async (id: string, name: string) => {
+        if (!window.confirm(`Are you sure you want to revoke membership for ${name}?`)) return;
         
         try {
-            await deleteDoc(doc(db, 'members', email));
+            await deleteDoc(doc(db, 'members', id));
             fetchMembers();
         } catch (error) {
             console.error('Error deleting member', error);
@@ -137,7 +143,7 @@ export function AdminSettings() {
     const handleToggleMemberStatus = async (member: Member) => {
         const newStatus = member.status === 'active' ? 'expired' : 'active';
         try {
-            await setDoc(doc(db, 'members', member.email), {
+            await setDoc(doc(db, 'members', member.id), {
                 ...member,
                 status: newStatus
             }, { merge: true });
@@ -160,7 +166,7 @@ export function AdminSettings() {
         const newExpiresAt = newExpDate.toISOString().split('T')[0];
         
         try {
-            await setDoc(doc(db, 'members', member.email), {
+            await setDoc(doc(db, 'members', member.id), {
                 ...member,
                 status: 'active',
                 expiresAt: newExpiresAt
@@ -169,6 +175,82 @@ export function AdminSettings() {
         } catch (error) {
             console.error('Error renewing membership', error);
             alert('Failed to renew membership.');
+        }
+    };
+
+    const startEditingMember = (member: Member) => {
+        setEditingMember({ ...member });
+        setEditingMemberNoEmail(!member.email);
+        setEditingMemberIsLifetime(member.expiresAt === 'Never');
+    };
+
+    const handleSaveMemberEdit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingMember) return;
+
+        const name = editingMember.name.trim();
+        const email = editingMemberNoEmail ? '' : editingMember.email.toLowerCase().trim();
+        
+        if (!name || (!editingMemberNoEmail && !email)) {
+            alert('Please provide a name and email (or check No Email).');
+            return;
+        }
+
+        setIsSavingMember(true);
+        try {
+            let expiresAt = editingMemberIsLifetime ? 'Never' : editingMember.expiresAt;
+            if (expiresAt === 'Never' && !editingMemberIsLifetime) {
+                const nextYear = new Date();
+                nextYear.setFullYear(nextYear.getFullYear() + 1);
+                expiresAt = nextYear.toISOString().split('T')[0];
+            }
+
+            const originalId = editingMember.id;
+            const idNeedsToChange = originalId !== email;
+
+            if (idNeedsToChange) {
+                if (email) {
+                    const existingDoc = await getDoc(doc(db, 'members', email));
+                    if (existingDoc.exists()) {
+                        alert('A member with this email already exists.');
+                        setIsSavingMember(false);
+                        return;
+                    }
+                }
+
+                await deleteDoc(doc(db, 'members', originalId));
+
+                const newDocRef = email ? doc(db, 'members', email) : doc(collection(db, 'members'));
+                await setDoc(newDocRef, {
+                    name,
+                    email,
+                    tier: 'Member',
+                    status: editingMember.status,
+                    joinedAt: editingMember.joinedAt,
+                    expiresAt,
+                    isRecurring: editingMember.isRecurring || false,
+                    isFreeOneYear: editingMember.isFreeOneYear || false
+                });
+            } else {
+                await setDoc(doc(db, 'members', originalId), {
+                    name,
+                    email,
+                    tier: 'Member',
+                    status: editingMember.status,
+                    joinedAt: editingMember.joinedAt,
+                    expiresAt,
+                    isRecurring: editingMember.isRecurring || false,
+                    isFreeOneYear: editingMember.isFreeOneYear || false
+                });
+            }
+
+            setEditingMember(null);
+            fetchMembers();
+        } catch (error) {
+            console.error('Error saving member edits:', error);
+            alert('Failed to save member changes.');
+        } finally {
+            setIsSavingMember(false);
         }
     };
 
@@ -769,72 +851,189 @@ export function AdminSettings() {
                                                 
                                                 return (
                                                     <div key={m.id} className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-cream/20 transition-colors font-sans">
-                                                        <div className="space-y-1 font-sans">
-                                                            <div className="flex items-center gap-3">
-                                                                <p className="font-semibold text-charcoal font-sans leading-none">{m.name}</p>
-                                                                {displayStatus === 'active' ? (
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                                                        Active
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                                                                        Expired
-                                                                    </span>
-                                                                )}
-                                                                {m.isRecurring && (
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                                                                        Recurring
-                                                                    </span>
-                                                                )}
-                                                                {m.isFreeOneYear && (
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
-                                                                        1-Yr Free
-                                                                    </span>
-                                                                )}
-                                                                {m.expiresAt === 'Never' && (
-                                                                    <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
-                                                                        Lifetime
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <p className="text-sm text-charcoal/60 font-sans italic">{m.email || 'No email address'}</p>
-                                                            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
-                                                                <span>Joined: {new Date(m.joinedAt).toLocaleDateString()}</span>
-                                                                <span>•</span>
-                                                                <span className={displayStatus === 'expired' ? 'text-red-500 font-semibold' : ''}>
-                                                                    Expires: {m.expiresAt === 'Never' ? 'Never (Lifetime)' : new Date(m.expiresAt).toLocaleDateString()}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="flex items-center gap-2 self-end sm:self-auto font-sans font-sans">
-                                                            {m.expiresAt !== 'Never' && (
-                                                                <button
-                                                                    onClick={() => handleRenewMember(m)}
-                                                                    className="px-3 py-1.5 bg-tan/10 text-tan hover:bg-tan hover:text-white rounded text-xs font-bold transition-all font-sans"
-                                                                    title="Extend membership by 1 year"
-                                                                >
-                                                                    Renew 1yr
-                                                                </button>
-                                                            )}
-                                                            <button
-                                                                onClick={() => handleToggleMemberStatus(m)}
-                                                                className={`px-3 py-1.5 border rounded text-xs font-bold transition-all ${
-                                                                    displayStatus === 'active' 
-                                                                        ? 'border-red-200 text-red-600 hover:bg-red-50 font-sans' 
-                                                                        : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-sans'
-                                                                }`}
-                                                            >
-                                                                {displayStatus === 'active' ? 'Mark Expired' : 'Mark Active'}
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleDeleteMember(m.email)}
-                                                                className="text-charcoal/40 hover:text-red-600 hover:bg-red-50 p-2 rounded transition-colors"
-                                                                title="Revoke Membership"
-                                                            >
-                                                                <Trash2 size={18} />
-                                                            </button>
-                                                        </div>
+                                                        {editingMember?.id === m.id ? (
+                                                            <form onSubmit={handleSaveMemberEdit} className="w-full space-y-4 py-2 font-sans">
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1">Name</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            required
+                                                                            value={editingMember.name}
+                                                                            onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                                                                            className="w-full bg-cream px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-1">
+                                                                            <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest">Email</label>
+                                                                            <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-charcoal/60 cursor-pointer">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={editingMemberNoEmail}
+                                                                                    onChange={(e) => {
+                                                                                        setEditingMemberNoEmail(e.target.checked);
+                                                                                        if (e.target.checked) {
+                                                                                            setEditingMember({ ...editingMember, email: '' });
+                                                                                        }
+                                                                                    }}
+                                                                                    className="rounded border-charcoal/20 text-tan focus:ring-tan/20 h-3 w-3"
+                                                                                />
+                                                                                No Email Address
+                                                                            </label>
+                                                                        </div>
+                                                                        <input
+                                                                            type="email"
+                                                                            disabled={editingMemberNoEmail}
+                                                                            value={editingMember.email}
+                                                                            onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                                                                            placeholder="e.g. member@domain.com"
+                                                                            required={!editingMemberNoEmail}
+                                                                            className="w-full bg-cream disabled:opacity-50 px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                                                    <div>
+                                                                        <div className="flex items-center justify-between mb-1">
+                                                                            <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest">Expiration Date</label>
+                                                                            <label className="inline-flex items-center gap-1 text-[11px] font-semibold text-charcoal/60 cursor-pointer">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={editingMemberIsLifetime}
+                                                                                    onChange={(e) => setEditingMemberIsLifetime(e.target.checked)}
+                                                                                    className="rounded border-charcoal/20 text-tan focus:ring-tan/20 h-3 w-3"
+                                                                                />
+                                                                                Lifetime Member
+                                                                            </label>
+                                                                        </div>
+                                                                        <input
+                                                                            type="date"
+                                                                            disabled={editingMemberIsLifetime}
+                                                                            value={editingMember.expiresAt === 'Never' ? '' : editingMember.expiresAt}
+                                                                            onChange={(e) => setEditingMember({ ...editingMember, expiresAt: e.target.value })}
+                                                                            required={!editingMemberIsLifetime}
+                                                                            className="w-full bg-cream disabled:opacity-50 px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-4 py-2">
+                                                                        <label className="inline-flex items-center gap-1.5 text-xs font-bold text-charcoal/60 cursor-pointer">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={editingMember.isRecurring || false}
+                                                                                onChange={(e) => setEditingMember({ ...editingMember, isRecurring: e.target.checked })}
+                                                                                className="rounded border-charcoal/20 text-tan focus:ring-tan/20 h-4 w-4"
+                                                                            />
+                                                                            Recurring Payment
+                                                                        </label>
+                                                                        <label className="inline-flex items-center gap-1.5 text-xs font-bold text-charcoal/60 cursor-pointer">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={editingMember.isFreeOneYear || false}
+                                                                                onChange={(e) => setEditingMember({ ...editingMember, isFreeOneYear: e.target.checked })}
+                                                                                className="rounded border-charcoal/20 text-tan focus:ring-tan/20 h-4 w-4"
+                                                                            />
+                                                                            1-Yr Free (Realtor)
+                                                                        </label>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex justify-end gap-2 pt-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingMember(null)}
+                                                                        className="px-4 py-2 border border-tan-light text-charcoal-light rounded-lg text-xs font-bold hover:bg-black/5 transition-all"
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+                                                                    <button
+                                                                        type="submit"
+                                                                        disabled={isSavingMember}
+                                                                        className="bg-tan hover:bg-charcoal text-white px-5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                                                                    >
+                                                                        {isSavingMember ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                                                        Save Changes
+                                                                    </button>
+                                                                </div>
+                                                            </form>
+                                                        ) : (
+                                                            <>
+                                                                <div className="space-y-1 font-sans">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <p className="font-semibold text-charcoal font-sans leading-none">{m.name}</p>
+                                                                        {displayStatus === 'active' ? (
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                                                Active
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                                                                                Expired
+                                                                            </span>
+                                                                        )}
+                                                                        {m.isRecurring && (
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                                                                Recurring
+                                                                            </span>
+                                                                        )}
+                                                                        {m.isFreeOneYear && (
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                                                                                1-Yr Free
+                                                                            </span>
+                                                                        )}
+                                                                        {m.expiresAt === 'Never' && (
+                                                                            <span className="text-xs font-bold uppercase tracking-wider text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                                                                Lifetime
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-sm text-charcoal/60 font-sans italic">{m.email || 'No email address'}</p>
+                                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
+                                                                        <span>Joined: {new Date(m.joinedAt).toLocaleDateString()}</span>
+                                                                        <span>•</span>
+                                                                        <span className={displayStatus === 'expired' ? 'text-red-500 font-semibold' : ''}>
+                                                                            Expires: {m.expiresAt === 'Never' ? 'Never (Lifetime)' : new Date(m.expiresAt).toLocaleDateString()}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div className="flex items-center gap-2 self-end sm:self-auto font-sans">
+                                                                    {m.expiresAt !== 'Never' && (
+                                                                        <button
+                                                                            onClick={() => handleRenewMember(m)}
+                                                                            className="px-3 py-1.5 bg-tan/10 text-tan hover:bg-tan hover:text-white rounded text-xs font-bold transition-all font-sans"
+                                                                            title="Extend membership by 1 year"
+                                                                        >
+                                                                            Renew 1yr
+                                                                        </button>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={() => handleToggleMemberStatus(m)}
+                                                                        className={`px-3 py-1.5 border rounded text-xs font-bold transition-all ${
+                                                                            displayStatus === 'active' 
+                                                                                ? 'border-red-200 text-red-600 hover:bg-red-50 font-sans' 
+                                                                                : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-sans'
+                                                                        }`}
+                                                                    >
+                                                                        {displayStatus === 'active' ? 'Mark Expired' : 'Mark Active'}
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => startEditingMember(m)}
+                                                                        className="text-charcoal/40 hover:text-tan hover:bg-tan/5 p-2 rounded transition-colors"
+                                                                        title="Edit Member Details"
+                                                                    >
+                                                                        <Pencil size={18} />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleDeleteMember(m.id, m.name)}
+                                                                        className="text-charcoal/40 hover:text-red-600 hover:bg-red-50 p-2 rounded transition-colors"
+                                                                        title="Revoke Membership"
+                                                                    >
+                                                                        <Trash2 size={18} />
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
