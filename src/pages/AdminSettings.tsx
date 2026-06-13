@@ -206,7 +206,7 @@ export function AdminSettings() {
             }
 
             const originalId = editingMember.id;
-            const idNeedsToChange = originalId !== email;
+            const idNeedsToChange = email ? (originalId !== email) : originalId.includes('@');
 
             if (idNeedsToChange) {
                 if (email) {
