@@ -70,6 +70,166 @@ export function ItemDetail() {
     const [replyText, setReplyText] = useState('');
     const [isPostingReply, setIsPostingReply] = useState(false);
 
+    const commentsByParent = useMemo(() => {
+        const map: Record<string, typeof comments> = {};
+        comments.forEach(c => {
+            if (c.parentId) {
+                if (!map[c.parentId]) {
+                    map[c.parentId] = [];
+                }
+                map[c.parentId].push(c);
+            }
+        });
+        Object.keys(map).forEach(pid => {
+            map[pid].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        });
+        return map;
+    }, [comments]);
+
+    const rootComments = useMemo(() => {
+        return comments
+            .filter(c => !c.parentId)
+            .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }, [comments]);
+
+    const renderCommentNode = (c: typeof comments[0], depth: number = 0) => {
+        const isAuthor = user && user.email && user.email.toLowerCase() === c.authorEmail.toLowerCase();
+        const canDelete = isSAHSUser || isAuthor;
+        const replies = commentsByParent[c.id] || [];
+
+        const indentClass = depth === 0 
+            ? "bg-white border border-tan-light/40 rounded-xl p-5 md:p-6 shadow-xs flex gap-5 transition-all hover:border-tan-light/70 relative group"
+            : "bg-tan-light/5 border border-tan-light/30 rounded-xl p-4 md:p-5 shadow-2xs flex gap-4 transition-all hover:border-tan-light/60 relative group";
+
+        const avatarSize = depth === 0 ? "w-12 h-12 text-base" : "w-10 h-10 text-sm";
+        const authorNameSize = depth === 0 ? "text-[15px]" : "text-[14px]";
+        const contentTextSize = depth === 0 ? "text-[15px] text-charcoal/90" : "text-[14px] text-charcoal/80";
+
+        return (
+            <div key={c.id} className="space-y-4">
+                {/* Comment Card */}
+                <div className={indentClass}>
+                    {/* Monogram Avatar */}
+                    <div className={`${avatarSize} rounded-full bg-tan/10 border border-tan/20 flex items-center justify-center shrink-0`}>
+                        <span className="font-serif font-black text-tan-dark">
+                            {c.authorName.charAt(0).toUpperCase()}
+                        </span>
+                    </div>
+
+                    {/* Content Block */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+                            <span className={`font-serif font-bold ${authorNameSize} text-charcoal truncate`}>{c.authorName}</span>
+                            
+                            {/* Role Badge */}
+                            {c.role === 'Admin' ? (
+                                <span className="bg-red-50 text-red-700 border border-red-200/50 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                    🌟 Admin
+                                </span>
+                            ) : c.role === 'Curator' ? (
+                                <span className="bg-tan/10 text-tan-dark border border-tan/20 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                    🌟 Curator
+                                </span>
+                            ) : (
+                                <span className="bg-charcoal/5 text-charcoal/70 border border-charcoal/10 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
+                                    📜 Member
+                                </span>
+                            )}
+
+                            <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-3">
+                                <span>{new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                
+                                {/* Reply Trigger Icon */}
+                                {hasResearchAccess && (
+                                    <button
+                                        onClick={() => {
+                                            if (replyingToCommentId === c.id) {
+                                                setReplyingToCommentId(null);
+                                            } else {
+                                                setReplyingToCommentId(c.id);
+                                                setReplyText('');
+                                            }
+                                        }}
+                                        className={`p-1 hover:bg-tan/10 rounded-lg text-charcoal/50 hover:text-tan transition-all flex items-center gap-1 ${
+                                            replyingToCommentId === c.id ? 'text-tan bg-tan/10' : ''
+                                        }`}
+                                        title="Reply to comment"
+                                    >
+                                        <CornerUpLeft size={14} />
+                                    </button>
+                                )}
+
+                                {canDelete && (
+                                    <button
+                                        onClick={() => handleDeleteComment(c.id)}
+                                        className="p-1 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                                        title={isAuthor ? "Delete comment" : "Moderate comment (Admin)"}
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        <p className={`${contentTextSize} font-sans leading-relaxed break-words whitespace-pre-wrap`}>
+                            {c.content}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Inline Reply Input Area for this specific comment */}
+                {replyingToCommentId === c.id && (
+                    <div className="pl-6 md:pl-10 ml-6 border-l-2 border-tan/20 animate-in slide-in-from-top-2 duration-300">
+                        <form onSubmit={(e) => handlePostReply(e, c.id)} className="bg-tan-light/10 p-5 rounded-xl border border-tan-light/50 flex gap-4 items-start">
+                            <div className="w-10 h-10 rounded-full bg-charcoal text-cream flex items-center justify-center shrink-0 font-serif font-bold text-sm">
+                                {user?.email?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 flex flex-col gap-3">
+                                <textarea
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    placeholder={`Write a reply to ${c.authorName}...`}
+                                    rows={2}
+                                    maxLength={500}
+                                    className="w-full bg-white border border-tan-light/60 p-3 rounded-lg text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-2xs text-charcoal"
+                                    required
+                                />
+                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
+                                    <span>💬 Replying as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
+                                    <div className="flex items-center gap-3">
+                                        <span>{replyText.length} / 500 characters</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setReplyingToCommentId(null)}
+                                                className="px-3 py-1.5 border border-charcoal/20 hover:bg-black/5 text-charcoal font-bold rounded-lg text-xs transition-all shadow-none animate-none"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isPostingReply || replyText.trim() === ''}
+                                                className="px-4 py-1.5 bg-gradient-to-r from-tan to-tan-dark text-white font-bold rounded-lg text-xs transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                            >
+                                                {isPostingReply ? 'Replying...' : 'Post Reply'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                )}
+
+                {/* Nested Threaded Replies */}
+                {replies.length > 0 && (
+                    <div className="pl-6 md:pl-10 border-l-2 border-tan/20 space-y-4 ml-6">
+                        {replies.map(reply => renderCommentNode(reply, depth + 1))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const handleEditLocationClick = async () => {
         setIsEditingLocation(true);
         setNewLocationId(item?.museum_location_id || '');
@@ -1426,190 +1586,7 @@ export function ItemDetail() {
                     </div>
                 ) : (
                     <div className="space-y-8 mb-10 max-w-4xl mx-auto max-h-[600px] overflow-y-auto pr-4 no-scrollbar">
-                        {(() => {
-                            const parentComments = comments.filter(c => !c.parentId);
-                            return parentComments.map(c => {
-                                const isAuthor = user && user.email && user.email.toLowerCase() === c.authorEmail.toLowerCase();
-                                const canDelete = isSAHSUser || isAuthor;
-                                const replies = comments.filter(reply => reply.parentId === c.id);
-
-                                return (
-                                    <div key={c.id} className="space-y-5 border-b border-tan-light/20 pb-6 last:border-0 last:pb-0">
-                                        {/* Parent Comment Card */}
-                                        <div className="bg-white border border-tan-light/40 rounded-xl p-5 md:p-6 shadow-xs flex gap-5 transition-all hover:border-tan-light/70 relative group">
-                                            {/* Monogram Avatar */}
-                                            <div className="w-12 h-12 rounded-full bg-tan/10 border border-tan/20 flex items-center justify-center shrink-0">
-                                                <span className="font-serif font-black text-base text-tan-dark">
-                                                    {c.authorName.charAt(0).toUpperCase()}
-                                                </span>
-                                            </div>
-
-                                            {/* Content Block */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
-                                                    <span className="font-serif font-bold text-[15px] text-charcoal truncate">{c.authorName}</span>
-                                                    
-                                                    {/* Role Badge */}
-                                                    {c.role === 'Admin' ? (
-                                                        <span className="bg-red-50 text-red-700 border border-red-200/50 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
-                                                            🌟 Admin
-                                                        </span>
-                                                    ) : c.role === 'Curator' ? (
-                                                        <span className="bg-tan/10 text-tan-dark border border-tan/20 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
-                                                            🌟 Curator
-                                                        </span>
-                                                    ) : (
-                                                        <span className="bg-charcoal/5 text-charcoal/70 border border-charcoal/10 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full font-sans">
-                                                            📜 Member
-                                                        </span>
-                                                    )}
-
-                                                    <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-3">
-                                                        <span>{new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                                        
-                                                        {/* Reply Trigger Icon */}
-                                                        {hasResearchAccess && (
-                                                            <button
-                                                                onClick={() => {
-                                                                    if (replyingToCommentId === c.id) {
-                                                                        setReplyingToCommentId(null);
-                                                                    } else {
-                                                                        setReplyingToCommentId(c.id);
-                                                                        setReplyText('');
-                                                                    }
-                                                                }}
-                                                                className={`p-1 hover:bg-tan/10 rounded-lg text-charcoal/50 hover:text-tan transition-all flex items-center gap-1 ${
-                                                                    replyingToCommentId === c.id ? 'text-tan bg-tan/10' : ''
-                                                                }`}
-                                                                title="Reply to comment"
-                                                            >
-                                                                <CornerUpLeft size={14} />
-                                                            </button>
-                                                        )}
-
-                                                        {canDelete && (
-                                                            <button
-                                                                onClick={() => handleDeleteComment(c.id)}
-                                                                className="p-1 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                                                                title={isAuthor ? "Delete comment" : "Moderate comment (Admin)"}
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <p className="text-[15px] font-sans text-charcoal/90 leading-relaxed break-words whitespace-pre-wrap">
-                                                    {c.content}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Nested Threaded Replies */}
-                                        {replies.length > 0 && (
-                                            <div className="pl-10 md:pl-14 border-l-2 border-tan/20 space-y-4 ml-6">
-                                                {replies.map(reply => {
-                                                    const isReplyAuthor = user && user.email && user.email.toLowerCase() === reply.authorEmail.toLowerCase();
-                                                    const canDeleteReply = isSAHSUser || isReplyAuthor;
-
-                                                    return (
-                                                        <div key={reply.id} className="bg-tan-light/5 border border-tan-light/30 rounded-xl p-4 md:p-5 shadow-2xs flex gap-4 transition-all hover:border-tan-light/60 relative group">
-                                                            {/* Monogram Avatar */}
-                                                            <div className="w-10 h-10 rounded-full bg-tan/10 border border-tan/20 flex items-center justify-center shrink-0">
-                                                                <span className="font-serif font-black text-sm text-tan-dark">
-                                                                    {reply.authorName.charAt(0).toUpperCase()}
-                                                                </span>
-                                                            </div>
-
-                                                            {/* Content Block */}
-                                                            <div className="flex-1 min-w-0">
-                                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1.5">
-                                                                    <span className="font-serif font-bold text-[14px] text-charcoal truncate">{reply.authorName}</span>
-                                                                    
-                                                                    {/* Role Badge */}
-                                                                    {reply.role === 'Admin' ? (
-                                                                        <span className="bg-red-50 text-red-700 border border-red-200/50 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
-                                                                            🌟 Admin
-                                                                        </span>
-                                                                    ) : reply.role === 'Curator' ? (
-                                                                        <span className="bg-tan/10 text-tan-dark border border-tan/20 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
-                                                                            🌟 Curator
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="bg-charcoal/5 text-charcoal/70 border border-charcoal/10 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full font-sans">
-                                                                            📜 Member
-                                                                        </span>
-                                                                    )}
-
-                                                                    <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-2">
-                                                                        <span>{new Date(reply.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                                                        {canDeleteReply && (
-                                                                            <button
-                                                                                onClick={() => handleDeleteComment(reply.id)}
-                                                                                className="p-1 hover:bg-red-50 rounded-lg text-charcoal/40 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100 shrink-0"
-                                                                                title={isReplyAuthor ? "Delete reply" : "Moderate reply (Admin)"}
-                                                                            >
-                                                                                <Trash2 size={13} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                                <p className="text-[14px] font-sans text-charcoal/80 leading-relaxed break-words whitespace-pre-wrap">
-                                                                    {reply.content}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-
-                                        {/* Inline Reply Input Area */}
-                                        {replyingToCommentId === c.id && (
-                                            <div className="pl-10 md:pl-14 ml-6 border-l-2 border-tan/20 animate-in slide-in-from-top-2 duration-300">
-                                                <form onSubmit={(e) => handlePostReply(e, c.id)} className="bg-tan-light/10 p-5 rounded-xl border border-tan-light/50 flex gap-4 items-start">
-                                                    <div className="w-10 h-10 rounded-full bg-charcoal text-cream flex items-center justify-center shrink-0 font-serif font-bold text-sm">
-                                                        {user?.email?.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="flex-1 flex flex-col gap-3">
-                                                        <textarea
-                                                            value={replyText}
-                                                            onChange={(e) => setReplyText(e.target.value)}
-                                                            placeholder={`Write a reply to ${c.authorName}...`}
-                                                            rows={2}
-                                                            maxLength={500}
-                                                            className="w-full bg-white border border-tan-light/60 p-3 rounded-lg text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-2xs"
-                                                            required
-                                                        />
-                                                        <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
-                                                            <span>💬 Replying as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
-                                                            <div className="flex items-center gap-3">
-                                                                    <span>{replyText.length} / 500 characters</span>
-                                                                <div className="flex gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setReplyingToCommentId(null)}
-                                                                        className="px-3 py-1.5 border border-charcoal/20 hover:bg-black/5 text-charcoal font-bold rounded-lg text-xs transition-all"
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-                                                                    <button
-                                                                        type="submit"
-                                                                        disabled={isPostingReply || replyText.trim() === ''}
-                                                                        className="px-4 py-1.5 bg-gradient-to-r from-tan to-tan-dark text-white font-bold rounded-lg text-xs transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                                                                    >
-                                                                        {isPostingReply ? 'Replying...' : 'Post Reply'}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </form>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            });
-                        })()}
+                        {rootComments.map(c => renderCommentNode(c))}
                     </div>
                 )}
 
