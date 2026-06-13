@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db } from '../lib/firebase';
+import { db, defaultDb } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
@@ -438,8 +438,10 @@ export function MyResearch() {
             await updateDoc(folderRef, { sharedWith: newSharedWith });
             
             // Trigger collaborative email notification
-            await addDoc(collection(db, 'mail'), {
+            await addDoc(collection(defaultDb, 'mail'), {
                 to: emailToShare,
+                from: "Senoia Area Historical Society <noreply@senoiahistory.com>",
+                ownerEmail: user.email.toLowerCase(),
                 message: {
                     subject: `SAHS Archives: Collaborative Folder Shared!`,
                     text: `${user.email} has shared the research folder "${sharingFolder.name}"${sharingFolder.description ? ` (${sharingFolder.description})` : ''} with you. Visit your SAHS Archives Research Workspace to collaborate!`,
