@@ -609,7 +609,7 @@ export function MyResearch() {
                                         <span className="text-3xl transition-transform group-hover:scale-110 duration-300">
                                             {isSelected ? '📂' : '📁'}
                                         </span>
-                                        <div>
+                                        <div className="min-w-0">
                                             <h3 className="font-serif font-bold text-lg text-charcoal leading-tight break-words">
                                                 {folder.name}
                                             </h3>
@@ -623,11 +623,14 @@ export function MyResearch() {
                                                     </p>
                                                 )}
                                                 {!isOwner ? (
-                                                    <span className="text-[9px] font-bold text-tan-dark bg-tan/10 px-1.5 py-0.5 rounded w-max mt-1">
+                                                    <span 
+                                                        className="text-[9px] font-bold text-tan-dark bg-tan/10 px-1.5 py-0.5 rounded max-w-full block truncate mt-1"
+                                                        title={`Shared by: ${folder.ownerEmail}`}
+                                                    >
                                                         Shared by: {folder.ownerEmail}
                                                     </span>
                                                 ) : folder.sharedWith.length > 0 ? (
-                                                    <span className="text-[9px] font-bold text-charcoal bg-charcoal/5 px-1.5 py-0.5 rounded w-max mt-1 flex items-center gap-1">
+                                                    <span className="text-[9px] font-bold text-charcoal bg-charcoal/5 px-1.5 py-0.5 rounded w-fit mt-1 flex items-center gap-1">
                                                         <Users size={10} /> Collaborative ({folder.sharedWith.length})
                                                     </span>
                                                 ) : null}
