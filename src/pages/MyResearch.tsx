@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db, defaultDb } from '../lib/firebase';
-import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem } from '../types/database';
@@ -433,6 +433,38 @@ export function MyResearch() {
 
         setIsSharing(true);
         try {
+            // Verify if the recipient email has research access (is staff or registered member)
+            const isStaffDomain = emailToShare.endsWith('@senoiahistory.com');
+            let isAuthorized = isStaffDomain;
+
+            if (!isAuthorized) {
+                try {
+                    const roleDoc = await getDoc(doc(db, 'user_roles', emailToShare));
+                    if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
+                        isAuthorized = true;
+                    }
+                } catch (err) {
+                    console.warn("Could not check user_roles:", err);
+                }
+            }
+
+            if (!isAuthorized) {
+                try {
+                    const memberDoc = await getDoc(doc(db, 'members', emailToShare));
+                    if (memberDoc.exists()) {
+                        isAuthorized = true;
+                    }
+                } catch (err) {
+                    console.warn("Could not check members:", err);
+                }
+            }
+
+            if (!isAuthorized) {
+                showToast("Failed to share: This email is not a registered member or staff curator.");
+                setIsSharing(false);
+                return;
+            }
+
             const folderRef = doc(db, 'research_folders', sharingFolder.id);
             const newSharedWith = [...sharingFolder.sharedWith, emailToShare];
             await updateDoc(folderRef, { sharedWith: newSharedWith });

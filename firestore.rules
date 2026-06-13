@@ -24,7 +24,8 @@ service cloud.firestore {
 
     // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles
     match /user_roles/{email} {
-      allow read: if isSAHSUser();
+      allow get: if request.auth != null;
+      allow list: if isSAHSUser();
       allow write: if request.auth != null && (
         request.auth.token.email.lower() == 'catnolan@senoiahistory.com' ||
         request.auth.token.email.lower() == 'jeremywarren@senoiahistory.com'
@@ -82,7 +83,8 @@ service cloud.firestore {
 
     // members collection: SAHS curators/admins can manage all, individuals can read their own membership status
     match /members/{email} {
-      allow read: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+      allow get: if request.auth != null;
+      allow list: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
