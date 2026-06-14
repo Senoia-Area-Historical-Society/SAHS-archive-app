@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
-import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen } from 'lucide-react';
+import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen, Edit2 } from 'lucide-react';
 import type { MuseumLocation, ArchiveItem, LibraryBook } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
@@ -54,6 +54,13 @@ export function LocationDetail() {
     const [newParentShelfId, setNewParentShelfId] = useState('');
     const [availableShelves, setAvailableShelves] = useState<MuseumLocation[]>([]);
     const [isMovingBox, setIsMovingBox] = useState(false);
+
+    // Edit Box State
+    const [isEditBoxModalOpen, setIsEditBoxModalOpen] = useState(false);
+    const [editBoxName, setEditBoxName] = useState('');
+    const [editBoxId, setEditBoxId] = useState('');
+    const [editBoxDesc, setEditBoxDesc] = useState('');
+    const [isEditingBox, setIsEditingBox] = useState(false);
 
     // Bulk Relocate State
     const [isBulkSelectActive, setIsBulkSelectActive] = useState(false);
@@ -593,6 +600,128 @@ export function LocationDetail() {
         }
     };
 
+    const openEditBoxModal = () => {
+        if (!locationData) return;
+        setEditBoxName(locationData.name);
+        setEditBoxId(locationData.id);
+        setEditBoxDesc(locationData.description || '');
+        setIsEditBoxModalOpen(true);
+    };
+
+    const handleEditBox = async () => {
+        if (!locationData?.docId || !editBoxName || !editBoxId) return;
+        setIsEditingBox(true);
+        try {
+            const sanitizedId = editBoxId.toLowerCase().replace(/\s+/g, '-').trim();
+            const originalId = locationData.id;
+            const idChanged = sanitizedId !== originalId;
+
+            if (idChanged) {
+                // Check if the new unique ID is already in use by another location
+                const checkQ = query(collection(db, 'locations'), where('id', '==', sanitizedId));
+                const checkSnap = await getDocs(checkQ);
+                const duplicateExists = checkSnap.docs.some(doc => doc.id !== locationData.docId);
+                if (duplicateExists) {
+                    alert(`The Unique ID "${sanitizedId}" is already in use by another location. Please choose a different slug.`);
+                    setIsEditingBox(false);
+                    return;
+                }
+            }
+
+            const batch = writeBatch(db);
+            const now = new Date().toISOString();
+            const adminEmail = user?.email || 'Admin';
+
+            // Stage box location document updates
+            const boxRef = doc(db, 'locations', locationData.docId);
+            batch.update(boxRef, {
+                id: sanitizedId,
+                name: editBoxName,
+                description: editBoxDesc
+            });
+
+            if (idChanged) {
+                // Query and stage updates for archive items
+                const qItems = query(
+                    collection(db, 'archive_items'),
+                    where('museum_location_ids', 'array-contains', originalId)
+                );
+                const qItemsLegacy = query(
+                    collection(db, 'archive_items'),
+                    where('museum_location_id', '==', originalId)
+                );
+                
+                const [snapItems, snapItemsLegacy] = await Promise.all([
+                    getDocs(qItems),
+                    getDocs(qItemsLegacy)
+                ]);
+
+                const itemsToUpdate = new Map<string, ArchiveItem>();
+                snapItems.docs.forEach(doc => {
+                    itemsToUpdate.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                });
+                snapItemsLegacy.docs.forEach(doc => {
+                    itemsToUpdate.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                });
+
+                itemsToUpdate.forEach((item, itemId) => {
+                    const itemRef = doc(db, 'archive_items', itemId);
+                    const currentIds = item.museum_location_ids || [];
+                    const newIds = currentIds.map(lid => lid === originalId ? sanitizedId : lid);
+                    
+                    const updates: any = {
+                        museum_location_ids: newIds,
+                        last_tagged_at: now,
+                        last_tagged_by: adminEmail
+                    };
+
+                    if (item.museum_location_id === originalId) {
+                        updates.museum_location_id = sanitizedId;
+                    }
+
+                    batch.update(itemRef, updates);
+                });
+
+                // Query and stage updates for library books
+                const qBooks = query(
+                    collection(db, 'library_books'),
+                    where('museum_location_ids', 'array-contains', originalId)
+                );
+                const snapBooks = await getDocs(qBooks);
+                
+                snapBooks.docs.forEach(bookDoc => {
+                    const bookData = bookDoc.data() as LibraryBook;
+                    const bookRef = doc(db, 'library_books', bookDoc.id);
+                    const currentIds = bookData.museum_location_ids || [];
+                    const newIds = currentIds.map(lid => lid === originalId ? sanitizedId : lid);
+
+                    batch.update(bookRef, {
+                        museum_location_ids: newIds,
+                        updated_at: now,
+                        updated_by_email: adminEmail
+                    });
+                });
+            }
+
+            await batch.commit();
+
+            // Reset modal states
+            setIsEditBoxModalOpen(false);
+            
+            // Redirect / Reload if slug changed
+            if (idChanged) {
+                navigate(`/locations/${sanitizedId}`, { replace: true });
+            } else {
+                setLocationData(prev => prev ? { ...prev, name: editBoxName, description: editBoxDesc } : null);
+            }
+        } catch (error) {
+            console.error("Error editing box:", error);
+            alert("Failed to edit box. Please check your permissions.");
+        } finally {
+            setIsEditingBox(false);
+        }
+    };
+
     const fetchMuseumLocations = async () => {
         try {
             const q = query(collection(db, 'locations'));
@@ -855,6 +984,13 @@ export function LocationDetail() {
                                         title="Delete Box"
                                     >
                                         <Trash2 size={18} />
+                                    </button>
+                                    <button 
+                                        onClick={openEditBoxModal}
+                                        className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                        title="Edit Box"
+                                    >
+                                        <Edit2 size={18} /> Edit Box
                                     </button>
                                     <button 
                                         onClick={openMoveBoxModal}
@@ -1157,6 +1293,72 @@ export function LocationDetail() {
                                 className="w-full bg-tan text-white py-3 rounded-xl font-bold shadow-lg shadow-tan/20 hover:bg-charcoal transition-all disabled:opacity-50 mt-4"
                             >
                                 {isMovingBox ? 'Moving...' : 'Move Box & Artifacts'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Box Modal */}
+            {isEditBoxModalOpen && (
+                <div className="fixed inset-0 z-[2000] bg-charcoal/90 overflow-y-auto p-4 flex justify-center items-start sm:items-center">
+                    <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 my-8 sm:my-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
+                                <Box className="text-tan" size={24}/> Edit Nested Box
+                            </h2>
+                            <button onClick={() => setIsEditBoxModalOpen(false)} className="text-charcoal/40 hover:text-charcoal"><X size={24}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Box Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. Box 14"
+                                    value={editBoxName}
+                                    onChange={e => setEditBoxName(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="e.g. box-14"
+                                    value={editBoxId}
+                                    onChange={e => setEditBoxId(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
+                                />
+                            </div>
+                            
+                            {locationData && editBoxId.toLowerCase().replace(/\s+/g, '-').trim() !== locationData.id && (
+                                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex flex-col gap-2 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-2 font-bold text-sm">
+                                        <AlertCircle size={18} className="shrink-0" />
+                                        <span>Warning: Slug Changing</span>
+                                    </div>
+                                    <p className="text-xs leading-relaxed font-sans">
+                                        Changing the Unique ID (Slug) will update references in all {items.length} artifacts and {books.length} books in this box, but **any existing printed QR codes for this box will stop working and must be reprinted**.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Description</label>
+                                <textarea 
+                                    placeholder="Add detail about what is housed in this box..."
+                                    value={editBoxDesc}
+                                    onChange={e => setEditBoxDesc(e.target.value)}
+                                    className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans text-sm resize-none"
+                                    rows={3}
+                                />
+                            </div>
+                            <button 
+                                onClick={handleEditBox}
+                                disabled={isEditingBox || !editBoxName || !editBoxId}
+                                className="w-full bg-tan text-white py-3 rounded-xl font-bold shadow-lg shadow-tan/20 hover:bg-charcoal transition-all disabled:opacity-50 mt-4 font-sans"
+                            >
+                                {isEditingBox ? 'Saving...' : 'Save Changes'}
                             </button>
                         </div>
                     </div>
