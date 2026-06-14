@@ -26,6 +26,7 @@ export function LocationDetail() {
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [printScope, setPrintScope] = useState<'direct' | 'all' | 'nested-boxes'>('direct');
     const [printFilter, setPrintFilter] = useState<'all' | 'no-qr'>('all');
+    const [printLabelSize, setPrintLabelSize] = useState<'small' | 'medium' | 'large'>('small');
 
     // Selection/Search State
     const [searchQuery, setSearchQuery] = useState('');
@@ -1932,6 +1933,58 @@ export function LocationDetail() {
                             </div>
                         )}
 
+                        {/* Size Selector */}
+                        <div className="space-y-3">
+                            <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Label Print Size</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setPrintLabelSize('small')}
+                                    className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                        printLabelSize === 'small' 
+                                            ? 'bg-tan/10 border-tan shadow-sm' 
+                                            : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                    }`}
+                                >
+                                    <span className="font-bold text-xs text-charcoal leading-tight flex items-center justify-between">
+                                        Small
+                                        <span className="bg-tan/20 text-tan text-[9px] font-bold py-0.5 px-1 rounded-full">1.5" × 1.5"</span>
+                                    </span>
+                                    <span className="text-[10px] text-charcoal/50 leading-tight">Compact tags. Ideal for small items or tight display spaces.</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPrintLabelSize('medium')}
+                                    className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                        printLabelSize === 'medium' 
+                                            ? 'bg-tan/10 border-tan shadow-sm' 
+                                            : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                    }`}
+                                >
+                                    <span className="font-bold text-xs text-charcoal leading-tight flex items-center justify-between">
+                                        Medium
+                                        <span className="bg-tan/20 text-tan text-[9px] font-bold py-0.5 px-1 rounded-full">2.25" × 2.25"</span>
+                                    </span>
+                                    <span className="text-[10px] text-charcoal/50 leading-tight">Standard size. Balanced scan distance and label space.</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPrintLabelSize('large')}
+                                    className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col justify-between h-28 ${
+                                        printLabelSize === 'large' 
+                                            ? 'bg-tan/10 border-tan shadow-sm' 
+                                            : 'bg-white border-tan-light/30 hover:border-tan/50'
+                                    }`}
+                                >
+                                    <span className="font-bold text-xs text-charcoal leading-tight flex items-center justify-between">
+                                        Large
+                                        <span className="bg-tan/20 text-tan text-[9px] font-bold py-0.5 px-1 rounded-full">3" × 3"</span>
+                                    </span>
+                                    <span className="text-[10px] text-charcoal/50 leading-tight">High visibility. Best for external box labeling and quick scanning.</span>
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Summary Card */}
                         <div className="bg-cream/40 border border-tan-light/30 rounded-2xl p-4 flex items-center justify-between text-charcoal">
                             <div className="text-sm">
@@ -1946,6 +1999,10 @@ export function LocationDetail() {
                                             Filter: <span className="font-semibold text-charcoal">{printFilter === 'no-qr' ? 'Unlabeled items only' : 'All items'}</span>
                                         </>
                                     )}
+                                    <br />
+                                    Size: <span className="font-semibold text-charcoal">
+                                        {printLabelSize === 'small' ? 'Small (1.5" × 1.5")' : printLabelSize === 'medium' ? 'Medium (2.25" × 2.25")' : 'Large (3" × 3")'}
+                                    </span>
                                 </p>
                             </div>
                             <div className="text-right">
@@ -2150,24 +2207,43 @@ export function LocationDetail() {
                     {locationData.name} {printScope === 'all' ? '(With Nested Boxes)' : printScope === 'nested-boxes' ? '(Nested Box Tags)' : ''} - Asset Tags
                 </h1>
                 <p className="text-sm m-0 text-gray-500">
-                    Inventory Label Sheet &bull; Scope: {printScope === 'all' ? 'Everything' : printScope === 'nested-boxes' ? 'Nested Box Tags' : 'Shelf Only'} &bull; Filter: {printScope === 'nested-boxes' ? 'N/A' : printFilter === 'no-qr' ? 'Unlabeled Only' : 'All'} &bull; Generated {new Date().toLocaleDateString()}
+                    Inventory Label Sheet &bull; Scope: {printScope === 'all' ? 'Everything' : printScope === 'nested-boxes' ? 'Nested Box Tags' : 'Shelf Only'} &bull; Filter: {printScope === 'nested-boxes' ? 'N/A' : printFilter === 'no-qr' ? 'Unlabeled Only' : 'All'} &bull; Size: {printLabelSize === 'small' ? 'Small (1.5"×1.5")' : printLabelSize === 'medium' ? 'Medium (2.25"×2.25")' : 'Large (3"×3")'} &bull; Generated {new Date().toLocaleDateString()}
                 </p>
             </div>
             
-            {/* Grid layout ensuring ~1.5 inch squares fit tightly across paper width */}
+            {/* Grid layout ensuring squares fit tightly across paper width */}
             <div className="flex flex-wrap gap-[0.2in] justify-center items-center text-center">
-                {labelsToPrint.map(label => (
-                    <div key={label.key} className="flex flex-col items-center justify-center p-2 border border-gray-400 w-[1.5in] h-[1.5in] bg-white break-inside-avoid">
-                        <QRCodeSVG 
-                            value={label.qrValue} 
-                            size={96} // Exactly 1 inch optical scale on 96dpi output
-                            level="L"
-                            includeMargin={false}
-                        />
-                        <span className="text-[10px] font-bold mt-[0.1in] truncate w-full px-1">{label.title}</span>
-                        <span className="text-[8px] mt-0.5 text-gray-600 font-mono tracking-tighter truncate w-full px-1">{label.subtitle}</span>
-                    </div>
-                ))}
+                {labelsToPrint.map(label => {
+                    let containerClass = "w-[1.5in] h-[1.5in] p-2";
+                    let qrSize = 96;
+                    let titleClass = "text-[10px] font-bold mt-[0.1in] truncate w-full px-1";
+                    let subtitleClass = "text-[8px] mt-0.5 text-gray-600 font-mono tracking-tighter truncate w-full px-1";
+
+                    if (printLabelSize === 'medium') {
+                        containerClass = "w-[2.25in] h-[2.25in] p-3";
+                        qrSize = 144;
+                        titleClass = "text-[13px] font-bold mt-[0.125in] truncate w-full px-1";
+                        subtitleClass = "text-[10px] mt-1 text-gray-600 font-mono tracking-tighter truncate w-full px-1";
+                    } else if (printLabelSize === 'large') {
+                        containerClass = "w-[3in] h-[3in] p-4";
+                        qrSize = 192;
+                        titleClass = "text-[16px] font-bold mt-[0.15in] truncate w-full px-1";
+                        subtitleClass = "text-[11px] mt-1 text-gray-600 font-mono tracking-tighter truncate w-full px-1";
+                    }
+
+                    return (
+                        <div key={label.key} className={`flex flex-col items-center justify-center border border-gray-400 bg-white break-inside-avoid ${containerClass}`}>
+                            <QRCodeSVG 
+                                value={label.qrValue} 
+                                size={qrSize} 
+                                level="L"
+                                includeMargin={false}
+                            />
+                            <span className={titleClass}>{label.title}</span>
+                            <span className={subtitleClass}>{label.subtitle}</span>
+                        </div>
+                    );
+                })}
             </div>
         </div>
         </>
