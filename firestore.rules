@@ -14,6 +14,21 @@ service cloud.firestore {
         );
     }
 
+    // Helper function to check if user is an active member
+    function isActiveMember() {
+      return request.auth != null && 
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/members/$(request.auth.token.email.lower())) &&
+        get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.status == 'active' &&
+        (
+          get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.expiresAt == 'Never' ||
+          get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.expiresAt >= 
+            string(request.time.year()) + '-' + 
+            (request.time.month() < 10 ? '0' + string(request.time.month()) : string(request.time.month())) + '-' + 
+            (request.time.day() < 10 ? '0' + string(request.time.day()) : string(request.time.day()))
+        );
+    }
+
     // Helper function to check if user has access to a folder
     function isFolderOwnerOrCollaborator(folderId, userEmail) {
       return exists(/databases/$(database)/documents/research_folders/$(folderId)) && (
@@ -38,12 +53,18 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
+    // library_books collection: Anyone can read, only SAHS users can write
+    match /library_books/{bookId} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
     // comments subcollection under archive_items: Everyone can read, only active members and curators can post
     match /archive_items/{itemId}/comments/{commentId} {
       allow read: if true;
       allow create: if request.auth != null && (
         isSAHSUser() || 
-        exists(/databases/$(database)/documents/members/$(request.auth.token.email.lower()))
+        isActiveMember()
       );
       allow delete: if isSAHSUser() || (
         request.auth != null && 
@@ -107,18 +128,18 @@ service cloud.firestore {
         )
       );
       allow create: if isSAHSUser() || (
-        request.auth != null && 
+        isActiveMember() && 
         request.resource.data.ownerEmail != null &&
         request.resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow update: if isSAHSUser() || (
-        request.auth != null && (
+        isActiveMember() && (
           (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || 
           (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
         )
       );
       allow delete: if isSAHSUser() || (
-        request.auth != null && 
+        isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
       );
@@ -138,17 +159,17 @@ service cloud.firestore {
         )
       );
       allow create: if isSAHSUser() || (
-        request.auth != null && 
+        isActiveMember() && 
         request.resource.data.ownerEmail != null &&
         request.resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow update: if isSAHSUser() || (
-        request.auth != null && 
+        isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
       );
       allow delete: if isSAHSUser() || (
-        request.auth != null && 
+        isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
       );
@@ -167,9 +188,9 @@ service cloud.firestore {
     // Root-level personal_pins: Only the owner can read/write their personal pins
     match /personal_pins/{pinId} {
       allow read: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
-      allow create: if request.auth != null && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
-      allow update: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower() && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
-      allow delete: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
+      allow create: if (isSAHSUser() || isActiveMember()) && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow update: if (isSAHSUser() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower() && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow delete: if (isSAHSUser() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
     }
 
     // Default deny for everything else

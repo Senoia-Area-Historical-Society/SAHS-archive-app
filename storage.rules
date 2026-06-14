@@ -37,6 +37,12 @@ service firebase.storage {
       allow write: if isSAHSUser();
     }
 
+    // library_covers folder: Everyone can read, only SAHS users can write
+    match /library_covers/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSAHSUser();
+    }
+
     // site_assets folder: Everyone can read, only SAHS users can write
     match /site_assets/{allPaths=**} {
       allow read: if true;

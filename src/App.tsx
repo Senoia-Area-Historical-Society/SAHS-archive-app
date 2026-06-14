@@ -31,6 +31,12 @@ const MyResearchMap = lazy(() => import('./pages/MyResearchMap').then(m => ({ de
 const MembershipStatus = lazy(() => import('./pages/MembershipStatus').then(m => ({ default: m.MembershipStatus })));
 const Notifications = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })));
 
+// Book Library System Pages
+const LibraryBrowse = lazy(() => import('./pages/LibraryBrowse').then(m => ({ default: m.LibraryBrowse })));
+const LibraryDetail = lazy(() => import('./pages/LibraryDetail').then(m => ({ default: m.LibraryDetail })));
+const AddBook = lazy(() => import('./pages/AddBook').then(m => ({ default: m.AddBook })));
+const EditBook = lazy(() => import('./pages/EditBook'));
+
 function PageWrapper() {
   return (
     <div className="flex-1 p-4 sm:p-6 md:p-8 lg:p-12 max-w-screen-2xl mx-auto w-full">
@@ -113,6 +119,10 @@ function App() {
                 <Route path="senoia-stories" element={<SenoiaStories />} />
                 <Route path="collections" element={<Collections />} />
                 <Route path="collections/:id" element={<CollectionDetail />} />
+                
+                {/* Book Library Routes */}
+                <Route path="library" element={<LibraryBrowse />} />
+                <Route path="library/:id" element={<LibraryDetail />} />
 
                 {/* Authentication and Admin routes */}
                 <Route path="items/:id" element={<ItemDetail />} />
@@ -126,6 +136,8 @@ function App() {
                 <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
                 <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
                 <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
+                <Route path="library/add" element={<ProtectedRoute><AddBook /></ProtectedRoute>} />
+                <Route path="library/edit/:id" element={<ProtectedRoute><EditBook /></ProtectedRoute>} />
                 <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
                 <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
                 <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />

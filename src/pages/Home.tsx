@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, Facebook, Youtube, Share2 } from 'lucide-react';
+import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, Facebook, Youtube, Share2, BookOpen } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -143,6 +143,13 @@ export function Home() {
                         >
                             <Box size={24} />
                             View Artifacts
+                        </Link>
+                        <Link
+                            to="/library"
+                            className="flex items-center gap-3 bg-cream/20 backdrop-blur-md text-white border border-white/30 px-8 py-4 rounded-xl font-bold text-lg hover:bg-white hover:text-charcoal transition-all shadow-lg"
+                        >
+                            <BookOpen size={24} />
+                            Book Library
                         </Link>
                     </div>
                 </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell, QrCode } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell, QrCode, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
@@ -172,6 +172,9 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             <Link to="/archive?type=Artifact" className={getTypeClass('Artifact')} onClick={handleLinkClick}>
                                 <Box size={20} /> Artifact Collection
                             </Link>
+                            <NavLink to="/library" className={navLinkClass} onClick={handleLinkClick}>
+                                <BookOpen size={20} /> Book Library
+                            </NavLink>
                         </nav>
                     </div>
 
@@ -275,6 +278,9 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                     <>
                                         <NavLink to="/add-item" className={navLinkClass} onClick={handleLinkClick}>
                                             <Upload size={20} /> Add Archive Item
+                                        </NavLink>
+                                        <NavLink to="/library/add" className={navLinkClass} onClick={handleLinkClick}>
+                                            <BookOpen size={20} /> Add Library Book
                                         </NavLink>
                                         {isSAHSUser && (
                                             <NavLink to="/audit" className={navLinkClass} onClick={handleLinkClick}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Star, Upload, Image as ImageIcon, Save, Check, Users, UserCheck, CalendarClock, Search, Pencil, X } from 'lucide-react';
+import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Star, Upload, Image as ImageIcon, Save, Check, Users, UserCheck, CalendarClock, Search, Pencil, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -52,6 +52,7 @@ export function AdminSettings() {
     const [newMemberNoEmail, setNewMemberNoEmail] = useState(false);
     const [isSubmittingMember, setIsSubmittingMember] = useState(false);
     const [memberSearchQuery, setMemberSearchQuery] = useState('');
+    const [showExpiredPanel, setShowExpiredPanel] = useState(false);
     
     // Editing Member State
     const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -666,11 +667,14 @@ export function AdminSettings() {
                             </div>
                         </div>
 
-                        <div className="bg-white border border-tan-light/50 p-6 rounded-2xl shadow-sm flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                        <button
+                            onClick={() => setShowExpiredPanel(v => !v)}
+                            className={`bg-white border p-6 rounded-2xl shadow-sm flex items-center gap-4 w-full text-left transition-all hover:shadow-md hover:border-red-200 group ${showExpiredPanel ? 'border-red-300 ring-2 ring-red-100' : 'border-tan-light/50'}`}
+                        >
+                            <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
                                 <CalendarClock size={24} />
                             </div>
-                            <div>
+                            <div className="flex-1 min-w-0">
                                 <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider font-sans">Expired Memberships</p>
                                 <p className="text-3xl font-serif font-bold text-charcoal">
                                     {members.filter(m => {
@@ -679,8 +683,60 @@ export function AdminSettings() {
                                     }).length}
                                 </p>
                             </div>
-                        </div>
+                            <div className="text-red-400 group-hover:text-red-600 transition-colors flex-shrink-0">
+                                {showExpiredPanel ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                            </div>
+                        </button>
                     </div>
+
+                    {/* Expired Members Panel */}
+                    {showExpiredPanel && (() => {
+                        const expiredMembers = members.filter(m => {
+                            const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
+                            return m.status === 'expired' || isExpired;
+                        });
+                        return (
+                            <div className="bg-white border border-red-200 rounded-2xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="px-6 py-4 border-b border-red-100 bg-red-50/50 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarClock size={18} className="text-red-500" />
+                                        <h3 className="font-bold text-charcoal font-sans text-sm uppercase tracking-wider">Expired Memberships</h3>
+                                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">{expiredMembers.length}</span>
+                                    </div>
+                                    <button onClick={() => setShowExpiredPanel(false)} className="text-charcoal/40 hover:text-charcoal transition-colors">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                {expiredMembers.length === 0 ? (
+                                    <div className="p-8 text-center text-charcoal/40 font-sans text-sm">
+                                        <UserCheck size={28} className="mx-auto mb-2 opacity-40" />
+                                        No expired memberships — everyone is current!
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-red-50">
+                                        {expiredMembers.map(m => {
+                                            const expiredDate = m.expiresAt !== 'Never' ? new Date(m.expiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown';
+                                            return (
+                                                <div key={m.id} className="px-6 py-3 flex items-center justify-between gap-4 hover:bg-red-50/30 transition-colors">
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold text-charcoal text-sm font-sans truncate">{m.name}</p>
+                                                        {m.email && <p className="text-xs text-charcoal/50 font-sans truncate">{m.email}</p>}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] font-bold text-charcoal/40 uppercase tracking-wider font-sans">Expired</p>
+                                                            <p className="text-xs font-semibold text-red-600 font-sans">{expiredDate}</p>
+                                                        </div>
+                                                        <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Expired</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Add Member Form */}

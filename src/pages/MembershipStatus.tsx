@@ -260,6 +260,13 @@ export function MembershipStatus() {
                                     <p className="text-xs text-charcoal/60 mt-0.5">Drop personal bookmarks and custom geolocated research notes across historical blueprints.</p>
                                 </div>
                             </li>
+                            <li className="flex items-start gap-3">
+                                <CheckCircle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                                <div>
+                                    <span className="font-bold text-charcoal">Archival Image Downloads</span>
+                                    <p className="text-xs text-charcoal/60 mt-0.5">Download high-resolution historical photographs and scanned documents directly to your local device.</p>
+                                </div>
+                            </li>
                         </ul>
                     </div>
 

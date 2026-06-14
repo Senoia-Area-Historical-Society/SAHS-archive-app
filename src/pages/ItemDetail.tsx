@@ -1,8 +1,9 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, QrCode, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
+import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -1677,6 +1678,34 @@ export function ItemDetail() {
                     )}
                 </div>
             </div>
+
+            {isSAHSUser && (item.item_type === 'Artifact' || item.item_type === 'Document') && (
+                <div className="mt-16 pt-12 border-t border-tan-light/50 w-full max-w-4xl mx-auto flex flex-col items-center sm:items-start animate-in fade-in duration-300">
+                    <h3 className="text-2xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
+                        <QrCode className="text-tan" size={24} />
+                        Museum Tracking QR Code
+                    </h3>
+                    <div className="bg-white border border-tan-light/50 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
+                        <div className="bg-white p-2 rounded-xl border border-tan-light/20 shadow-sm shrink-0">
+                            <QRCodeDisplay 
+                                value={`${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`} 
+                                label={item.title} 
+                                subLabel={item.artifact_id || item.id}
+                                size={140}
+                            />
+                        </div>
+                        <div className="text-center sm:text-left space-y-2">
+                            <p className="text-base font-bold text-charcoal">Physical Archival Tag</p>
+                            <p className="text-xs text-charcoal/60 leading-relaxed max-w-md">
+                                This QR code links directly to this {item.item_type.toLowerCase()}'s digital record. You can click the card to expand, download a high-resolution PNG image, or print a professional physical label.
+                            </p>
+                            <span className="inline-block bg-tan/10 text-tan text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider font-sans">
+                                Curator / Admin Privilege
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Bookmark Modal */}
             {isBookmarkModalOpen && (

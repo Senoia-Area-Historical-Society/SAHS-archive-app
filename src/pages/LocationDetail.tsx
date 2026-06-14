@@ -5,8 +5,8 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
-import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2 } from 'lucide-react';
-import type { MuseumLocation, ArchiveItem } from '../types/database';
+import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen } from 'lucide-react';
+import type { MuseumLocation, ArchiveItem, LibraryBook } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 export function LocationDetail() {
@@ -17,6 +17,8 @@ export function LocationDetail() {
     const [childBoxes, setChildBoxes] = useState<MuseumLocation[]>([]);
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [nestedItems, setNestedItems] = useState<ArchiveItem[]>([]);
+    const [books, setBooks] = useState<LibraryBook[]>([]);
+    const [activeDisplayTab, setActiveDisplayTab] = useState<'artifacts' | 'books'>('artifacts');
     const [loading, setLoading] = useState(true);
     const { isSAHSUser, user } = useAuth();
 
@@ -135,6 +137,16 @@ export function LocationDetail() {
             const itemsData = Array.from(itemsMap.values());
             itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
             setItems(itemsData);
+
+            // Fetch library books at this location
+            const qBooks = query(
+                collection(db, 'library_books'),
+                where('museum_location_ids', 'array-contains', id)
+            );
+            const booksSnapshot = await getDocs(qBooks);
+            const booksData = booksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryBook));
+            booksData.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+            setBooks(booksData);
 
             // Fetch items for nested child boxes
             if (childBoxesData.length > 0) {
@@ -1174,50 +1186,129 @@ export function LocationDetail() {
                 </div>
             )}
 
+            {/* Tab Selector */}
+            <div className="flex border-b border-tan-light/35 mb-8 gap-8">
+                <button
+                    onClick={() => setActiveDisplayTab('artifacts')}
+                    className={`pb-3 font-serif font-bold text-lg border-b-2 transition-all flex items-center gap-2 outline-none ${activeDisplayTab === 'artifacts' ? 'border-tan text-charcoal' : 'border-transparent text-charcoal/40 hover:text-charcoal/60'}`}
+                >
+                    <Box size={18} />
+                    Archive Items ({items.length})
+                </button>
+                <button
+                    onClick={() => setActiveDisplayTab('books')}
+                    className={`pb-3 font-serif font-bold text-lg border-b-2 transition-all flex items-center gap-2 outline-none ${activeDisplayTab === 'books' ? 'border-tan text-charcoal' : 'border-transparent text-charcoal/40 hover:text-charcoal/60'}`}
+                >
+                    <BookOpen size={18} />
+                    Library Books ({books.length})
+                </button>
+            </div>
+
             <div className="flex-1">
-                {items.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-max">
-                        {items.map(item => {
-                            const isSelected = bulkSelectedItems.some(i => i.id === item.id);
-                            return (
-                                <div key={item.id} className="relative group/bulk">
-                                    <DocumentCard 
-                                        item={item} 
-                                        galleryIds={items.map(i => i.id || '')} 
-                                        onRemove={(e) => handleRemoveItemFromLocation(e, item)}
-                                    />
-                                    {isBulkSelectActive && (
-                                        <div 
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                toggleBulkSelection(item);
-                                            }}
-                                            className={`absolute inset-0 z-30 rounded-2xl cursor-pointer transition-all duration-300 ${
-                                                isSelected 
-                                                    ? 'bg-tan/10 border-4 border-tan shadow-[0_0_15px_rgba(210,180,140,0.4)]' 
-                                                    : 'bg-black/5 hover:bg-black/10 border-2 border-transparent'
-                                            }`}
-                                        >
-                                            <div className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all shadow-md ${
-                                                isSelected 
-                                                    ? 'bg-tan border-tan text-white scale-110' 
-                                                    : 'bg-white/80 backdrop-blur-sm border-white text-transparent group-hover/bulk:border-tan/50'
-                                            }`}>
-                                                <Check size={18} strokeWidth={3} className={isSelected ? 'block' : 'hidden group-hover/bulk:block group-hover/bulk:text-tan/50'} />
+                {activeDisplayTab === 'artifacts' ? (
+                    items.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-max">
+                            {items.map(item => {
+                                const isSelected = bulkSelectedItems.some(i => i.id === item.id);
+                                return (
+                                    <div key={item.id} className="relative group/bulk">
+                                        <DocumentCard 
+                                            item={item} 
+                                            galleryIds={items.map(i => i.id || '')} 
+                                            onRemove={(e) => handleRemoveItemFromLocation(e, item)}
+                                        />
+                                        {isBulkSelectActive && (
+                                            <div 
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    toggleBulkSelection(item);
+                                                }}
+                                                className={`absolute inset-0 z-30 rounded-2xl cursor-pointer transition-all duration-300 ${
+                                                    isSelected 
+                                                        ? 'bg-tan/10 border-4 border-tan shadow-[0_0_15px_rgba(210,180,140,0.4)]' 
+                                                        : 'bg-black/5 hover:bg-black/10 border-2 border-transparent'
+                                                }`}
+                                            >
+                                                <div className={`absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all shadow-md ${
+                                                    isSelected 
+                                                        ? 'bg-tan border-tan text-white scale-110' 
+                                                        : 'bg-white/80 backdrop-blur-sm border-white text-transparent group-hover/bulk:border-tan/50'
+                                                }`}>
+                                                    <Check size={18} strokeWidth={3} className={isSelected ? 'block' : 'hidden group-hover/bulk:block group-hover/bulk:text-tan/50'} />
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 bg-cream/30 rounded-xl border border-tan-light/50 shadow-sm">
+                            <Box size={48} className="mx-auto text-tan/30 mb-4" />
+                            <p className="text-charcoal-light text-xl font-serif mb-2 text-charcoal/70">Shelf is empty.</p>
+                            <p className="text-charcoal-light/60 font-sans max-w-md mx-auto">There are currently no artifacts registered to this physical location.</p>
+                        </div>
+                    )
                 ) : (
-                    <div className="text-center py-20 bg-cream/30 rounded-xl border border-tan-light/50 shadow-sm">
-                        <Box size={48} className="mx-auto text-tan/30 mb-4" />
-                        <p className="text-charcoal-light text-xl font-serif mb-2 text-charcoal/70">Shelf is empty.</p>
-                        <p className="text-charcoal-light/60 font-sans max-w-md mx-auto">There are currently no artifacts registered to this physical location.</p>
-                    </div>
+                    books.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-max animate-in fade-in duration-200">
+                            {books.map(book => (
+                                <Link
+                                    key={book.id}
+                                    to={`/library/${book.id}`}
+                                    className="group bg-white border border-tan-light/40 rounded-2xl overflow-hidden flex flex-col hover:-translate-y-1 transition-all duration-300 hover:shadow-lg shadow-sm"
+                                >
+                                    <div className="aspect-[4/5] bg-cream/10 border-b border-tan-light/10 relative overflow-hidden flex items-center justify-center">
+                                        {book.cover_image_url ? (
+                                            <img
+                                                src={book.cover_image_url}
+                                                alt={book.title}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full bg-gradient-to-tr from-tan-dark/10 to-tan/5 p-4 flex flex-col justify-between text-center select-none">
+                                                <BookOpen size={24} className="text-tan/40 mx-auto mt-2" />
+                                                <p className="font-serif text-xs font-bold text-charcoal/80 line-clamp-3 leading-snug">
+                                                    {book.title}
+                                                </p>
+                                                <p className="text-[10px] font-sans font-semibold text-charcoal/50 uppercase truncate">
+                                                    {book.authors?.join(', ')}
+                                                </p>
+                                                <div className="text-[10px] text-charcoal/40 font-mono">
+                                                    {book.call_number || "NO CALL #"}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm backdrop-blur-[1px] bg-emerald-50 text-emerald-700 border-emerald-200/50`}>
+                                            {book.status}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 flex-1 flex flex-col justify-between gap-2">
+                                        <div>
+                                            <h3 className="font-serif text-sm font-bold text-charcoal line-clamp-2 leading-tight group-hover:text-tan transition-colors">
+                                                {book.title}
+                                            </h3>
+                                            <p className="text-xs font-sans text-charcoal-light truncate mt-0.5">
+                                                {book.authors?.join(', ')}
+                                            </p>
+                                        </div>
+                                        {book.call_number && (
+                                            <div className="text-[10px] text-charcoal/50 font-mono border-t border-tan-light/20 pt-2">
+                                                Call #: {book.call_number}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-20 bg-cream/30 rounded-xl border border-tan-light/50 shadow-sm animate-in fade-in duration-200">
+                            <BookOpen size={48} className="mx-auto text-tan/30 mb-4" />
+                            <p className="text-charcoal-light text-xl font-serif mb-2 text-charcoal/70">No books cataloged.</p>
+                            <p className="text-charcoal-light/60 font-sans max-w-md mx-auto">There are currently no reference books assigned to this physical location.</p>
+                        </div>
+                    )
                 )}
             </div>
         </div>

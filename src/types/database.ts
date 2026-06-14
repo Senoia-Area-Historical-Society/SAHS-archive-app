@@ -167,3 +167,34 @@ export interface Member {
     isFreeOneYear?: boolean;
 }
 
+export type BookStatus = 'Available' | 'Reference Only' | 'Checked Out' | 'Missing';
+
+export interface LibraryBook {
+    id: string; // Document ID
+    title: string;
+    authors: string[];
+    publisher?: string | null;
+    publish_year?: number | string | null;
+    isbn?: string | null;
+    call_number?: string | null; // e.g., Dewey Decimal or custom "975.8 SEN"
+    description?: string | null;
+    subjects?: string[]; // e.g., Civil War, Genealogies, Senoia History
+    donor?: string | null;
+    accession_number?: string | null;
+    condition?: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | null;
+    status: BookStatus;
+    cover_image_url?: string | null;
+    file_urls?: string[]; // For additional page scans, table of contents, index images
+    file_captions?: string[];
+    museum_location_ids?: string[]; // Map to existing MuseumLocation ids
+    related_figures?: string[]; // IDs of Historic Figures
+    related_items?: string[]; // IDs of other Archive Items
+    created_at: string;
+    uploaded_by_email?: string | null;
+    uploaded_by_name?: string | null;
+    updated_at?: string | null;
+    updated_by_email?: string | null;
+    updated_by_name?: string | null;
+}
+
+

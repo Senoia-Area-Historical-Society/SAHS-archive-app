@@ -5,7 +5,7 @@ import { Menu, QrCode } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
 
-const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'unknown', id: string } => {
+const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'book' | 'unknown', id: string } => {
     const trimmed = data.trim();
     
     // Handle full URLs
@@ -13,6 +13,11 @@ const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'unkn
         const parts = trimmed.split('/items/');
         const id = parts[parts.length - 1].split('?')[0].split('/')[0];
         return { type: 'item', id };
+    }
+    if (trimmed.includes('/library/')) {
+        const parts = trimmed.split('/library/');
+        const id = parts[parts.length - 1].split('?')[0].split('/')[0];
+        return { type: 'book', id };
     }
     if (trimmed.includes('/locations/')) {
         const parts = trimmed.split('/locations/');
@@ -28,6 +33,9 @@ const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'unkn
     // Handle legacy/prefix formats
     if (trimmed.startsWith('item:')) {
         return { type: 'item', id: trimmed.replace('item:', '') };
+    }
+    if (trimmed.startsWith('book:')) {
+        return { type: 'book', id: trimmed.replace('book:', '') };
     }
     if (trimmed.startsWith('loc:')) {
         return { type: 'location', id: trimmed.replace('loc:', '') };
@@ -58,6 +66,9 @@ export default function Layout() {
         if (parsed.type === 'item') {
             navigate(`/items/${parsed.id}`);
             showToast("Redirecting to item details...");
+        } else if (parsed.type === 'book') {
+            navigate(`/library/${parsed.id}`);
+            showToast("Redirecting to library book...");
         } else if (parsed.type === 'location') {
             navigate(`/locations/${parsed.id}`);
             showToast("Redirecting to location details...");
@@ -65,7 +76,7 @@ export default function Layout() {
             navigate(`/rooms/${parsed.id}`);
             showToast("Redirecting to room details...");
         } else {
-            showToast("Invalid QR code format. Please scan a SAHS item or location QR code.");
+            showToast("Invalid QR code format. Please scan a SAHS item, book, or location QR code.");
         }
     };
 

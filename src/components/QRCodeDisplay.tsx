@@ -13,6 +13,7 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
     const canvasRef = useRef<HTMLDivElement>(null);
     const [isExpanded, setIsExpanded] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [printSize, setPrintSize] = useState<'large' | 'small'>('large');
 
     const downloadQRCode = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -42,28 +43,33 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
+        const isSmall = printSize === 'small';
+        const bodyStyle = isSmall 
+            ? 'display: flex; align-items: flex-start; justify-content: flex-start; margin: 0; background: #fff;'
+            : 'display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: serif;';
+        const containerStyle = isSmall
+            ? 'border: 1px solid #999; padding: 10px; text-align: center; width: 1.5in; height: 1.5in; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; background: #fff;'
+            : 'border: 2px solid #000; padding: 40px; text-align: center;';
+        const h1Style = isSmall
+            ? 'margin: 6px 0 2px 0; font-size: 10px; font-weight: bold; font-family: sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%;'
+            : 'margin-bottom: 5px; font-size: 24px;';
+        const pStyle = isSmall
+            ? 'margin: 0; color: #666; font-size: 8px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%;'
+            : 'margin-top: 0; color: #666; font-size: 16px;';
+        const imgStyle = isSmall
+            ? 'width: 96px; height: 96px;'
+            : 'width: 300px; height: 300px;';
+
         printWindow.document.write(`
             <html>
                 <head>
                     <title>Print QR Code - ${label}</title>
                     <style>
-                        body { 
-                            display: flex; 
-                            flex-direction: column; 
-                            align-items: center; 
-                            justify-content: center; 
-                            height: 100vh; 
-                            margin: 0; 
-                            font-family: serif;
-                        }
-                        .container {
-                            border: 2px solid #000;
-                            padding: 40px;
-                            text-align: center;
-                        }
-                        h1 { margin-bottom: 5px; font-size: 24px; }
-                        p { margin-top: 0; color: #666; font-size: 16px; }
-                        img { width: 300px; height: 300px; }
+                        body { ${bodyStyle} }
+                        .container { ${containerStyle} }
+                        h1 { ${h1Style} }
+                        p { ${pStyle} }
+                        img { ${imgStyle} }
                     </style>
                 </head>
                 <body>
@@ -71,7 +77,7 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
                         <img src="${dataUrl}" />
                         <h1>${label}</h1>
                         ${subLabel ? `<p>${subLabel}</p>` : ''}
-                        <p style="margin-top: 20px; font-size: 12px; color: #999;">SAHS Archive Tracking System</p>
+                        ${!isSmall ? `<p style="margin-top: 20px; font-size: 12px; color: #999;">SAHS Archive Tracking System</p>` : ''}
                     </div>
                     <script>
                         window.onload = () => {
@@ -144,6 +150,35 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
                             </div>
 
                             <div className="w-full space-y-3">
+                                {/* Print Size Selector */}
+                                <div className="flex items-center justify-between gap-4 bg-tan/5 p-3 rounded-2xl border border-tan/10 w-full mb-1">
+                                    <span className="text-xs font-bold text-charcoal/60 uppercase tracking-wider">Print Label Size:</span>
+                                    <div className="flex bg-cream/80 p-1 rounded-xl border border-tan-light/40">
+                                        <button
+                                            type="button"
+                                            onClick={() => setPrintSize('large')}
+                                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                printSize === 'large'
+                                                    ? 'bg-tan text-white shadow-sm'
+                                                    : 'text-charcoal/60 hover:text-charcoal'
+                                            }`}
+                                        >
+                                            Large (3")
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPrintSize('small')}
+                                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                printSize === 'small'
+                                                    ? 'bg-tan text-white shadow-sm'
+                                                    : 'text-charcoal/60 hover:text-charcoal'
+                                            }`}
+                                        >
+                                            Small (1.5")
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="flex gap-3">
                                     <button
                                         onClick={downloadQRCode}

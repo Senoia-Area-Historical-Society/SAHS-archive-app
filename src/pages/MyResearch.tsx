@@ -4,7 +4,7 @@ import { db, defaultDb } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
-import type { ArchiveItem } from '../types/database';
+import type { ArchiveItem, Member } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
 
 interface ResearchFolder {
@@ -452,7 +452,11 @@ export function MyResearch() {
                 try {
                     const memberDoc = await getDoc(doc(db, 'members', emailToShare));
                     if (memberDoc.exists()) {
-                        isAuthorized = true;
+                        const mData = memberDoc.data() as Member;
+                        const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
+                        if (mData.status === 'active' && !isExpired) {
+                            isAuthorized = true;
+                        }
                     }
                 } catch (err) {
                     console.warn("Could not check members:", err);
@@ -460,7 +464,7 @@ export function MyResearch() {
             }
 
             if (!isAuthorized) {
-                showToast("Failed to share: This email is not a registered member or staff curator.");
+                showToast("Failed to share: This email is not an active registered member or staff curator.");
                 setIsSharing(false);
                 return;
             }
