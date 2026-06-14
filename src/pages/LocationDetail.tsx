@@ -62,6 +62,16 @@ export function LocationDetail() {
     const [editBoxDesc, setEditBoxDesc] = useState('');
     const [isEditingBox, setIsEditingBox] = useState(false);
 
+    // Book Selection State
+    const [isBookSelectMode, setIsBookSelectMode] = useState(false);
+    const [catalogBooks, setCatalogBooks] = useState<LibraryBook[]>([]);
+    const [hasFetchedBookCatalog, setHasFetchedBookCatalog] = useState(false);
+    const [bookSearchQuery, setBookSearchQuery] = useState('');
+    const [bookSearchResults, setBookSearchResults] = useState<LibraryBook[]>([]);
+    const [selectedBooks, setSelectedBooks] = useState<LibraryBook[]>([]);
+    const [isSearchingBooks, setIsSearchingBooks] = useState(false);
+    const [isLinkingBooks, setIsLinkingBooks] = useState(false);
+
     // Bulk Relocate State
     const [isBulkSelectActive, setIsBulkSelectActive] = useState(false);
     const [bulkSelectedItems, setBulkSelectedItems] = useState<ArchiveItem[]>([]);
@@ -333,6 +343,70 @@ export function LocationDetail() {
         return () => clearTimeout(timer);
     }, [searchQuery, id, searchMode, catalogItems, hasFetchedCatalog]);
 
+    // Fetch full book catalog once when entering book select mode
+    useEffect(() => {
+        if (isBookSelectMode && !hasFetchedBookCatalog) {
+            const fetchBookCatalog = async () => {
+                setIsSearchingBooks(true);
+                try {
+                    const snap = await getDocs(collection(db, 'library_books'));
+                    const catalog = snap.docs.map(d => ({ id: d.id, ...d.data() } as LibraryBook));
+                    setCatalogBooks(catalog);
+                    setHasFetchedBookCatalog(true);
+                } catch (err) {
+                    console.error("Error fetching library book catalog for search:", err);
+                } finally {
+                    setIsSearchingBooks(false);
+                }
+            };
+            fetchBookCatalog();
+        }
+    }, [isBookSelectMode, hasFetchedBookCatalog]);
+
+    // Search for books to add from local book catalog
+    useEffect(() => {
+        const searchBooks = () => {
+            if (!bookSearchQuery || bookSearchQuery.length < 2) {
+                setBookSearchResults([]);
+                return;
+            }
+            if (!hasFetchedBookCatalog) return;
+
+            setIsSearchingBooks(true);
+            const kw = bookSearchQuery.toLowerCase();
+            
+            const filtered = catalogBooks.filter(book => {
+                const titleMatch = book.title?.toLowerCase().includes(kw);
+                const isbnMatch = book.isbn?.toLowerCase().includes(kw);
+                const callNumberMatch = book.call_number?.toLowerCase().includes(kw);
+                const publisherMatch = book.publisher?.toLowerCase().includes(kw);
+                const authorMatch = book.authors?.some(author => author.toLowerCase().includes(kw));
+
+                return Boolean(titleMatch || isbnMatch || callNumberMatch || publisherMatch || authorMatch);
+            });
+
+            // Sort results alphabetically by title
+            filtered.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+            
+            setBookSearchResults(filtered.slice(0, 100));
+            setIsSearchingBooks(false);
+        };
+
+        const timer = setTimeout(searchBooks, 200);
+        return () => clearTimeout(timer);
+    }, [bookSearchQuery, catalogBooks, hasFetchedBookCatalog]);
+
+    const toggleBookSelection = (book: LibraryBook) => {
+        setSelectedBooks(prev => {
+            const isSelected = prev.some(b => b.id === book.id);
+            if (isSelected) {
+                return prev.filter(b => b.id !== book.id);
+            } else {
+                return [...prev, book];
+            }
+        });
+    };
+
     const toggleItemSelection = (item: ArchiveItem) => {
         setSelectedItems(prev => {
             const isSelected = prev.some(i => i.id === item.id);
@@ -432,6 +506,75 @@ export function LocationDetail() {
             alert("Failed to link items. Please check permissions.");
         } finally {
             setIsLinking(false);
+        }
+    };
+
+    const handleLinkBooks = async () => {
+        if (selectedBooks.length === 0 || !id) return;
+        setIsLinkingBooks(true);
+        try {
+            const batch = writeBatch(db);
+            const now = new Date().toISOString();
+            const adminEmail = user?.email || 'Admin';
+
+            selectedBooks.forEach(book => {
+                const bookRef = doc(db, 'library_books', book.id);
+                const existing = book.museum_location_ids || [];
+                const newLocationIds = Array.from(new Set([...existing, id!]));
+
+                batch.update(bookRef, {
+                    museum_location_ids: newLocationIds,
+                    updated_at: now,
+                    updated_by_email: adminEmail
+                });
+            });
+
+            await batch.commit();
+
+            // Cleanup and refresh
+            setSelectedBooks([]);
+            setBookSearchQuery('');
+            setIsBookSelectMode(false);
+            
+            // Reload books at this location
+            const qBooks = query(
+                collection(db, 'library_books'),
+                where('museum_location_ids', 'array-contains', id)
+            );
+            const booksSnapshot = await getDocs(qBooks);
+            const booksData = booksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LibraryBook));
+            booksData.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+            setBooks(booksData);
+        } catch (error) {
+            console.error("Error linking books:", error);
+            alert("Failed to link books. Please check permissions.");
+        } finally {
+            setIsLinkingBooks(false);
+        }
+    };
+
+    const handleRemoveBookFromLocation = async (e: React.MouseEvent, book: LibraryBook) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!id || !isSAHSUser) return;
+        
+        const confirmMsg = `Remove "${book.title}" from this location?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            const bookRef = doc(db, 'library_books', book.id);
+            const currentIds = book.museum_location_ids || [];
+            const newIds = currentIds.filter(lid => lid !== id && lid !== locationData?.id && lid !== locationData?.docId);
+            
+            await updateDoc(bookRef, {
+                museum_location_ids: newIds
+            });
+
+            setBooks(prev => prev.filter(b => b.id !== book.id));
+        } catch (error) {
+            console.error("Error removing book from location:", error);
+            alert("Failed to remove book. Please check permissions.");
         }
     };
 
@@ -1022,16 +1165,34 @@ export function LocationDetail() {
                         </button>
                     )}
                     {isSAHSUser && (
-                        <button 
-                            onClick={() => setIsSelectMode(!isSelectMode)}
-                            disabled={isBulkSelectActive}
-                            className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isSelectMode ? 'bg-charcoal text-white' : 'bg-white border border-tan text-tan hover:bg-tan/5'
-                            }`}
-                        >
-                            {isSelectMode ? <X size={18} /> : <Plus size={18} />}
-                            {isSelectMode ? 'Close' : 'Add Artifacts'}
-                        </button>
+                        <>
+                            <button 
+                                onClick={() => {
+                                    setIsSelectMode(!isSelectMode);
+                                    setIsBookSelectMode(false);
+                                }}
+                                disabled={isBulkSelectActive || isBookSelectMode}
+                                className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isSelectMode ? 'bg-charcoal text-white' : 'bg-white border border-tan text-tan hover:bg-tan/5'
+                                }`}
+                            >
+                                {isSelectMode ? <X size={18} /> : <Plus size={18} />}
+                                {isSelectMode ? 'Close' : 'Add Artifacts'}
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setIsBookSelectMode(!isBookSelectMode);
+                                    setIsSelectMode(false);
+                                }}
+                                disabled={isBulkSelectActive || isSelectMode}
+                                className={`flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                                    isBookSelectMode ? 'bg-charcoal text-white' : 'bg-white border border-tan text-tan hover:bg-tan/5'
+                                }`}
+                            >
+                                {isBookSelectMode ? <X size={18} /> : <Plus size={18} />}
+                                {isBookSelectMode ? 'Close' : 'Add Books'}
+                            </button>
+                        </>
                     )}
                     <Link 
                         to={`/interactive-map?highlight=${parentLocation ? (parentLocation.id || parentLocation.docId) : id}`}
@@ -1211,6 +1372,146 @@ export function LocationDetail() {
                                 <button 
                                     onClick={() => setSelectedItems([])}
                                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/40 hover:text-red-500 transition-colors mx-auto"
+                                >
+                                    Clear All
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Books Interface */}
+            {isBookSelectMode && (
+                <div className="bg-white border border-tan-light/20 rounded-[32px] md:rounded-[48px] p-8 md:p-12 mb-12 md:mb-20 animate-in slide-in-from-top-8 duration-500 shadow-2xl shadow-tan/5">
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="flex-1">
+                             <h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
+                                <Search size={20} className="text-tan" />
+                                Link Books to this Shelf
+                             </h3>
+
+                            <div className="relative">
+                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-charcoal/20" size={20} />
+                                <input 
+                                    type="text"
+                                    placeholder="Search by title, author, call number, or ISBN..."
+                                    className="w-full bg-white pl-14 pr-4 py-5 rounded-2xl border-2 border-tan-light/50 focus:border-tan outline-none transition-all shadow-md text-xl font-serif placeholder:font-serif placeholder:text-charcoal/20"
+                                    value={bookSearchQuery}
+                                    onChange={(e) => setBookSearchQuery(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="mt-6 space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                                {isSearchingBooks ? (
+                                    <div className="flex items-center justify-center py-8 text-charcoal/40 gap-2">
+                                        <Loader2 className="animate-spin" size={18} />
+                                        Searching books...
+                                    </div>
+                                ) : bookSearchResults.length > 0 ? (
+                                    bookSearchResults.map(result => {
+                                        const isAlreadyLinked = (result.museum_location_ids || []).includes(id!);
+                                        return (
+                                        <div 
+                                            key={result.id}
+                                            onClick={() => !isAlreadyLinked && toggleBookSelection(result)}
+                                            className={`p-4 rounded-xl border transition-all flex items-center justify-between group ${
+                                                isAlreadyLinked
+                                                    ? 'bg-amber-50 border-amber-200 cursor-default'
+                                                    : selectedBooks.some(b => b.id === result.id) 
+                                                        ? 'bg-tan/10 border-tan shadow-sm cursor-pointer' 
+                                                        : 'bg-white border-tan-light/30 hover:border-tan/50 cursor-pointer'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-18 rounded-lg bg-tan-light/10 flex items-center justify-center overflow-hidden shrink-0 border border-tan-light/20 aspect-[4/5]">
+                                                    {result.cover_image_url ? (
+                                                        <img src={result.cover_image_url} alt={result.title} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <BookOpen size={20} className="text-tan/30" />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <h4 className={`font-bold transition-colors ${isAlreadyLinked ? 'text-amber-800' : 'text-charcoal group-hover:text-tan'}`}>{result.title}</h4>
+                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/40 uppercase flex-wrap">
+                                                        {result.call_number && <span className="bg-tan/10 text-tan px-1.5 py-0.5 rounded">Call #: {result.call_number}</span>}
+                                                        <span>&bull;</span>
+                                                        <span>{result.authors?.join(', ')}</span>
+                                                        {isAlreadyLinked && (
+                                                            <span className="bg-amber-200 text-amber-700 px-1.5 py-0.5 rounded font-black font-sans">
+                                                                ✓ Already Here
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {isAlreadyLinked ? (
+                                                <div className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-200 border border-amber-300 text-amber-700 shrink-0">
+                                                    <Check size={14} strokeWidth={3} />
+                                                </div>
+                                            ) : (
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border transition-all shrink-0 ${
+                                                    selectedBooks.some(b => b.id === result.id) ? 'bg-tan border-tan text-white' : 'border-tan-light group-hover:border-tan'
+                                                }`}>
+                                                    {selectedBooks.some(b => b.id === result.id) && <Check size={14} strokeWidth={3} />}
+                                                </div>
+                                            )}
+                                        </div>
+                                        );
+                                    })
+                                ) : bookSearchQuery.length >= 2 ? (
+                                    <div className="text-center py-8 text-charcoal/40 italic">No books found matching "{bookSearchQuery}"</div>
+                                ) : (
+                                    <div className="text-center py-8 text-charcoal/30 flex flex-col items-center gap-2">
+                                        <AlertCircle size={24} className="opacity-20" />
+                                        <p className="text-sm font-sans">Enter at least 2 characters to search the library book catalog.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="md:w-72 bg-white/50 border border-tan-light/30 rounded-xl p-6 flex flex-col">
+                            <h3 className="font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
+                                <Check size={18} className="text-tan" />
+                                Selection
+                            </h3>
+                            <div className="flex-1 text-sm text-charcoal/60 mb-6 font-sans">
+                                {selectedBooks.length === 0 ? (
+                                    <p className="italic">No books selected yet. Click a book to select it for this shelf.</p>
+                                ) : (
+                                    <div className="space-y-4 font-sans">
+                                        <p className="text-lg font-bold text-tan">{selectedBooks.length} Books Selected</p>
+                                        <div className="bg-tan/5 p-3 rounded-lg border border-tan/20">
+                                            <p className="text-xs leading-relaxed">
+                                                These reference books will be assigned to:
+                                                <span className="block font-bold text-charcoal mt-1">{locationData.name}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <button 
+                                onClick={() => handleLinkBooks()}
+                                disabled={selectedBooks.length === 0 || isLinkingBooks}
+                                className="w-full bg-tan text-white py-4 rounded-xl font-bold hover:bg-charcoal transition-all shadow-md disabled:bg-charcoal/20 disabled:shadow-none flex items-center justify-center gap-3 font-sans"
+                            >
+                                {isLinkingBooks ? (
+                                    <>
+                                        <Loader2 className="animate-spin" size={20} />
+                                        Linking...
+                                    </>
+                                ) : (
+                                    <>
+                                        Link to this Location
+                                        <Check size={20} />
+                                    </>
+                                )}
+                            </button>
+                            {selectedBooks.length > 0 && (
+                                <button 
+                                    onClick={() => setSelectedBooks([])}
+                                    className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/40 hover:text-red-500 transition-colors mx-auto font-sans"
                                 >
                                     Clear All
                                 </button>
@@ -1456,52 +1757,63 @@ export function LocationDetail() {
                     books.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 auto-rows-max animate-in fade-in duration-200">
                             {books.map(book => (
-                                <Link
-                                    key={book.id}
-                                    to={`/library/${book.id}`}
-                                    className="group bg-white border border-tan-light/40 rounded-2xl overflow-hidden flex flex-col hover:-translate-y-1 transition-all duration-300 hover:shadow-lg shadow-sm"
-                                >
-                                    <div className="aspect-[4/5] bg-cream/10 border-b border-tan-light/10 relative overflow-hidden flex items-center justify-center">
-                                        {book.cover_image_url ? (
-                                            <img
-                                                src={book.cover_image_url}
-                                                alt={book.title}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-tr from-tan-dark/10 to-tan/5 p-4 flex flex-col justify-between text-center select-none">
-                                                <BookOpen size={24} className="text-tan/40 mx-auto mt-2" />
-                                                <p className="font-serif text-xs font-bold text-charcoal/80 line-clamp-3 leading-snug">
+                                <div key={book.id} className="relative group">
+                                    <Link
+                                        to={`/library/${book.id}`}
+                                        className="group bg-white border border-tan-light/40 rounded-2xl overflow-hidden flex flex-col hover:-translate-y-1 transition-all duration-300 hover:shadow-lg shadow-sm h-full"
+                                    >
+                                        <div className="aspect-[4/5] bg-cream/10 border-b border-tan-light/10 relative overflow-hidden flex items-center justify-center">
+                                            {book.cover_image_url ? (
+                                                <img
+                                                    src={book.cover_image_url}
+                                                    alt={book.title}
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-tr from-tan-dark/10 to-tan/5 p-4 flex flex-col justify-between text-center select-none">
+                                                    <BookOpen size={24} className="text-tan/40 mx-auto mt-2" />
+                                                    <p className="font-serif text-xs font-bold text-charcoal/80 line-clamp-3 leading-snug">
+                                                        {book.title}
+                                                    </p>
+                                                    <p className="text-[10px] font-sans font-semibold text-charcoal/50 uppercase truncate">
+                                                        {book.authors?.join(', ')}
+                                                    </p>
+                                                    <div className="text-[10px] text-charcoal/40 font-mono">
+                                                        {book.call_number || "NO CALL #"}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm backdrop-blur-[1px] bg-emerald-50 text-emerald-700 border-emerald-200/50`}>
+                                                {book.status}
+                                            </span>
+                                        </div>
+                                        <div className="p-3 flex-1 flex flex-col justify-between gap-2">
+                                            <div>
+                                                <h3 className="font-serif text-sm font-bold text-charcoal line-clamp-2 leading-tight group-hover:text-tan transition-colors">
                                                     {book.title}
-                                                </p>
-                                                <p className="text-[10px] font-sans font-semibold text-charcoal/50 uppercase truncate">
+                                                </h3>
+                                                <p className="text-xs font-sans text-charcoal-light truncate mt-0.5">
                                                     {book.authors?.join(', ')}
                                                 </p>
-                                                <div className="text-[10px] text-charcoal/40 font-mono">
-                                                    {book.call_number || "NO CALL #"}
+                                            </div>
+                                            {book.call_number && (
+                                                <div className="text-[10px] text-charcoal/50 font-mono border-t border-tan-light/20 pt-2">
+                                                    Call #: {book.call_number}
                                                 </div>
-                                            </div>
-                                        )}
-                                        <span className={`absolute top-2 right-2 text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm backdrop-blur-[1px] bg-emerald-50 text-emerald-700 border-emerald-200/50`}>
-                                            {book.status}
-                                        </span>
-                                    </div>
-                                    <div className="p-3 flex-1 flex flex-col justify-between gap-2">
-                                        <div>
-                                            <h3 className="font-serif text-sm font-bold text-charcoal line-clamp-2 leading-tight group-hover:text-tan transition-colors">
-                                                {book.title}
-                                            </h3>
-                                            <p className="text-xs font-sans text-charcoal-light truncate mt-0.5">
-                                                {book.authors?.join(', ')}
-                                            </p>
+                                            )}
                                         </div>
-                                        {book.call_number && (
-                                            <div className="text-[10px] text-charcoal/50 font-mono border-t border-tan-light/20 pt-2">
-                                                Call #: {book.call_number}
-                                            </div>
-                                        )}
-                                    </div>
-                                </Link>
+                                    </Link>
+                                    
+                                    {isSAHSUser && (
+                                        <button
+                                            onClick={(e) => handleRemoveBookFromLocation(e, book)}
+                                            className="absolute top-2 left-2 z-10 w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 rounded-full flex items-center justify-center border border-red-200/50 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"
+                                            title="Remove book from location"
+                                        >
+                                            <X size={14} strokeWidth={2.5} />
+                                        </button>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     ) : (
