@@ -219,6 +219,17 @@ export function LocationDetail() {
         fetchLocationAndItems();
     }, [id]);
 
+    // Set default print scope depending on whether there are direct items or nested boxes
+    useEffect(() => {
+        if (isPrintModalOpen) {
+            if (items.length === 0 && childBoxes.length > 0) {
+                setPrintScope('nested-boxes');
+            } else {
+                setPrintScope('direct');
+            }
+        }
+    }, [isPrintModalOpen, items.length, childBoxes.length]);
+
     // Fetch full catalog once when entering select mode
     useEffect(() => {
         if (isSelectMode && !hasFetchedCatalog) {
@@ -1201,7 +1212,7 @@ export function LocationDetail() {
                     >
                         <MapPin size={18} /> View on Blueprint
                     </Link>
-                    {(items.length > 0 || nestedItems.length > 0) && !isSelectMode && (
+                    {(items.length > 0 || nestedItems.length > 0 || childBoxes.length > 0) && !isSelectMode && (
                         <button 
                             onClick={() => setIsPrintModalOpen(true)}
                             className="flex items-center gap-2 bg-tan text-white px-5 py-3 rounded-lg font-bold hover:bg-charcoal transition-colors shadow-sm w-full sm:w-auto justify-center"
