@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell, QrCode } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
@@ -9,9 +9,10 @@ import logo from '../assets/logo2.png';
 interface SidebarProps {
     isOpen?: boolean;
     onClose?: () => void;
+    onScanClick?: () => void;
 }
 
-export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) {
     const { isSAHSUser, realIsAdmin, logout, user, isEditingMode, setIsEditingMode, hasResearchAccess } = useAuth();
     const navigate = useNavigate();
 
@@ -254,6 +255,15 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                                     <NavLink to="/interactive-map" className={navLinkClass} onClick={handleLinkClick}>
                                         <Map size={20} /> Interactive Map
                                     </NavLink>
+                                    <button
+                                        onClick={() => {
+                                            if (onScanClick) onScanClick();
+                                            if (onClose) onClose();
+                                        }}
+                                        className="flex items-center gap-3 px-4 py-3 rounded-lg text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px] w-full text-left transition-colors"
+                                    >
+                                        <QrCode size={20} className="text-tan" /> Search via QR Code
+                                    </button>
                                 </nav>
                             </div>
                         )}
@@ -322,7 +332,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                     <div className="p-4 rounded-xl bg-tan/5 border border-tan/20 flex flex-col gap-2 mb-2">
                         <h3 className="font-serif font-bold text-[13px] text-charcoal leading-snug">SAHS Member Benefits</h3>
                         <p className="text-[11px] text-charcoal/60 leading-relaxed font-medium">
-                            Active members can sign in using their Google account to save custom research folders and bookmark archival resources.
+                            Active members can sign in to save custom research folders, bookmark resources, and download archival images.
                         </p>
                         <NavLink
                             to="/login"
