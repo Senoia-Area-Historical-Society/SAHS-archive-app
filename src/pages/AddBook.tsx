@@ -77,6 +77,30 @@ export function AddBook() {
         }
     };
 
+    const isbn10To13 = (isbn10: string): string | null => {
+        if (isbn10.length !== 10) return null;
+        const base = '978' + isbn10.substring(0, 9);
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            sum += parseInt(base[i], 10) * (i % 2 === 0 ? 1 : 3);
+        }
+        const checkDigit = (10 - (sum % 10)) % 10;
+        return base + checkDigit;
+    };
+
+    const isbn13To10 = (isbn13: string): string | null => {
+        if (isbn13.length !== 13 || !isbn13.startsWith('978')) return null;
+        const base = isbn13.substring(3, 12);
+        let sum = 0;
+        for (let i = 0; i < 9; i++) {
+            sum += parseInt(base[i], 10) * (10 - i);
+        }
+        const rem = sum % 11;
+        const check = (11 - rem) % 11;
+        const checkDigit = check === 10 ? 'X' : check.toString();
+        return base + checkDigit;
+    };
+
     const handleIsbnLookup = async () => {
         const cleanedIsbn = isbn.replace(/[^0-9X]/gi, '').trim();
         if (!cleanedIsbn) {
@@ -88,18 +112,33 @@ export function AddBook() {
         setError(null);
 
         try {
-            const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanedIsbn}&format=json&jscmd=data`);
+            // Build keys list with converted variants to increase lookup success
+            const keys = [`ISBN:${cleanedIsbn}`];
+            if (cleanedIsbn.length === 10) {
+                const conv13 = isbn10To13(cleanedIsbn);
+                if (conv13) keys.push(`ISBN:${conv13}`);
+            } else if (cleanedIsbn.length === 13) {
+                const conv10 = isbn13To10(cleanedIsbn);
+                if (conv10) keys.push(`ISBN:${conv10}`);
+            }
+
+            const bibkeys = keys.join(',');
+            const response = await fetch(`https://openlibrary.org/api/books?bibkeys=${bibkeys}&format=json&jscmd=data`);
             if (!response.ok) throw new Error("Network response was not ok");
             
             const data = await response.json();
-            const bookKey = `ISBN:${cleanedIsbn}`;
-            const bookData = data[bookKey];
+            
+            // Find which key returned data
+            const activeKey = keys.find(k => data[k]);
+            const bookData = activeKey ? data[activeKey] : null;
 
             if (!bookData) {
                 setError("No book details found for this ISBN in the Open Library database.");
                 setIsLookingUp(false);
                 return;
             }
+
+            const matchedIsbn = activeKey!.replace('ISBN:', '');
 
             // Populate form fields
             if (bookData.title) setTitle(bookData.title);
@@ -138,8 +177,8 @@ export function AddBook() {
                 }
             }
 
-            if (!coverUrlToUse && cleanedIsbn) {
-                const directIsbnUrl = `https://covers.openlibrary.org/b/isbn/${cleanedIsbn}-L.jpg`;
+            if (!coverUrlToUse && matchedIsbn) {
+                const directIsbnUrl = `https://covers.openlibrary.org/b/isbn/${matchedIsbn}-L.jpg`;
                 const coverExists = await new Promise<boolean>((resolve) => {
                     const img = new Image();
                     img.onload = () => resolve(true);
