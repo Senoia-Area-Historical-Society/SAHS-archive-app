@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Image as ImageIcon, AlertCircle, X, MapPin, Search } from 'lucide-react';
-import { db, storage } from '../lib/firebase';
+import { db, storage, functions } from '../lib/firebase';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '../contexts/AuthContext';
 import type { MuseumLocation } from '../types/database';
 
@@ -137,19 +138,34 @@ export function AddBook() {
                 console.error("Open Library lookup failed:", olErr);
             }
 
-            let source: 'openlibrary' | 'googlebooks' = 'openlibrary';
+            let source: 'openlibrary' | 'googlebooks' | 'isbnsearch' = 'openlibrary';
             let googleBookInfo: any = null;
+            let fallbackBookInfo: any = null;
 
             if (!bookData) {
                 // Fallback to Google Books API
                 try {
-                    const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${cleanedIsbn}`);
-                    if (googleRes.ok) {
-                        const googleData = await googleRes.json();
-                        if (googleData.items && googleData.items.length > 0) {
-                            googleBookInfo = googleData.items[0].volumeInfo;
-                            source = 'googlebooks';
+                    let googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${cleanedIsbn}`);
+                    let googleData = googleRes.ok ? await googleRes.json() : null;
+
+                    // If no results, try the converted variant
+                    if (!googleData || !googleData.items || googleData.items.length === 0) {
+                        let altIsbn = null;
+                        if (cleanedIsbn.length === 10) {
+                            altIsbn = isbn10To13(cleanedIsbn);
+                        } else if (cleanedIsbn.length === 13) {
+                            altIsbn = isbn13To10(cleanedIsbn);
                         }
+
+                        if (altIsbn) {
+                            googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${altIsbn}`);
+                            googleData = googleRes.ok ? await googleRes.json() : null;
+                        }
+                    }
+
+                    if (googleData && googleData.items && googleData.items.length > 0) {
+                        googleBookInfo = googleData.items[0].volumeInfo;
+                        source = 'googlebooks';
                     }
                 } catch (gErr) {
                     console.error("Google Books fallback failed:", gErr);
@@ -157,7 +173,22 @@ export function AddBook() {
             }
 
             if (!bookData && !googleBookInfo) {
-                setError("No book details found for this ISBN in Open Library or Google Books.");
+                // Fallback to custom Cloud Function for isbnsearch.org
+                try {
+                    const lookupIsbnFn = httpsCallable(functions, 'lookupIsbnFallback');
+                    const res = await lookupIsbnFn({ isbn: cleanedIsbn });
+                    const data = res.data as { success: boolean; book?: any; error?: string };
+                    if (data.success && data.book) {
+                        fallbackBookInfo = data.book;
+                        source = 'isbnsearch';
+                    }
+                } catch (fallbackErr) {
+                    console.error("isbnsearch.org fallback lookup failed:", fallbackErr);
+                }
+            }
+
+            if (!bookData && !googleBookInfo && !fallbackBookInfo) {
+                setError("No book details found for this ISBN in Open Library, Google Books, or ISBN Search.");
                 setIsLookingUp(false);
                 return;
             }
@@ -261,6 +292,28 @@ export function AddBook() {
 
                 if (googleBookInfo.categories && googleBookInfo.categories.length > 0) {
                     setSubjects(googleBookInfo.categories.slice(0, 5).join(', '));
+                }
+            } else if (source === 'isbnsearch' && fallbackBookInfo) {
+                // Populate form fields using parsed isbnsearch.org schema
+                if (fallbackBookInfo.title) {
+                    setTitle(fallbackBookInfo.title);
+                }
+                
+                if (fallbackBookInfo.authors) {
+                    setAuthors(fallbackBookInfo.authors);
+                }
+                
+                if (fallbackBookInfo.publisher) {
+                    setPublisher(fallbackBookInfo.publisher);
+                }
+                
+                if (fallbackBookInfo.publishYear) {
+                    setPublishYear(fallbackBookInfo.publishYear);
+                }
+
+                if (fallbackBookInfo.coverUrl) {
+                    setFetchedCoverUrl(fallbackBookInfo.coverUrl);
+                    setCoverPreviewUrl(fallbackBookInfo.coverUrl);
                 }
             }
 

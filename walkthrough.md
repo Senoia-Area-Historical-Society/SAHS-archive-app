@@ -43,3 +43,11 @@ We added a dedicated private map-annotation system that is strictly visible *onl
 4. Click anywhere on the Senoia map!
 5. Complete the private pin form (Title, Description) and click **"Save Private Pin"**.
 6. The custom bouncing pin will drop onto the map and be listed in your **"Personal Research Pins"** sidebar directory! Click **"Locate"** next to it to watch the map smoothly glide back to it.
+
+---
+
+## 📚 ISBN Scraper Fallback (isbnsearch.org)
+
+To support lookup for books that are missing from both Open Library and Google Books (such as *Cowetta County Chronicles*, ISBN `0-89308-016-0`), we added:
+1. **Functions Backend (`functions/index.js`)**: A custom scraper function `lookupIsbnFallback` that fetches details directly from `isbnsearch.org` and parses the metadata (Title, Authors, Publisher, Publication Year, Cover Art) on the server, completely bypassing browser CORS constraints.
+2. **Frontend Pages (`AddBook.tsx` & `EditBook.tsx`)**: Integrates this Cloud Function as the final fallback in the ISBN search utility (`handleIsbnLookup`), so users can search for any book by its ISBN number and have details auto-populated immediately.

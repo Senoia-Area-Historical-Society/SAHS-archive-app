@@ -211,3 +211,87 @@ exports.onCommentCreated = onDocumentCreated({
     }
 });
 
+/**
+ * Parses HTML from isbnsearch.org to extract book metadata.
+ */
+function parseIsbnSearchHtml(html) {
+    let title = "";
+    const titleMatch = html.match(/<h1>([^<]+)<\/h1>/i);
+    if (titleMatch) title = titleMatch[1].trim();
+
+    let coverUrl = "";
+    const imgMatch = html.match(/<div class="image">\s*<img src="([^"]+)"/i);
+    if (imgMatch) coverUrl = imgMatch[1].trim();
+
+    let authors = "";
+    const authorsMatch = html.match(/<strong>Authors:<\/strong>\s*([^<]+)/i);
+    if (authorsMatch) authors = authorsMatch[1].trim();
+
+    let publisher = "";
+    const publisherMatch = html.match(/<strong>Publisher:<\/strong>\s*([^<]+)/i);
+    if (publisherMatch) publisher = publisherMatch[1].trim();
+
+    let publishYear = "";
+    const publishedMatch = html.match(/<strong>Published:<\/strong>\s*([^<]+)/i);
+    if (publishedMatch) {
+        const publishedVal = publishedMatch[1].trim();
+        const yearMatch = publishedVal.match(/\d{4}/);
+        publishYear = yearMatch ? yearMatch[0] : publishedVal;
+    }
+
+    if (!title && !authors && !publisher) {
+        return null;
+    }
+
+    return {
+        title,
+        coverUrl,
+        authors,
+        publisher,
+        publishYear
+    };
+}
+
+/**
+ * Callable Cloud Function to lookup book details from isbnsearch.org when standard APIs fail.
+ */
+exports.lookupIsbnFallback = onCall({
+    memory: "256MiB",
+    timeoutSeconds: 30
+}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Unauthorized. You must be logged in.");
+    }
+
+    const { isbn } = request.data;
+    if (!isbn) {
+        throw new HttpsError("invalid-argument", "Missing isbn parameter.");
+    }
+
+    const cleanedIsbn = isbn.replace(/[^0-9X]/gi, '').trim();
+    if (!cleanedIsbn) {
+        throw new HttpsError("invalid-argument", "Invalid ISBN format.");
+    }
+
+    try {
+        logger.info(`Fetching ISBN metadata from isbnsearch.org for ${cleanedIsbn}`);
+        const response = await fetch(`https://isbnsearch.org/isbn/${cleanedIsbn}`);
+        if (!response.ok) {
+            logger.warn(`isbnsearch.org returned status: ${response.status}`);
+            return { success: false, error: "NotFound" };
+        }
+
+        const html = await response.text();
+        const book = parseIsbnSearchHtml(html);
+        if (!book) {
+            return { success: false, error: "ParseError" };
+        }
+
+        return { success: true, book };
+    } catch (err) {
+        logger.error(`Error in lookupIsbnFallback for ${cleanedIsbn}:`, err);
+        throw new HttpsError("internal", `Internal error fetching ISBN: ${err.message}`);
+    }
+});
+
+
