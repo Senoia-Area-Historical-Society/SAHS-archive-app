@@ -143,7 +143,7 @@ export function AddBook() {
             if (!bookData) {
                 // Fallback to Google Books API
                 try {
-                    const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedIsbn}`);
+                    const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${cleanedIsbn}`);
                     if (googleRes.ok) {
                         const googleData = await googleRes.json();
                         if (googleData.items && googleData.items.length > 0) {
