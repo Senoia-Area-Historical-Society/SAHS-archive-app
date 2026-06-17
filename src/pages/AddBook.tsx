@@ -122,15 +122,21 @@ export function AddBook() {
                 if (conv10) keys.push(`ISBN:${conv10}`);
             }
 
-            const bibkeys = keys.join(',');
-            const response = await fetch(`https://openlibrary.org/api/books?bibkeys=${bibkeys}&format=json&jscmd=data`);
-            if (!response.ok) throw new Error("Network response was not ok");
-            
-            const data = await response.json();
-            
-            // Find which key returned data
-            const activeKey = keys.find(k => data[k]);
-            let bookData = activeKey ? data[activeKey] : null;
+            let bookData = null;
+            let activeKey = null;
+
+            try {
+                const bibkeys = keys.join(',');
+                const response = await fetch(`https://openlibrary.org/api/books?bibkeys=${bibkeys}&format=json&jscmd=data`);
+                if (response.ok) {
+                    const data = await response.json();
+                    activeKey = keys.find(k => data[k]);
+                    bookData = activeKey ? data[activeKey] : null;
+                }
+            } catch (olErr) {
+                console.error("Open Library lookup failed:", olErr);
+            }
+
             let source: 'openlibrary' | 'googlebooks' = 'openlibrary';
             let googleBookInfo: any = null;
 
