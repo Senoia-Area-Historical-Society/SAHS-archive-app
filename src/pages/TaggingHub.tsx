@@ -1,17 +1,26 @@
 import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
-import { Camera, MapPin, Box, CheckCircle2, AlertCircle, ArrowRight, History, Loader2, X, Search, Trash2, Plus } from 'lucide-react';
+import { Camera, MapPin, Box, CheckCircle2, AlertCircle, ArrowRight, History, Loader2, X, Search, Trash2, Plus, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import type { ArchiveItem, MuseumLocation } from '../types/database';
+import type { MuseumLocation } from '../types/database';
 import { QRScanner } from '../components/QRScanner';
+
+export interface StagedTagItem {
+    id: string;
+    title: string;
+    displayId: string;
+    type: 'artifact' | 'book';
+    museum_location_id?: string;
+    museum_location_ids?: string[];
+}
 
 export function TaggingHub() {
     const { user } = useAuth();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     
     // State for the tagging process
-    const [selectedItems, setSelectedItems] = useState<ArchiveItem[]>([]);
+    const [selectedItems, setSelectedItems] = useState<StagedTagItem[]>([]);
     const [selectedLocation, setSelectedLocation] = useState<MuseumLocation | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [searchId, setSearchId] = useState('');
@@ -21,23 +30,48 @@ export function TaggingHub() {
     const [alreadyHereItems, setAlreadyHereItems] = useState<string[]>([]); // item IDs
 
     // Conflict State
-    const [conflictedItems, setConflictedItems] = useState<ArchiveItem[]>([]);
+    const [conflictedItems, setConflictedItems] = useState<StagedTagItem[]>([]);
     const [currentConflictIndex, setCurrentConflictIndex] = useState(-1);
 
-    const parseIdFromData = (data: string): { type: 'item' | 'loc' | 'unknown', id: string } => {
-        // Handle full URLs (e.g. https://domain.com/items/ID)
+    const parseIdFromData = (data: string): { type: 'item' | 'book' | 'loc' | 'unknown', id: string } => {
+        // Handle full URLs (e.g. https://domain.com/items/ID or /library/ID)
         if (data.includes('/items/')) {
             const parts = data.split('/items/');
-            // Get the ID after /items/ and before any query params
             const potentialId = parts[parts.length - 1].split('?')[0].split('/')[0];
             return { type: 'item', id: potentialId };
+        }
+        if (data.includes('/library/')) {
+            const parts = data.split('/library/');
+            const potentialId = parts[parts.length - 1].split('?')[0].split('/')[0];
+            return { type: 'book', id: potentialId };
         }
         
         // Handle legacy/internal formats
         if (data.startsWith('item:')) return { type: 'item', id: data.replace('item:', '') };
+        if (data.startsWith('book:')) return { type: 'book', id: data.replace('book:', '') };
         if (data.startsWith('loc:')) return { type: 'loc', id: data.replace('loc:', '') };
         
         return { type: 'unknown', id: '' };
+    };
+
+    const addStagedItem = (newItem: StagedTagItem) => {
+        setSelectedItems(prev => {
+            if (!prev.find(i => i.id === newItem.id)) {
+                // Check if already in the selected location
+                if (selectedLocation) {
+                    const locIds = newItem.museum_location_ids || [];
+                    const isAlreadyHere =
+                        newItem.museum_location_id === selectedLocation.id ||
+                        locIds.includes(selectedLocation.id);
+                    if (isAlreadyHere) {
+                        setAlreadyHereItems(a => [...new Set([...a, newItem.id])]);
+                    }
+                }
+                return [...prev, newItem];
+            }
+            setMessage({ type: 'error', text: `${newItem.type === 'book' ? 'Book' : 'Item'} already in list.` });
+            return prev;
+        });
     };
 
     const handleScan = async (data: string) => {
@@ -51,26 +85,33 @@ export function TaggingHub() {
             if (type === 'item') {
                 const itemDoc = await getDoc(doc(db, 'archive_items', id));
                 if (itemDoc.exists()) {
-                    const newItem = { id: itemDoc.id, ...itemDoc.data() } as ArchiveItem;
-                    setSelectedItems(prev => {
-                        if (!prev.find(i => i.id === newItem.id)) {
-                            // Check if already in the selected location
-                            if (selectedLocation) {
-                                const locIds = newItem.museum_location_ids || [];
-                                const isAlreadyHere =
-                                    newItem.museum_location_id === selectedLocation.id ||
-                                    locIds.includes(selectedLocation.id);
-                                if (isAlreadyHere) {
-                                    setAlreadyHereItems(a => [...new Set([...a, newItem.id])]);
-                                }
-                            }
-                            return [...prev, newItem];
-                        }
-                        setMessage({ type: 'error', text: "Item already in list." });
-                        return prev;
-                    });
+                    const itemData = itemDoc.data();
+                    const newItem: StagedTagItem = {
+                        id: itemDoc.id,
+                        title: itemData.title || 'Untitled Archive Item',
+                        displayId: itemData.artifact_id || itemDoc.id,
+                        type: 'artifact',
+                        museum_location_id: itemData.museum_location_id,
+                        museum_location_ids: itemData.museum_location_ids
+                    };
+                    addStagedItem(newItem);
                 } else {
                     setMessage({ type: 'error', text: "Item not found in database." });
+                }
+            } else if (type === 'book') {
+                const bookDoc = await getDoc(doc(db, 'library_books', id));
+                if (bookDoc.exists()) {
+                    const bookData = bookDoc.data();
+                    const newItem: StagedTagItem = {
+                        id: bookDoc.id,
+                        title: bookData.title || 'Untitled Library Book',
+                        displayId: bookData.call_number || bookData.isbn || bookDoc.id,
+                        type: 'book',
+                        museum_location_ids: bookData.museum_location_ids
+                    };
+                    addStagedItem(newItem);
+                } else {
+                    setMessage({ type: 'error', text: "Book not found in database." });
                 }
             } else if (type === 'loc') {
                 const locQuery = query(collection(db, 'locations'), where('id', '==', id));
@@ -83,7 +124,7 @@ export function TaggingHub() {
                     setMessage({ type: 'error', text: "Location code not recognized." });
                 }
             } else {
-                setMessage({ type: 'error', text: "Invalid QR code format. Please scan a SAHS tracking code or Item URL." });
+                setMessage({ type: 'error', text: "Invalid QR code format. Please scan a SAHS tracking code or Item/Book URL." });
             }
         } catch (error) {
             console.error("Scan processing error:", error);
@@ -104,17 +145,18 @@ export function TaggingHub() {
             const trimmedId = searchId.trim();
             const numericId = parseInt(trimmedId, 10);
 
-            // Fetch either by exact string or exact number if applicable
-            const queries = [
+            // 1. Try search archive_items by artifact_id
+            const itemQueries = [
                 query(collection(db, 'archive_items'), where('artifact_id', '==', trimmedId))
             ];
-
             if (!isNaN(numericId)) {
-                queries.push(query(collection(db, 'archive_items'), where('artifact_id', '==', numericId)));
+                itemQueries.push(query(collection(db, 'archive_items'), where('artifact_id', '==', numericId)));
             }
 
             let foundDoc = null;
-            for (const qry of queries) {
+            let foundType: 'artifact' | 'book' = 'artifact';
+
+            for (const qry of itemQueries) {
                 const snap = await getDocs(qry);
                 if (!snap.empty) {
                     foundDoc = snap.docs[0];
@@ -122,37 +164,64 @@ export function TaggingHub() {
                 }
             }
 
-            const addItemToList = (newItem: ArchiveItem) => {
-                if (!selectedItems.find(i => i.id === newItem.id)) {
-                    // Check if already in the selected location
-                    if (selectedLocation) {
-                        const locIds = newItem.museum_location_ids || [];
-                        const isAlreadyHere =
-                            newItem.museum_location_id === selectedLocation.id ||
-                            locIds.includes(selectedLocation.id);
-                        if (isAlreadyHere) {
-                            setAlreadyHereItems(a => [...new Set([...a, newItem.id])]);
-                        }
+            // 2. If not found, try searching library_books by isbn or call_number
+            if (!foundDoc) {
+                const bookQueries = [
+                    query(collection(db, 'library_books'), where('isbn', '==', trimmedId)),
+                    query(collection(db, 'library_books'), where('call_number', '==', trimmedId))
+                ];
+                for (const qry of bookQueries) {
+                    const snap = await getDocs(qry);
+                    if (!snap.empty) {
+                        foundDoc = snap.docs[0];
+                        foundType = 'book';
+                        break;
                     }
-                    setSelectedItems(prev => [...prev, newItem]);
-                    setSearchId('');
-                } else {
-                    setMessage({ type: 'error', text: "Item already in list." });
                 }
-            };
+            }
 
-            if (foundDoc) {
-                const newItem = { id: foundDoc.id, ...foundDoc.data() } as ArchiveItem;
-                addItemToList(newItem);
-            } else {
-                // If not found by artifact_id, try searching by Firestore Doc ID
+            // 3. If still not found, try searching by doc IDs
+            if (!foundDoc) {
                 const itemDoc = await getDoc(doc(db, 'archive_items', trimmedId));
                 if (itemDoc.exists()) {
-                    const newItem = { id: itemDoc.id, ...itemDoc.data() } as ArchiveItem;
-                    addItemToList(newItem);
-                } else {
-                    setMessage({ type: 'error', text: "Item not found by ID or system ID." });
+                    foundDoc = itemDoc;
+                    foundType = 'artifact';
                 }
+            }
+            if (!foundDoc) {
+                const bookDoc = await getDoc(doc(db, 'library_books', trimmedId));
+                if (bookDoc.exists()) {
+                    foundDoc = bookDoc;
+                    foundType = 'book';
+                }
+            }
+
+            if (foundDoc) {
+                const docData = foundDoc.data();
+                if (foundType === 'artifact') {
+                    const newItem: StagedTagItem = {
+                        id: foundDoc.id,
+                        title: docData.title || 'Untitled Archive Item',
+                        displayId: docData.artifact_id || foundDoc.id,
+                        type: 'artifact',
+                        museum_location_id: docData.museum_location_id,
+                        museum_location_ids: docData.museum_location_ids
+                    };
+                    addStagedItem(newItem);
+                    setSearchId('');
+                } else {
+                    const newItem: StagedTagItem = {
+                        id: foundDoc.id,
+                        title: docData.title || 'Untitled Library Book',
+                        displayId: docData.call_number || docData.isbn || foundDoc.id,
+                        type: 'book',
+                        museum_location_ids: docData.museum_location_ids
+                    };
+                    addStagedItem(newItem);
+                    setSearchId('');
+                }
+            } else {
+                setMessage({ type: 'error', text: "No item or library book found matching that ID, ISBN, or Call Number." });
             }
         } catch (error) {
             console.error("Manual search error:", error);
@@ -172,7 +241,6 @@ export function TaggingHub() {
 
         // 1. Check for conflicts if not already resolving
         if (!forceResolution) {
-            // Filter out items that are already in this location — they don't need re-tagging
             const itemsAlreadyHere = selectedItems.filter(item => alreadyHereItems.includes(item.id));
             const itemsToTag = selectedItems.filter(item => !alreadyHereItems.includes(item.id));
 
@@ -183,8 +251,7 @@ export function TaggingHub() {
 
             const conflicts = itemsToTag.filter(item => {
                 const hasExisting = (item.museum_location_id && item.museum_location_id !== selectedLocation.id) || 
-                                   (item.museum_location_ids && item.museum_location_ids.length > 0 && !item.museum_location_ids.includes(selectedLocation.id)) ||
-                                   (item.museum_location && !item.museum_location_ids?.includes(selectedLocation.id) && item.museum_location_id !== selectedLocation.id);
+                                   (item.museum_location_ids && item.museum_location_ids.length > 0 && !item.museum_location_ids.includes(selectedLocation.id));
                 return hasExisting;
             });
 
@@ -202,7 +269,6 @@ export function TaggingHub() {
             const email = user?.email || 'unknown';
 
             selectedItems.forEach(item => {
-                const itemRef = doc(db, 'archive_items', item.id);
                 const resolution = forceResolution?.find(r => r.itemId === item.id);
                 
                 let newLocationIds: string[] = [];
@@ -214,13 +280,23 @@ export function TaggingHub() {
                     newLocationIds = [selectedLocation.id];
                 }
 
-                batch.update(itemRef, {
-                    museum_location_id: selectedLocation.id,
-                    museum_location_ids: newLocationIds,
-                    last_tagged_at: now,
-                    last_tagged_by: email,
-                    stage: 'Housed'
-                });
+                if (item.type === 'artifact') {
+                    const itemRef = doc(db, 'archive_items', item.id);
+                    batch.update(itemRef, {
+                        museum_location_id: selectedLocation.id,
+                        museum_location_ids: newLocationIds,
+                        last_tagged_at: now,
+                        last_tagged_by: email,
+                        stage: 'Housed'
+                    });
+                } else {
+                    const bookRef = doc(db, 'library_books', item.id);
+                    batch.update(bookRef, {
+                        museum_location_ids: newLocationIds,
+                        updated_at: now,
+                        updated_by_email: email
+                    });
+                }
             });
 
             await batch.commit();
@@ -323,7 +399,7 @@ export function TaggingHub() {
                         Tagging Hub
                     </h1>
                     <p className="text-charcoal/70 text-base md:text-lg max-w-2xl">
-                        Batch process artifacts by scanning or entering their ID numbers.
+                        Batch process artifacts and library books by scanning or entering their IDs, ISBNs, or Call Numbers.
                     </p>
                 </div>
                 
@@ -332,7 +408,7 @@ export function TaggingHub() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={20} />
                         <input
                             type="text"
-                            placeholder="Enter Artifact ID # (e.g. 1429)"
+                            placeholder="ID, ISBN, or Call Number"
                             value={searchId}
                             onChange={(e) => setSearchId(e.target.value)}
                             className="w-full pl-12 pr-4 py-4 md:py-5 bg-white border-2 border-tan-light/50 text-lg md:text-xl font-serif rounded-2xl focus:ring-2 focus:ring-tan/20 shadow-md transition-all outline-none placeholder:text-charcoal/20"
@@ -364,7 +440,7 @@ export function TaggingHub() {
                 {/* Items Selection Panel */}
                 <div className="md:col-span-2 space-y-4">
                     <div className="flex justify-between items-center mb-2">
-                        <h2 className="text-sm font-black text-charcoal/40 uppercase tracking-[0.2em]">Selected Artifacts ({selectedItems.length})</h2>
+                        <h2 className="text-sm font-black text-charcoal/40 uppercase tracking-[0.2em]">Selected Items ({selectedItems.length})</h2>
                         {selectedItems.length > 0 && (
                             <button onClick={() => setSelectedItems([])} className="text-xs font-bold text-red-500 hover:underline">Clear All</button>
                         )}
@@ -376,12 +452,12 @@ export function TaggingHub() {
                         {selectedItems.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-charcoal/40">
                                 <Box size={48} className="mb-4 opacity-20" />
-                                <p className="font-serif italic mb-6">No artifacts staged for tagging yet.</p>
+                                <p className="font-serif italic mb-6">No items or books staged for tagging yet.</p>
                                 <button 
                                     onClick={() => { setIsScannerOpen(true); }}
                                     className="bg-charcoal text-white px-8 py-3 rounded-xl font-bold hover:bg-charcoal-light transition-all flex items-center gap-2 shadow-sm"
                                 >
-                                    <Camera size={20} /> Scan Artifacts
+                                    <Camera size={20} /> Scan Codes
                                 </button>
                             </div>
                         ) : (
@@ -406,12 +482,12 @@ export function TaggingHub() {
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                                                 isAlreadyHere ? 'bg-amber-100 text-amber-500' : 'bg-cream text-tan'
                                             }`}>
-                                                {isAlreadyHere ? <AlertCircle size={20} /> : <Box size={20} />}
+                                                {isAlreadyHere ? <AlertCircle size={20} /> : (item.type === 'book' ? <BookOpen size={20} /> : <Box size={20} />)}
                                             </div>
                                             <div>
                                                 <h4 className="font-bold text-charcoal leading-tight">{item.title}</h4>
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="text-[10px] font-black text-tan/60 uppercase tracking-widest">{item.artifact_id || 'ID UNKNOWN'}</p>
+                                                    <p className="text-[10px] font-black text-tan/60 uppercase tracking-widest">{item.type === 'book' ? `Book ID/Call: ${item.displayId}` : `Artifact ID: ${item.displayId}`}</p>
                                                     {isAlreadyHere && (
                                                         <span className="text-[9px] font-black uppercase tracking-widest bg-amber-200 text-amber-700 px-2 py-0.5 rounded-full">
                                                             Already Here
@@ -495,7 +571,7 @@ export function TaggingHub() {
                     <div className="flex -space-x-4 overflow-hidden p-2">
                         {selectedItems.slice(0, 5).map((item, idx) => (
                             <div key={item.id} className="w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-cream border-4 border-white flex items-center justify-center text-tan shadow-sm" style={{ zIndex: 10 - idx }}>
-                                <Box size={24} />
+                                {item.type === 'book' ? <BookOpen size={24} /> : <Box size={24} />}
                             </div>
                         ))}
                         {selectedItems.length > 5 && (
@@ -532,7 +608,7 @@ export function TaggingHub() {
                     >
                         {isLoading ? <Loader2 className="animate-spin" size={24} /> : (
                             <>
-                                <CheckCircle2 size={24} /> Tag {selectedItems.length} Artifacts
+                                <CheckCircle2 size={24} /> Tag {selectedItems.length} Staged Item{selectedItems.length !== 1 ? 's' : ''}
                             </>
                         )}
                     </button>
