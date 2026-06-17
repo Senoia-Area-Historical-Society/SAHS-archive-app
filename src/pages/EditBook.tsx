@@ -168,74 +168,134 @@ export default function EditBook() {
             
             // Find which key returned data
             const activeKey = keys.find(k => data[k]);
-            const bookData = activeKey ? data[activeKey] : null;
+            let bookData = activeKey ? data[activeKey] : null;
+            let source: 'openlibrary' | 'googlebooks' = 'openlibrary';
+            let googleBookInfo: any = null;
 
             if (!bookData) {
-                setError("No book details found for this ISBN in the Open Library database.");
+                // Fallback to Google Books API
+                try {
+                    const googleRes = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedIsbn}`);
+                    if (googleRes.ok) {
+                        const googleData = await googleRes.json();
+                        if (googleData.items && googleData.items.length > 0) {
+                            googleBookInfo = googleData.items[0].volumeInfo;
+                            source = 'googlebooks';
+                        }
+                    }
+                } catch (gErr) {
+                    console.error("Google Books fallback failed:", gErr);
+                }
+            }
+
+            if (!bookData && !googleBookInfo) {
+                setError("No book details found for this ISBN in Open Library or Google Books.");
                 setIsLookingUp(false);
                 return;
             }
 
-            const matchedIsbn = activeKey!.replace('ISBN:', '');
+            if (source === 'openlibrary' && bookData) {
+                const matchedIsbn = activeKey!.replace('ISBN:', '');
 
-            // Populate form fields
-            if (bookData.title) setTitle(bookData.title);
-            
-            if (bookData.authors && bookData.authors.length > 0) {
-                setAuthors(bookData.authors.map((a: any) => a.name).join(', '));
-            }
-            
-            if (bookData.publishers && bookData.publishers.length > 0) {
-                setPublisher(bookData.publishers[0].name);
-            }
-            
-            if (bookData.publish_date) {
-                const yearMatch = bookData.publish_date.match(/\d{4}/);
-                setPublishYear(yearMatch ? yearMatch[0] : bookData.publish_date);
-            }
-
-            let desc = '';
-            if (bookData.subtitle) {
-                desc += `${bookData.subtitle}\n\n`;
-            }
-            if (typeof bookData.notes === 'string') {
-                desc += bookData.notes;
-            } else if (bookData.excerpts && bookData.excerpts.length > 0) {
-                desc += bookData.excerpts[0].text;
-            }
-            if (desc) {
-                setDescription(desc);
-            }
-
-            let coverUrlToUse = null;
-            if (bookData.cover) {
-                const coverImg = bookData.cover.large || bookData.cover.medium || bookData.cover.small;
-                if (coverImg) {
-                    coverUrlToUse = coverImg.replace('http://', 'https://');
+                // Populate form fields
+                if (bookData.title) setTitle(bookData.title);
+                
+                if (bookData.authors && bookData.authors.length > 0) {
+                    setAuthors(bookData.authors.map((a: any) => a.name).join(', '));
                 }
-            }
-
-            if (!coverUrlToUse && matchedIsbn) {
-                const directIsbnUrl = `https://covers.openlibrary.org/b/isbn/${matchedIsbn}-L.jpg`;
-                const coverExists = await new Promise<boolean>((resolve) => {
-                    const img = new Image();
-                    img.onload = () => resolve(true);
-                    img.onerror = () => resolve(false);
-                    img.src = `${directIsbnUrl}?default=false`;
-                });
-                if (coverExists) {
-                    coverUrlToUse = directIsbnUrl;
+                
+                if (bookData.publishers && bookData.publishers.length > 0) {
+                    setPublisher(bookData.publishers[0].name);
                 }
-            }
+                
+                if (bookData.publish_date) {
+                    const yearMatch = bookData.publish_date.match(/\d{4}/);
+                    setPublishYear(yearMatch ? yearMatch[0] : bookData.publish_date);
+                }
 
-            if (coverUrlToUse) {
-                setFetchedCoverUrl(coverUrlToUse);
-                setCoverPreviewUrl(coverUrlToUse);
-                setExistingCoverUrl(null); // Clear existing since we have a new fetched cover
-            }
+                let desc = '';
+                if (bookData.subtitle) {
+                    desc += `${bookData.subtitle}\n\n`;
+                }
+                if (typeof bookData.notes === 'string') {
+                    desc += bookData.notes;
+                } else if (bookData.excerpts && bookData.excerpts.length > 0) {
+                    desc += bookData.excerpts[0].text;
+                }
+                if (desc) {
+                    setDescription(desc);
+                }
 
-            if (bookData.subjects && bookData.subjects.length > 0) {
-                setSubjects(bookData.subjects.slice(0, 5).map((s: any) => s.name).join(', '));
+                let coverUrlToUse = null;
+                if (bookData.cover) {
+                    const coverImg = bookData.cover.large || bookData.cover.medium || bookData.cover.small;
+                    if (coverImg) {
+                        coverUrlToUse = coverImg.replace('http://', 'https://');
+                    }
+                }
+
+                if (!coverUrlToUse && matchedIsbn) {
+                    const directIsbnUrl = `https://covers.openlibrary.org/b/isbn/${matchedIsbn}-L.jpg`;
+                    const coverExists = await new Promise<boolean>((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve(true);
+                        img.onerror = () => resolve(false);
+                        img.src = `${directIsbnUrl}?default=false`;
+                    });
+                    if (coverExists) {
+                        coverUrlToUse = directIsbnUrl;
+                    }
+                }
+
+                if (coverUrlToUse) {
+                    setFetchedCoverUrl(coverUrlToUse);
+                    setCoverPreviewUrl(coverUrlToUse);
+                    setExistingCoverUrl(null); // Clear existing since we have a new fetched cover
+                }
+
+                if (bookData.subjects && bookData.subjects.length > 0) {
+                    setSubjects(bookData.subjects.slice(0, 5).map((s: any) => s.name).join(', '));
+                }
+            } else if (source === 'googlebooks' && googleBookInfo) {
+                // Populate form fields using Google Books schema
+                if (googleBookInfo.title) {
+                    setTitle(googleBookInfo.subtitle ? `${googleBookInfo.title}: ${googleBookInfo.subtitle}` : googleBookInfo.title);
+                }
+                
+                if (googleBookInfo.authors && googleBookInfo.authors.length > 0) {
+                    setAuthors(googleBookInfo.authors.join(', '));
+                }
+                
+                if (googleBookInfo.publisher) {
+                    setPublisher(googleBookInfo.publisher);
+                }
+                
+                if (googleBookInfo.publishedDate) {
+                    const yearMatch = googleBookInfo.publishedDate.match(/\d{4}/);
+                    setPublishYear(yearMatch ? yearMatch[0] : googleBookInfo.publishedDate);
+                }
+
+                if (googleBookInfo.description) {
+                    setDescription(googleBookInfo.description);
+                }
+
+                let coverUrlToUse = null;
+                if (googleBookInfo.imageLinks) {
+                    const coverImg = googleBookInfo.imageLinks.thumbnail || googleBookInfo.imageLinks.smallThumbnail;
+                    if (coverImg) {
+                        coverUrlToUse = coverImg.replace('http://', 'https://');
+                    }
+                }
+
+                if (coverUrlToUse) {
+                    setFetchedCoverUrl(coverUrlToUse);
+                    setCoverPreviewUrl(coverUrlToUse);
+                    setExistingCoverUrl(null); // Clear existing
+                }
+
+                if (googleBookInfo.categories && googleBookInfo.categories.length > 0) {
+                    setSubjects(googleBookInfo.categories.slice(0, 5).join(', '));
+                }
             }
 
         } catch (err) {
