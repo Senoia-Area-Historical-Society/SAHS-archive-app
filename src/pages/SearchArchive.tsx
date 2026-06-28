@@ -210,8 +210,8 @@ export function SearchArchive() {
             // Tag match (partial match)
             const matchesTag = !localTag || (item.tags && item.tags.some(t => t.toLowerCase().includes(localTag.toLowerCase())));
 
-            // Artifact ID match (starts with match)
-            const matchesArtifactId = !localArtifactId || (item.artifact_id && item.artifact_id.toString().toLowerCase().startsWith(localArtifactId.toLowerCase()));
+            // Artifact ID match (exact match)
+            const matchesArtifactId = !localArtifactId || (item.artifact_id && item.artifact_id.toString().toLowerCase().trim() === localArtifactId.toLowerCase().trim());
             
             // Location ID match (exact match)
             const matchesLocId = !localLocId || 
