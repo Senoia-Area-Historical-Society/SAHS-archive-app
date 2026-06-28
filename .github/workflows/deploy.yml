@@ -54,7 +54,11 @@ jobs:
         with:
           workload_identity_provider: 'projects/993507659072/locations/global/workloadIdentityPools/sahs-github-pool/providers/sahs-github-provider'
           service_account: 'github-action-1168899154@sahs-archives.iam.gserviceaccount.com'
+          create_credentials_file: true
+          export_environment_variables: true
 
       # 🚀 Deploy to Firebase using the authenticated environment
       - name: Deploy to Firebase
         run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives --force
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
