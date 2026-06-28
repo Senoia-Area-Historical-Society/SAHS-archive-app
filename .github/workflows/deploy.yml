@@ -61,4 +61,4 @@ jobs:
       - name: Deploy to Firebase
         run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives --force
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
