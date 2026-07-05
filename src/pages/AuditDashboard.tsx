@@ -155,7 +155,7 @@ export function AuditDashboard() {
             }
 
             const hasLocation = !!(item.museum_location_id || (item.museum_location_ids && item.museum_location_ids.length > 0));
-            if (!hasLocation && (type === 'artifact' || type === 'document')) {
+            if (!hasLocation && type === 'artifact') {
                 issues.push('no-location');
                 stats.missingLocations++;
             }
@@ -604,7 +604,7 @@ export function AuditDashboard() {
                                                     {issue === 'no-date' && <Calendar size={10} />}
                                                     {issue === 'no-id' && <Tag size={10} />}
                                                     {issue === 'no-location' && <MapPin size={10} />}
-                                                    {issue.replace('no-', 'missing ')}
+                                                    {issue === 'no-location' ? 'unplaced' : issue.replace('no-', 'missing ')}
                                                 </span>
                                             ))}
                                             {item.auditIssues.length === 0 && (
