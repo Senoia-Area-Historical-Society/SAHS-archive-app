@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 export function BrowseArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -22,6 +23,7 @@ export function BrowseArchive() {
     const [loading, setLoading] = useState(true);
     const [localSearch, setLocalSearch] = useState(search);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
 
     // Pagination state
     const [visibleCount, setVisibleCount] = useState(24);
@@ -174,7 +176,7 @@ export function BrowseArchive() {
             case 'Oral History':
                 return {
                     title: 'Oral Histories',
-                    description: `Listen and read along with ${filteredItems.length} personal stories from the Senoia community`,
+                    description: `Listen and read along with ${filteredItems.length} personal stories from the ${settings.museumShortName || "Senoia"} community`,
                     placeholder: 'Search oral histories by narrator, interviewer, tags, or transcript...'
                 };
             default:

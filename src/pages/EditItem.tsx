@@ -6,6 +6,7 @@ import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
@@ -2325,6 +2326,7 @@ export function OralHistoryEditForm({
     showFigureResults,
     setShowFigureResults
 }: OralHistoryEditFormProps) {
+    const { settings } = useAppearance();
     const [transcriptLines, setTranscriptLines] = useState<{ id: string; timestamp: string; speaker: string; text: string }[]>([]);
     const [audioPlayerTime, setAudioPlayerTime] = useState(0);
     const [audioPlayerDuration, setAudioPlayerDuration] = useState(0);
@@ -2946,7 +2948,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="creator" 
                                 id="creator" 
-                                defaultValue={item.creator || "Senoia Area Historical Society"} 
+                                defaultValue={item.creator || settings.museumName || "Senoia Area Historical Society"} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2958,7 +2960,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="publisher" 
                                 id="publisher" 
-                                defaultValue={item.publisher || "Senoia Area Historical Society"} 
+                                defaultValue={item.publisher || settings.museumName || "Senoia Area Historical Society"} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2970,7 +2972,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="rights" 
                                 id="rights" 
-                                defaultValue={item.rights || "Copyright Senoia Area Historical Society. All rights reserved."} 
+                                defaultValue={item.rights || `Copyright ${settings.museumName || "Senoia Area Historical Society"}. All rights reserved.`} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>

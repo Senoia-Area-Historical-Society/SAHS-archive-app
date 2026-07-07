@@ -5,11 +5,13 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem } from '../types/database';
 import { ArchiveMap } from '../components/ArchiveMap';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 export function BrowseMap() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -70,7 +72,7 @@ export function BrowseMap() {
                     Map View
                 </h1>
                 <p className="text-xl text-charcoal-light max-w-3xl leading-relaxed">
-                    Explore the history of Senoia through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
+                    Explore the history of {settings.museumShortName || "Senoia"} through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
                 </p>
             </div>
 

@@ -187,7 +187,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                         </div>
                         <div>
                             <h1 className="font-serif text-lg leading-tight font-bold text-charcoal whitespace-pre-line">
-                                {settings.sidebarTitle || "Senoia Area\nHistorical Society"}
+                                {settings.sidebarTitle || settings.museumName || "Senoia Area\nHistorical Society"}
                             </h1>
                             <p className="text-xs text-charcoal-light mt-0.5 tracking-wide">
                                 Archive Database

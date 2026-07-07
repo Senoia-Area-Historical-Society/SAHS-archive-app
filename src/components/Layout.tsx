@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Menu, QrCode } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'book' | 'unknown', id: string } => {
     const trimmed = data.trim();
@@ -52,7 +53,14 @@ export default function Layout() {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (settings.museumName) {
+            document.title = `${settings.museumName} | Digital Archive`;
+        }
+    }, [settings.museumName]);
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -99,7 +107,7 @@ export default function Layout() {
                             <Menu size={24} />
                         </button>
                         <h1 className="font-serif text-lg leading-tight font-bold text-charcoal">
-                            Senoia Area Historical Society
+                            {settings.museumName}
                         </h1>
                     </div>
                     {isSAHSUser && (
