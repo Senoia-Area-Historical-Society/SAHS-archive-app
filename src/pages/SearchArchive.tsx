@@ -406,6 +406,23 @@ export function SearchArchive() {
                         </div>
                     </div>
 
+                    {/* Filter: Artifact ID — always visible */}
+                    {(selectedType === 'All Items' || selectedType === 'Artifact') && (
+                        <div>
+                            <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Artifact ID #</label>
+                            <div className="relative">
+                                <Info className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30 transition-colors group-focus-within:text-charcoal" size={24} />
+                                <input
+                                    type="text"
+                                    placeholder="Enter artifact ID..."
+                                    className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border-2 border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
+                                    value={localArtifactId}
+                                    onChange={(e) => setLocalArtifactId(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
+
                     {/* Filter: Sort By */}
                     <div>
                         <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Sort By</label>
@@ -440,22 +457,6 @@ export function SearchArchive() {
 
                     {showAdvanced && (
                         <>
-                            {/* Filter: Artifact ID */}
-                            {(selectedType === 'All Items' || selectedType === 'Artifact') && (
-                                <div className="md:col-span-1 border-t md:border-t-0 pt-4 md:pt-0">
-                                    <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Artifact ID #</label>
-                                    <div className="relative">
-                                        <Info className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30 transition-colors group-focus-within:text-charcoal" size={24} />
-                                        <input
-                                            type="text"
-                                            placeholder="Enter artifact ID..."
-                                            className="w-full bg-cream pl-14 pr-4 py-6 rounded-xl border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal text-xl shadow-sm"
-                                            value={localArtifactId}
-                                            onChange={(e) => setLocalArtifactId(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Filter: Processing Stage */}
                             <div>
