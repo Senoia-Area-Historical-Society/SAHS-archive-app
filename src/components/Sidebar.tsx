@@ -9,7 +9,7 @@ import { useAppearance } from '../contexts/AppearanceContext';
 
 function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel: string }) {
     const { realIsAdmin } = useAuth();
-    const { settings, refreshSettings } = useAppearance();
+    const { settings, refreshSettings, isAppearanceEditMode } = useAppearance();
     const [isEditing, setIsEditing] = useState(false);
     const [val, setVal] = useState(settings.tabNames?.[tabKey] || defaultLabel);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -22,7 +22,7 @@ function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel:
     }, [settings.tabNames, tabKey]);
 
     const handleStartEdit = (e: React.MouseEvent) => {
-        if (!realIsAdmin) return;
+        if (!realIsAdmin || !isAppearanceEditMode) return;
         e.preventDefault();
         e.stopPropagation();
         setIsEditing(true);
@@ -31,7 +31,7 @@ function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel:
 
     const handleSave = async () => {
         setIsEditing(false);
-        if (!realIsAdmin) return;
+        if (!realIsAdmin || !isAppearanceEditMode) return;
         const trimmed = val.trim();
         if (!trimmed || trimmed === (settings.tabNames?.[tabKey] || defaultLabel)) return;
 
@@ -84,11 +84,11 @@ function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel:
     return (
         <span className="flex-1 flex items-center justify-between group/label min-w-0">
             <span className="whitespace-normal break-words leading-tight">{displayText}</span>
-            {realIsAdmin && (
+            {realIsAdmin && isAppearanceEditMode && (
                 <button
                     type="button"
                     onClick={handleStartEdit}
-                    className="opacity-0 group-hover/label:opacity-100 p-1 hover:bg-tan/10 rounded text-tan transition-opacity ml-1 shrink-0"
+                    className="opacity-60 hover:opacity-100 p-1 hover:bg-tan/10 rounded text-tan transition-opacity ml-1 shrink-0"
                     title="Rename Tab"
                 >
                     <Pencil size={12} />
