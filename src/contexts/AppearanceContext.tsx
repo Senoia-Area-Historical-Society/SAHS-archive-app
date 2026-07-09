@@ -66,6 +66,14 @@ export const THEME_PRESETS: Record<string, ThemeConfig> = {
     }
 };
 
+export interface FeatureToggles {
+    enableLibrary: boolean;
+    enableOralHistories: boolean;
+    enableMembership: boolean;
+    enableMap: boolean;
+    enableCollections: boolean;
+}
+
 interface AppearanceSettings {
     theme: string;
     heroTitle: string;
@@ -80,6 +88,7 @@ interface AppearanceSettings {
     museumShortName?: string;
     tabNames?: Record<string, string>;
     contentBlocks?: Record<string, string>;
+    featureToggles?: FeatureToggles;
 }
 
 interface AppearanceContextType {
@@ -159,6 +168,13 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
         storiesTitleItalic: "Stories",
         storiesDesc: "A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped the Senoia Area community over the decades.",
         storiesLogoUrl: ""
+    },
+    featureToggles: {
+        enableLibrary: true,
+        enableOralHistories: true,
+        enableMembership: true,
+        enableMap: true,
+        enableCollections: true
     }
 };
 
@@ -223,6 +239,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                     contentBlocks: {
                         ...DEFAULT_SETTINGS.contentBlocks,
                         ...(data.contentBlocks || {})
+                    },
+                    featureToggles: {
+                        ...DEFAULT_SETTINGS.featureToggles,
+                        ...(data.featureToggles || {})
                     }
                 };
                 setSettings(fetched);

@@ -5,10 +5,21 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { LibraryBook, MuseumLocation } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 export function LibraryBrowse() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
+
+    if (settings.featureToggles?.enableLibrary === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Book Library module is not active for this archive site.</p>
+            </div>
+        );
+    }
 
     // Search and filter parameters from URL
     const search = searchParams.get('q') || '';

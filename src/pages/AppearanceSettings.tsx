@@ -4,7 +4,7 @@ import { useAppearance, THEME_PRESETS } from '../contexts/AppearanceContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building } from 'lucide-react';
+import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building, Sliders } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function AppearanceSettings() {
@@ -37,6 +37,13 @@ export function AppearanceSettings() {
     const [museumName, setMuseumName] = useState(settings.museumName || '');
     const [museumShortName, setMuseumShortName] = useState(settings.museumShortName || '');
 
+    // Feature Toggles states
+    const [enableLibrary, setEnableLibrary] = useState(settings.featureToggles?.enableLibrary !== false);
+    const [enableOralHistories, setEnableOralHistories] = useState(settings.featureToggles?.enableOralHistories !== false);
+    const [enableMembership, setEnableMembership] = useState(settings.featureToggles?.enableMembership !== false);
+    const [enableMap, setEnableMap] = useState(settings.featureToggles?.enableMap !== false);
+    const [enableCollections, setEnableCollections] = useState(settings.featureToggles?.enableCollections !== false);
+
     // Redirect if not admin
     useEffect(() => {
         if (!realIsAdmin) {
@@ -57,6 +64,11 @@ export function AppearanceSettings() {
         setYoutubeUrl(settings.youtubeUrl || '');
         setMuseumName(settings.museumName || '');
         setMuseumShortName(settings.museumShortName || '');
+        setEnableLibrary(settings.featureToggles?.enableLibrary !== false);
+        setEnableOralHistories(settings.featureToggles?.enableOralHistories !== false);
+        setEnableMembership(settings.featureToggles?.enableMembership !== false);
+        setEnableMap(settings.featureToggles?.enableMap !== false);
+        setEnableCollections(settings.featureToggles?.enableCollections !== false);
     }, [settings]);
 
     const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +147,14 @@ export function AppearanceSettings() {
                 facebookUrl: facebookUrl.trim(),
                 youtubeUrl: youtubeUrl.trim(),
                 museumName: museumName.trim(),
-                museumShortName: museumShortName.trim()
+                museumShortName: museumShortName.trim(),
+                featureToggles: {
+                    enableLibrary,
+                    enableOralHistories,
+                    enableMembership,
+                    enableMap,
+                    enableCollections
+                }
             }, { merge: true });
             
             await refreshSettings();
@@ -475,6 +494,91 @@ export function AppearanceSettings() {
                             </div>
                         </div>
                         <p className="text-xs text-charcoal/50">These URLs control the social icons at the top of the sidebar and in the homepage footer. Leave empty to hide the respective social icon.</p>
+                    </div>
+                </div>
+
+                {/* 6. Active Feature Modules */}
+                <div className="bg-white rounded-2xl border border-tan-light/50 shadow-sm p-6 sm:p-8">
+                    <div className="flex items-center gap-2 mb-6 border-b border-tan-light/20 pb-4">
+                        <Sliders className="text-tan" size={24} />
+                        <h2 className="font-serif text-xl font-bold">Active Feature Modules</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Book Library */}
+                        <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl">
+                            <div>
+                                <h3 className="text-sm font-bold text-charcoal">Book Library System</h3>
+                                <p className="text-xs text-charcoal/50 mt-1">Catalog, manage, and search physical books in the museum library.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEnableLibrary(!enableLibrary)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enableLibrary ? 'bg-tan' : 'bg-charcoal/20'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enableLibrary ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Oral Histories */}
+                        <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl">
+                            <div>
+                                <h3 className="text-sm font-bold text-charcoal">Oral Histories (Community Stories)</h3>
+                                <p className="text-xs text-charcoal/50 mt-1">Publish and play narrator recordings, transcripts, and community stories.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEnableOralHistories(!enableOralHistories)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enableOralHistories ? 'bg-tan' : 'bg-charcoal/20'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enableOralHistories ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Membership System */}
+                        <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl">
+                            <div>
+                                <h3 className="text-sm font-bold text-charcoal">Membership System</h3>
+                                <p className="text-xs text-charcoal/50 mt-1">Manage paid museum memberships, profile benefits, and private folders.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEnableMembership(!enableMembership)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enableMembership ? 'bg-tan' : 'bg-charcoal/20'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enableMembership ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Map Discovery */}
+                        <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl">
+                            <div>
+                                <h3 className="text-sm font-bold text-charcoal">Map Discovery Tools</h3>
+                                <p className="text-xs text-charcoal/50 mt-1">Geographic item mapping and interactive floor maps for museum navigation.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEnableMap(!enableMap)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enableMap ? 'bg-tan' : 'bg-charcoal/20'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enableMap ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+
+                        {/* Curated Collections */}
+                        <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl font-sans">
+                            <div>
+                                <h3 className="text-sm font-bold text-charcoal">Curated Collections</h3>
+                                <p className="text-xs text-charcoal/50 mt-1">Group and display archival records under custom themes and temporary exhibitions.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setEnableCollections(!enableCollections)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${enableCollections ? 'bg-tan' : 'bg-charcoal/20'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${enableCollections ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 

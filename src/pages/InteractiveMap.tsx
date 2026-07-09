@@ -5,6 +5,7 @@ import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, writeBa
 import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass, Layers } from 'lucide-react';
 import type { MuseumLocation, Room, MapFloor } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { Link, useSearchParams } from 'react-router-dom';
 
 type LayoutHistoryState = {
@@ -59,7 +60,18 @@ const getSmartBorders = (current: any, all: any[], isSelected: boolean) => {
 
 export function InteractiveMap() {
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     const [searchParams] = useSearchParams();
+
+    if (settings.featureToggles?.enableMap === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Map Discovery module is not active for this archive site.</p>
+            </div>
+        );
+    }
+
     const highlightTargetId = searchParams.get('highlight');
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
     const [loading, setLoading] = useState(true);

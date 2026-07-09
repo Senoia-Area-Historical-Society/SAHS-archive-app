@@ -161,13 +161,15 @@ export function Home() {
                             <Box size={24} />
                             View Artifacts
                         </Link>
-                        <Link
-                            to="/library"
-                            className="flex items-center gap-3 bg-cream/20 backdrop-blur-md text-white border border-white/30 px-8 py-4 rounded-xl font-bold text-lg hover:bg-white hover:text-charcoal transition-all shadow-lg"
-                        >
-                            <BookOpen size={24} />
-                            Book Library
-                        </Link>
+                        {settings.featureToggles?.enableLibrary !== false && (
+                            <Link
+                                to="/library"
+                                className="flex items-center gap-3 bg-cream/20 backdrop-blur-md text-white border border-white/30 px-8 py-4 rounded-xl font-bold text-lg hover:bg-white hover:text-charcoal transition-all shadow-lg"
+                            >
+                                <BookOpen size={24} />
+                                Book Library
+                            </Link>
+                        )}
                     </div>
                 </div>
             </div>

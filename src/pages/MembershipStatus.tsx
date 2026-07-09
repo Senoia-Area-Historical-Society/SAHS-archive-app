@@ -1,9 +1,20 @@
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { Shield, Award, Calendar, ArrowRight, CheckCircle, Info, Landmark, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function MembershipStatus() {
     const { user, isMember, isExpiredMember, memberData, simulatedRole } = useAuth();
+    const { settings } = useAppearance();
+
+    if (settings.featureToggles?.enableMembership === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Membership module is not active for this archive site.</p>
+            </div>
+        );
+    }
 
     // Determine what display data to show based on real/simulated roles
     const displayAsSimulated = simulatedRole === 'member';

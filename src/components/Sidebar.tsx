@@ -250,10 +250,12 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                 <Home size={20} />
                                 <EditableLabel tabKey="home" defaultLabel="Home" />
                             </NavLink>
-                            <NavLink to="/senoia-stories" className={navLinkClass} onClick={handleLinkClick}>
-                                <Mic size={20} className="text-tan" />
-                                <EditableLabel tabKey="senoiaStories" defaultLabel="Senoia Stories" />
-                            </NavLink>
+                            {settings.featureToggles?.enableOralHistories !== false && (
+                                <NavLink to="/senoia-stories" className={navLinkClass} onClick={handleLinkClick}>
+                                    <Mic size={20} className="text-tan" />
+                                    <EditableLabel tabKey="senoiaStories" defaultLabel="Senoia Stories" />
+                                </NavLink>
+                            )}
                         </nav>
                     </div>
 
@@ -277,10 +279,12 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                 <Box size={20} />
                                 <EditableLabel tabKey="artifacts" defaultLabel="Artifact Collection" />
                             </Link>
-                            <NavLink to="/library" className={navLinkClass} onClick={handleLinkClick}>
-                                <BookOpen size={20} />
-                                <EditableLabel tabKey="library" defaultLabel="Book Library" />
-                            </NavLink>
+                            {settings.featureToggles?.enableLibrary !== false && (
+                                <NavLink to="/library" className={navLinkClass} onClick={handleLinkClick}>
+                                    <BookOpen size={20} />
+                                    <EditableLabel tabKey="library" defaultLabel="Book Library" />
+                                </NavLink>
+                            )}
                         </nav>
                     </div>
 
@@ -292,14 +296,18 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                 <Search size={20} />
                                 <EditableLabel tabKey="search" defaultLabel="Advanced Search" />
                             </NavLink>
-                            <NavLink to="/map" className={navLinkClass} onClick={handleLinkClick}>
-                                <MapPin size={20} />
-                                <EditableLabel tabKey="map" defaultLabel="Map View" />
-                            </NavLink>
-                            <NavLink to="/collections" className={navLinkClass} onClick={handleLinkClick}>
-                                <FolderOpen size={20} />
-                                <EditableLabel tabKey="collections" defaultLabel="Curated Collections" />
-                            </NavLink>
+                            {settings.featureToggles?.enableMap !== false && (
+                                <NavLink to="/map" className={navLinkClass} onClick={handleLinkClick}>
+                                    <MapPin size={20} />
+                                    <EditableLabel tabKey="map" defaultLabel="Map View" />
+                                </NavLink>
+                            )}
+                            {settings.featureToggles?.enableCollections !== false && (
+                                <NavLink to="/collections" className={navLinkClass} onClick={handleLinkClick}>
+                                    <FolderOpen size={20} />
+                                    <EditableLabel tabKey="collections" defaultLabel="Curated Collections" />
+                                </NavLink>
+                            )}
                         </nav>
                     </div>
 
@@ -316,10 +324,12 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                     <Map className="text-tan" size={20} />
                                     <EditableLabel tabKey="researchMap" defaultLabel="My Research Map" />
                                 </NavLink>
-                                <NavLink to="/my-research/membership" className={navLinkClass} onClick={handleLinkClick}>
-                                    <Users className="text-tan" size={20} />
-                                    <EditableLabel tabKey="membership" defaultLabel="Membership Status" />
-                                </NavLink>
+                                {settings.featureToggles?.enableMembership !== false && (
+                                    <NavLink to="/my-research/membership" className={navLinkClass} onClick={handleLinkClick}>
+                                        <Users className="text-tan" size={20} />
+                                        <EditableLabel tabKey="membership" defaultLabel="Membership Status" />
+                                    </NavLink>
+                                )}
                             </nav>
                         </div>
                     )}
@@ -369,10 +379,12 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         <Camera size={20} />
                                         <EditableLabel tabKey="tagging" defaultLabel="Tagging Hub" />
                                     </NavLink>
-                                    <NavLink to="/interactive-map" className={navLinkClass} onClick={handleLinkClick}>
-                                        <Map size={20} />
-                                        <EditableLabel tabKey="interactiveMap" defaultLabel="Interactive Map" />
-                                    </NavLink>
+                                    {settings.featureToggles?.enableMap !== false && (
+                                        <NavLink to="/interactive-map" className={navLinkClass} onClick={handleLinkClick}>
+                                            <Map size={20} />
+                                            <EditableLabel tabKey="interactiveMap" defaultLabel="Interactive Map" />
+                                        </NavLink>
+                                    )}
                                     <button
                                         onClick={() => {
                                             if (onScanClick) onScanClick();
@@ -396,10 +408,12 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                             <Upload size={20} />
                                             <EditableLabel tabKey="addItem" defaultLabel="Add Archive Item" />
                                         </NavLink>
-                                        <NavLink to="/library/add" className={navLinkClass} onClick={handleLinkClick}>
-                                            <BookOpen size={20} />
-                                            <EditableLabel tabKey="addBook" defaultLabel="Add Library Book" />
-                                        </NavLink>
+                                        {settings.featureToggles?.enableLibrary !== false && (
+                                            <NavLink to="/library/add" className={navLinkClass} onClick={handleLinkClick}>
+                                                <BookOpen size={20} />
+                                                <EditableLabel tabKey="addBook" defaultLabel="Add Library Book" />
+                                            </NavLink>
+                                        )}
                                         {isSAHSUser && (
                                             <NavLink to="/audit" className={navLinkClass} onClick={handleLinkClick}>
                                                 <Activity size={20} />
@@ -480,7 +494,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
             </div>
 
 
-                {!user && (
+                {!user && settings.featureToggles?.enableMembership !== false && (
                     <div className="p-4 rounded-xl bg-tan/5 border border-tan/20 flex flex-col gap-2 mb-2">
                         <h3 className="font-serif font-bold text-[13px] text-charcoal leading-snug">SAHS Member Benefits</h3>
                         <p className="text-[11px] text-charcoal/60 leading-relaxed font-medium">
