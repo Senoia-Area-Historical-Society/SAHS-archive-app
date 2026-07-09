@@ -96,6 +96,8 @@ interface AppearanceSettings {
     mapCenterLng?: number;
     mapDefaultZoom?: number;
     stripeBillingPortalUrl?: string;
+    showLibraryNotice?: boolean;
+    libraryNoticeText?: string;
 }
 
 interface AppearanceContextType {
@@ -118,6 +120,8 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
     mapCenterLng: -84.5544,
     mapDefaultZoom: 13,
     stripeBillingPortalUrl: "https://billing.stripe.com/p/login/3cscOSe99bt8bvi000",
+    showLibraryNotice: true,
+    libraryNoticeText: "Books in our collection are reference-only and are currently not available for check out. However, all items can be browsed and enjoyed here in person at the Senoia Area Historical Society library.",
     heroTitle: 'Senoia Area\nHistorical Society',
     heroSubtitle: 'Preserving Our Past, Inspiring Our Future',
     backgroundImages: [
@@ -264,7 +268,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                     mapCenterLat: data.mapCenterLat !== undefined ? Number(data.mapCenterLat) : DEFAULT_SETTINGS.mapCenterLat,
                     mapCenterLng: data.mapCenterLng !== undefined ? Number(data.mapCenterLng) : DEFAULT_SETTINGS.mapCenterLng,
                     mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom,
-                    stripeBillingPortalUrl: data.stripeBillingPortalUrl !== undefined ? data.stripeBillingPortalUrl : DEFAULT_SETTINGS.stripeBillingPortalUrl
+                    stripeBillingPortalUrl: data.stripeBillingPortalUrl !== undefined ? data.stripeBillingPortalUrl : DEFAULT_SETTINGS.stripeBillingPortalUrl,
+                    showLibraryNotice: data.showLibraryNotice !== undefined ? data.showLibraryNotice : DEFAULT_SETTINGS.showLibraryNotice,
+                    libraryNoticeText: data.libraryNoticeText !== undefined ? data.libraryNoticeText : DEFAULT_SETTINGS.libraryNoticeText
                 };
                 setSettings(fetched);
                 applyTheme(fetched.theme);

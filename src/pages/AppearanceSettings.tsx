@@ -4,7 +4,7 @@ import { useAppearance, THEME_PRESETS } from '../contexts/AppearanceContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building, Sliders, MapPin } from 'lucide-react';
+import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building, Sliders, MapPin, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function AppearanceSettings() {
@@ -50,6 +50,10 @@ export function AppearanceSettings() {
     const [suggestionBoxUrl, setSuggestionBoxUrl] = useState(settings.suggestionBoxUrl || '');
     const [stripeBillingPortalUrl, setStripeBillingPortalUrl] = useState(settings.stripeBillingPortalUrl || '');
 
+    // Library Notice states
+    const [showLibraryNotice, setShowLibraryNotice] = useState(settings.showLibraryNotice !== false);
+    const [libraryNoticeText, setLibraryNoticeText] = useState(settings.libraryNoticeText || '');
+
     // Map Coordinates states
     const [mapCenterLat, setMapCenterLat] = useState(settings.mapCenterLat || 33.3001);
     const [mapCenterLng, setMapCenterLng] = useState(settings.mapCenterLng || -84.5544);
@@ -84,6 +88,8 @@ export function AppearanceSettings() {
         setArchiveFeedbackUrl(settings.archiveFeedbackUrl || '');
         setSuggestionBoxUrl(settings.suggestionBoxUrl || '');
         setStripeBillingPortalUrl(settings.stripeBillingPortalUrl || '');
+        setShowLibraryNotice(settings.showLibraryNotice !== false);
+        setLibraryNoticeText(settings.libraryNoticeText || '');
         setMapCenterLat(settings.mapCenterLat || 33.3001);
         setMapCenterLng(settings.mapCenterLng || -84.5544);
         setMapDefaultZoom(settings.mapDefaultZoom || 13);
@@ -177,6 +183,8 @@ export function AppearanceSettings() {
                 archiveFeedbackUrl: archiveFeedbackUrl.trim(),
                 suggestionBoxUrl: suggestionBoxUrl.trim(),
                 stripeBillingPortalUrl: stripeBillingPortalUrl.trim(),
+                showLibraryNotice: showLibraryNotice,
+                libraryNoticeText: libraryNoticeText.trim(),
                 mapCenterLat: Number(mapCenterLat) || 33.3001,
                 mapCenterLng: Number(mapCenterLng) || -84.5544,
                 mapDefaultZoom: Number(mapDefaultZoom) || 13
@@ -693,6 +701,49 @@ export function AppearanceSettings() {
                     </div>
                     <p className="text-xs text-charcoal/50 mt-4">Sets the initial center location and zoom level for the main Map Discovery page and curator workspace maps.</p>
                 </div>
+
+                {/* 8. Library Module Settings */}
+                {enableLibrary && (
+                    <div className="bg-white rounded-2xl border border-tan-light/50 shadow-sm p-6 sm:p-8">
+                        <div className="flex items-center gap-2 mb-6 border-b border-tan-light/20 pb-4">
+                            <BookOpen className="text-tan" size={24} />
+                            <h2 className="font-serif text-xl font-bold">Library Module Settings</h2>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* Toggle Lending Notice Banner */}
+                            <div className="flex items-center justify-between p-4 bg-cream/10 border border-tan-light/30 rounded-xl">
+                                <div>
+                                    <h3 className="text-sm font-bold text-charcoal">Display lending notice banner</h3>
+                                    <p className="text-xs text-charcoal/50 mt-1">Show a reference-only warning banner at the top of the Library book search page.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLibraryNotice(!showLibraryNotice)}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showLibraryNotice ? 'bg-tan' : 'bg-charcoal/20'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showLibraryNotice ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
+                            {/* Lending Notice Banner Text */}
+                            {showLibraryNotice && (
+                                <div className="space-y-2">
+                                    <label htmlFor="libraryNoticeText" className="block text-sm font-bold text-charcoal">Lending Notice Banner Text</label>
+                                    <textarea
+                                        id="libraryNoticeText"
+                                        rows={3}
+                                        value={libraryNoticeText}
+                                        onChange={e => setLibraryNoticeText(e.target.value)}
+                                        className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm leading-relaxed"
+                                        placeholder="Books in our collection are reference-only and are currently not available for check out..."
+                                    />
+                                    <p className="text-xs text-charcoal/50">Custom warning message to display in the notice block.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Submit Block */}
                 <div className="flex justify-end gap-4 border-t border-tan-light/20 pt-6">

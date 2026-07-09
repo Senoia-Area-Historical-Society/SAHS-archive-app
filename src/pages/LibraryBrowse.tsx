@@ -184,15 +184,17 @@ export function LibraryBrowse() {
             </div>
 
             {/* Lending Notice Banner */}
-            <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-start gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm">
-                <Info size={18} className="shrink-0 mt-0.5 text-amber-600" />
-                <div className="space-y-0.5">
-                    <h4 className="font-bold text-amber-900">Research & Reference Library Notice</h4>
-                    <p className="text-amber-800/90 leading-relaxed font-medium">
-                        Books in our collection are reference-only and are currently <strong>not available for check out</strong>. However, all items can be browsed and enjoyed here in person at the Senoia Area Historical Society library.
-                    </p>
+            {settings.showLibraryNotice !== false && settings.libraryNoticeText && (
+                <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-start gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm">
+                    <Info size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                    <div className="space-y-0.5">
+                        <h4 className="font-bold text-amber-900">Research & Reference Library Notice</h4>
+                        <p className="text-amber-800/90 leading-relaxed font-medium whitespace-pre-line">
+                            {settings.libraryNoticeText}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Search and Filters panel */}
             <div className="bg-white border border-tan-light/50 rounded-2xl p-5 shadow-sm space-y-4">
