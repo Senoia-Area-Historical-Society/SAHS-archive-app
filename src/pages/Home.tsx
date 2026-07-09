@@ -49,7 +49,7 @@ export function Home() {
         document.title = "Home | SAHS Digital Archive";
         const timer = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % backgroundImagesList.length);
-        }, 8000); // 8 seconds for a slow, non-distracting change
+        }, 15000); // 15 seconds for a calmer, less distracting transition
 
         const fetchSpotlight = async () => {
             try {
