@@ -335,35 +335,43 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                     )}
 
                     {/* Support Section */}
-                    <div className="mb-4">
-                        <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Help</h2>
-                        <nav className="flex flex-col gap-1">
-                            <a
-                                href="https://www.senoiahistory.com/contact-sahs"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
-                            >
-                                <LifeBuoy size={20} /> Contact Support
-                            </a>
-                            <a
-                                href="https://docs.google.com/forms/d/e/1FAIpQLSfxS94_L22fNGxOxHOememW717MDBXl_e-fqSyWr6R3AbcEcQ/viewform?usp=dialog"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
-                            >
-                                <MessageSquare size={20} /> Archive Feedback
-                            </a>
-                            <a
-                                href="https://docs.google.com/forms/d/e/1FAIpQLSdoQbNvRVS8QZKeilZJKoTC9iTwFRxDalJJv9dcfq81NytRBw/viewform?usp=header"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
-                            >
-                                <Inbox size={20} /> Suggestion Box
-                            </a>
-                        </nav>
-                    </div>
+                    {(settings.contactSupportUrl || settings.archiveFeedbackUrl || settings.suggestionBoxUrl) && (
+                        <div className="mb-4">
+                            <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Help</h2>
+                            <nav className="flex flex-col gap-1">
+                                {settings.contactSupportUrl && (
+                                    <a
+                                        href={settings.contactSupportUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
+                                    >
+                                        <LifeBuoy size={20} /> Contact Support
+                                    </a>
+                                )}
+                                {settings.archiveFeedbackUrl && (
+                                    <a
+                                        href={settings.archiveFeedbackUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
+                                    >
+                                        <MessageSquare size={20} /> Archive Feedback
+                                    </a>
+                                )}
+                                {settings.suggestionBoxUrl && (
+                                    <a
+                                        href={settings.suggestionBoxUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px]"
+                                    >
+                                        <Inbox size={20} /> Suggestion Box
+                                    </a>
+                                )}
+                            </nav>
+                        </div>
+                    )}
 
                 {(isSAHSUser || realIsAdmin) && (
                     <div className="flex flex-col gap-0 border-t border-tan-light/30 pt-6 mt-2">

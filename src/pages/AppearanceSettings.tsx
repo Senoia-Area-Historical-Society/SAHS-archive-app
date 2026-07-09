@@ -4,7 +4,7 @@ import { useAppearance, THEME_PRESETS } from '../contexts/AppearanceContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building, Sliders } from 'lucide-react';
+import { Palette, Upload, Trash2, ArrowLeft, Loader2, Plus, Sparkles, Check, Image as ImageIcon, Building, Sliders, MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function AppearanceSettings() {
@@ -44,6 +44,16 @@ export function AppearanceSettings() {
     const [enableMap, setEnableMap] = useState(settings.featureToggles?.enableMap !== false);
     const [enableCollections, setEnableCollections] = useState(settings.featureToggles?.enableCollections !== false);
 
+    // Help & Support Links states
+    const [contactSupportUrl, setContactSupportUrl] = useState(settings.contactSupportUrl || '');
+    const [archiveFeedbackUrl, setArchiveFeedbackUrl] = useState(settings.archiveFeedbackUrl || '');
+    const [suggestionBoxUrl, setSuggestionBoxUrl] = useState(settings.suggestionBoxUrl || '');
+
+    // Map Coordinates states
+    const [mapCenterLat, setMapCenterLat] = useState(settings.mapCenterLat || 33.3001);
+    const [mapCenterLng, setMapCenterLng] = useState(settings.mapCenterLng || -84.5544);
+    const [mapDefaultZoom, setMapDefaultZoom] = useState(settings.mapDefaultZoom || 13);
+
     // Redirect if not admin
     useEffect(() => {
         if (!realIsAdmin) {
@@ -69,6 +79,12 @@ export function AppearanceSettings() {
         setEnableMembership(settings.featureToggles?.enableMembership !== false);
         setEnableMap(settings.featureToggles?.enableMap !== false);
         setEnableCollections(settings.featureToggles?.enableCollections !== false);
+        setContactSupportUrl(settings.contactSupportUrl || '');
+        setArchiveFeedbackUrl(settings.archiveFeedbackUrl || '');
+        setSuggestionBoxUrl(settings.suggestionBoxUrl || '');
+        setMapCenterLat(settings.mapCenterLat || 33.3001);
+        setMapCenterLng(settings.mapCenterLng || -84.5544);
+        setMapDefaultZoom(settings.mapDefaultZoom || 13);
     }, [settings]);
 
     const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,7 +170,13 @@ export function AppearanceSettings() {
                     enableMembership,
                     enableMap,
                     enableCollections
-                }
+                },
+                contactSupportUrl: contactSupportUrl.trim(),
+                archiveFeedbackUrl: archiveFeedbackUrl.trim(),
+                suggestionBoxUrl: suggestionBoxUrl.trim(),
+                mapCenterLat: Number(mapCenterLat) || 33.3001,
+                mapCenterLng: Number(mapCenterLng) || -84.5544,
+                mapDefaultZoom: Number(mapDefaultZoom) || 13
             }, { merge: true });
             
             await refreshSettings();
@@ -453,11 +475,11 @@ export function AppearanceSettings() {
                     </div>
                 </div>
 
-                {/* 5. Social Media Links */}
+                {/* 5. Social Media & Help Links */}
                 <div className="bg-white rounded-2xl border border-tan-light/50 shadow-sm p-6 sm:p-8">
                     <div className="flex items-center gap-2 mb-6 border-b border-tan-light/20 pb-4">
                         <Palette className="text-tan" size={24} />
-                        <h2 className="font-serif text-xl font-bold">Social Media Links</h2>
+                        <h2 className="font-serif text-xl font-bold">Social Media & Help Links</h2>
                     </div>
 
                     <div className="space-y-6">
@@ -492,8 +514,39 @@ export function AppearanceSettings() {
                                     placeholder="https://www.youtube.com/your-channel"
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal mb-2">Contact Support URL</label>
+                                <input
+                                    type="url"
+                                    value={contactSupportUrl}
+                                    onChange={e => setContactSupportUrl(e.target.value)}
+                                    className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm"
+                                    placeholder="https://your-museum.org/contact"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal mb-2">Archive Feedback URL</label>
+                                <input
+                                    type="url"
+                                    value={archiveFeedbackUrl}
+                                    onChange={e => setArchiveFeedbackUrl(e.target.value)}
+                                    className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm"
+                                    placeholder="https://forms.google.com/..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal mb-2">Suggestion Box URL</label>
+                                <input
+                                    type="url"
+                                    value={suggestionBoxUrl}
+                                    onChange={e => setSuggestionBoxUrl(e.target.value)}
+                                    className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm"
+                                    placeholder="https://forms.google.com/..."
+                                />
+                            </div>
                         </div>
-                        <p className="text-xs text-charcoal/50">These URLs control the social icons at the top of the sidebar and in the homepage footer. Leave empty to hide the respective social icon.</p>
+                        <p className="text-xs text-charcoal/50">These URLs control social and help links. Leaving any link blank will automatically hide it from the sidebar navigation.</p>
                     </div>
                 </div>
 
@@ -580,6 +633,52 @@ export function AppearanceSettings() {
                             </button>
                         </div>
                     </div>
+                </div>
+
+                {/* 7. Default Map Starting Location */}
+                <div className="bg-white rounded-2xl border border-tan-light/50 shadow-sm p-6 sm:p-8">
+                    <div className="flex items-center gap-2 mb-6 border-b border-tan-light/20 pb-4">
+                        <MapPin className="text-tan" size={24} />
+                        <h2 className="font-serif text-xl font-bold">Default Map Settings</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label className="block text-sm font-bold text-charcoal mb-2">Default Latitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                value={mapCenterLat}
+                                onChange={e => setMapCenterLat(Number(e.target.value))}
+                                className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm font-mono"
+                                placeholder="33.3001"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-charcoal mb-2">Default Longitude</label>
+                            <input
+                                type="number"
+                                step="any"
+                                value={mapCenterLng}
+                                onChange={e => setMapCenterLng(Number(e.target.value))}
+                                className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm font-mono"
+                                placeholder="-84.5544"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-charcoal mb-2">Default Zoom Level</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="20"
+                                value={mapDefaultZoom}
+                                onChange={e => setMapDefaultZoom(Number(e.target.value))}
+                                className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm font-mono"
+                                placeholder="13"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-xs text-charcoal/50 mt-4">Sets the initial center location and zoom level for the main Map Discovery page and curator workspace maps.</p>
                 </div>
 
                 {/* Submit Block */}

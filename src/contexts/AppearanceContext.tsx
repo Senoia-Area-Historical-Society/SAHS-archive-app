@@ -89,6 +89,12 @@ interface AppearanceSettings {
     tabNames?: Record<string, string>;
     contentBlocks?: Record<string, string>;
     featureToggles?: FeatureToggles;
+    contactSupportUrl?: string;
+    archiveFeedbackUrl?: string;
+    suggestionBoxUrl?: string;
+    mapCenterLat?: number;
+    mapCenterLng?: number;
+    mapDefaultZoom?: number;
 }
 
 interface AppearanceContextType {
@@ -104,6 +110,12 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
     theme: 'classic',
     museumName: 'Senoia Area Historical Society',
     museumShortName: 'Senoia',
+    contactSupportUrl: "https://www.senoiahistory.com/contact-sahs",
+    archiveFeedbackUrl: "https://docs.google.com/forms/d/e/1FAIpQLSfxS94_L22fNGxOxHOememW717MDBXl_e-fqSyWr6R3AbcEcQ/viewform?usp=dialog",
+    suggestionBoxUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdoQbNvRVS8QZKeilZJKoTC9iTwFRxDalJJv9dcfq81NytRBw/viewform?usp=header",
+    mapCenterLat: 33.3001,
+    mapCenterLng: -84.5544,
+    mapDefaultZoom: 13,
     heroTitle: 'Senoia Area\nHistorical Society',
     heroSubtitle: 'Preserving Our Past, Inspiring Our Future',
     backgroundImages: [
@@ -243,7 +255,13 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                     featureToggles: {
                         ...DEFAULT_SETTINGS.featureToggles,
                         ...(data.featureToggles || {})
-                    }
+                    },
+                    contactSupportUrl: data.contactSupportUrl !== undefined ? data.contactSupportUrl : DEFAULT_SETTINGS.contactSupportUrl,
+                    archiveFeedbackUrl: data.archiveFeedbackUrl !== undefined ? data.archiveFeedbackUrl : DEFAULT_SETTINGS.archiveFeedbackUrl,
+                    suggestionBoxUrl: data.suggestionBoxUrl !== undefined ? data.suggestionBoxUrl : DEFAULT_SETTINGS.suggestionBoxUrl,
+                    mapCenterLat: data.mapCenterLat !== undefined ? Number(data.mapCenterLat) : DEFAULT_SETTINGS.mapCenterLat,
+                    mapCenterLng: data.mapCenterLng !== undefined ? Number(data.mapCenterLng) : DEFAULT_SETTINGS.mapCenterLng,
+                    mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom
                 };
                 setSettings(fetched);
                 applyTheme(fetched.theme);
