@@ -455,16 +455,23 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         : 'Enable for high-volume editing'}
                                 </p>
                                 {realIsAdmin && (
-                                    <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-tan-light/20">
-                                        <span className="text-xs font-bold text-charcoal tracking-wide uppercase">Page Editor</span>
-                                        <button
-                                            onClick={() => setIsAppearanceEditMode(!isAppearanceEditMode)}
-                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isAppearanceEditMode ? 'bg-tan' : 'bg-charcoal/20'}`}
-                                            title="Toggle direct text editing on pages"
-                                        >
-                                            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isAppearanceEditMode ? 'translate-x-4' : 'translate-x-0'}`} />
-                                        </button>
-                                    </div>
+                                     <div className="mt-3 pt-3 border-t border-tan-light/20">
+                                         <div className="flex items-center justify-between gap-3 mb-2">
+                                             <span className="text-xs font-bold text-charcoal tracking-wide uppercase">Page Editor</span>
+                                             <button
+                                                 onClick={() => setIsAppearanceEditMode(!isAppearanceEditMode)}
+                                                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${isAppearanceEditMode ? 'bg-tan' : 'bg-charcoal/20'}`}
+                                                 title="Toggle direct text editing on pages"
+                                             >
+                                                 <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isAppearanceEditMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                                             </button>
+                                         </div>
+                                         <p className="text-xs text-charcoal/60 leading-relaxed font-medium">
+                                             {isAppearanceEditMode 
+                                                 ? 'Click inline text blocks on pages to edit them directly.' 
+                                                 : 'Enable to edit website titles and text blocks directly on pages.'}
+                                         </p>
+                                     </div>
                                 )}
                             </div>
                         )}
