@@ -4,6 +4,8 @@ import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, F
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { useAppearance } from '../contexts/AppearanceContext';
+import { EditableText } from '../components/EditableText';
 
 interface SpotlightConfig {
   enabled: boolean;
@@ -22,6 +24,11 @@ const BACKGROUND_IMAGES = [
 ];
 
 export function Home() {
+    const { settings } = useAppearance();
+    const backgroundImagesList = settings.backgroundImages && settings.backgroundImages.length > 0
+        ? settings.backgroundImages
+        : BACKGROUND_IMAGES;
+
     const [currentSlide, setCurrentSlide] = useState(0);
     const [spotlight, setSpotlight] = useState<SpotlightConfig | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +37,7 @@ export function Home() {
     
     const copyLink = async () => {
         try {
-            await navigator.clipboard.writeText('https://sahs-archives.web.app');
+            await navigator.clipboard.writeText(settings.contentBlocks?.qrValue || 'https://sahs-archives.web.app');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -41,7 +48,7 @@ export function Home() {
     useEffect(() => {
         document.title = "Home | SAHS Digital Archive";
         const timer = setInterval(() => {
-            setCurrentSlide((prev) => (prev + 1) % BACKGROUND_IMAGES.length);
+            setCurrentSlide((prev) => (prev + 1) % backgroundImagesList.length);
         }, 8000); // 8 seconds for a slow, non-distracting change
 
         const fetchSpotlight = async () => {
@@ -63,7 +70,7 @@ export function Home() {
         <div className="w-full h-full flex flex-col font-sans">
             {/* Hero Section */}
             <div className="relative w-full min-h-screen flex flex-col justify-center items-center text-center p-8 overflow-hidden">
-                {BACKGROUND_IMAGES.map((img, index) => (
+                 {backgroundImagesList.map((img, index) => (
                     <div
                         key={index}
                         className={`absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100' : 'opacity-0'
@@ -71,22 +78,32 @@ export function Home() {
                         style={{ backgroundImage: `url("${img}")` }}
                     />
                 ))}
-                {/* Dark overlay to make it less distracting and improve text readability */}
-                <div className="absolute inset-0 z-0 bg-charcoal/80 backdrop-blur-[2px]"></div>
-
+                {/* Theme-colored overlay to improve text readability while keeping slides visible */}
+                <div className="absolute inset-0 z-0 bg-charcoal opacity-60 backdrop-blur-[1.5px]"></div>
+ 
                 {/* Hero Content */}
                 <div className="relative z-10 max-w-5xl mx-auto text-cream">
-                    <h1 className="text-6xl md:text-8xl font-serif font-bold tracking-tight mb-6 text-white drop-shadow-md">
-                        Senoia Area<br />Historical Society
-                    </h1>
-                    <p className="text-2xl md:text-3xl font-serif italic text-beige mb-12 drop-shadow">
-                        Preserving Our Past, Inspiring Our Future
-                    </p>
+                    <EditableText
+                        textKey="heroTitle"
+                        defaultText={settings.heroTitle}
+                        multiline={true}
+                        containerType="h1"
+                        className="text-6xl md:text-8xl font-serif font-bold tracking-tight mb-6 text-white drop-shadow-md whitespace-pre-line"
+                    />
+                    <EditableText
+                        textKey="heroSubtitle"
+                        defaultText={settings.heroSubtitle}
+                        containerType="p"
+                        className="text-2xl md:text-3xl font-serif italic text-beige mb-12 drop-shadow"
+                    />
 
-                    <p className="text-lg md:text-xl text-cream/90 max-w-3xl mx-auto leading-relaxed mb-16 font-medium">
-                        Explore our  digital archive of historical documents,
-                        photographs, and stories that chronicle the heritage of the Senoia area.
-                    </p>
+                    <EditableText
+                        textKey="homeIntro"
+                        defaultText="Explore our digital archive of historical documents, photographs, and stories that chronicle the heritage of the Senoia area."
+                        multiline={true}
+                        containerType="p"
+                        className="text-lg md:text-xl text-cream/90 max-w-3xl mx-auto leading-relaxed mb-16 font-medium"
+                    />
 
                     <div className="max-w-2xl mx-auto mb-12">
                         <form 
@@ -158,60 +175,113 @@ export function Home() {
             {/* Explore Section */}
             <div className="bg-cream py-24 px-8 border-t border-tan-light/50">
                 <div className="max-w-6xl mx-auto text-center">
-                    <h2 className="text-4xl md:text-5xl font-serif font-bold text-charcoal mb-4">Explore Our Archives</h2>
-                    <p className="text-xl md:text-2xl text-charcoal-light font-medium mb-16 max-w-3xl mx-auto leading-relaxed">
-                        Discover the stories, people, and events that shaped our community
-                    </p>
+                    <EditableText
+                        textKey="exploreTitle"
+                        defaultText="Explore Our Archives"
+                        containerType="h2"
+                        className="text-4xl md:text-5xl font-serif font-bold text-charcoal mb-4"
+                    />
+                    <EditableText
+                        textKey="exploreSubtitle"
+                        defaultText="Discover the stories, people, and events that shaped our community"
+                        containerType="p"
+                        className="text-xl md:text-2xl text-charcoal-light font-medium mb-16 max-w-3xl mx-auto leading-relaxed"
+                    />
 
                     <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-12 text-left">
                         <div className="bg-white p-8 rounded-2xl border border-tan-light shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-2">
                             <div className="w-12 h-12 bg-tan-light/30 text-tan rounded-xl flex items-center justify-center mb-6">
                                 <FileText size={28} />
                             </div>
-                            <h3 className="text-2xl font-serif font-bold text-charcoal mb-4">Historical Documents</h3>
-                            <p className="text-charcoal-light leading-relaxed">
-                                Dive into primary sources including letters, ledgers, meeting minutes, and local government records. These documents offer a firsthand look at the daily life, governance, and development of Senoia throughout the decades.
-                            </p>
+                            <EditableText
+                                textKey="exploreDocTitle"
+                                defaultText="Historical Documents"
+                                containerType="h3"
+                                className="text-2xl font-serif font-bold text-charcoal mb-4"
+                            />
+                            <EditableText
+                                textKey="exploreDocDesc"
+                                defaultText="Dive into primary sources including letters, ledgers, meeting minutes, and local government records. These documents offer a firsthand look at the daily life, governance, and development of Senoia throughout the decades."
+                                multiline={true}
+                                containerType="p"
+                                className="text-charcoal-light leading-relaxed"
+                            />
                         </div>
 
                         <div className="bg-white p-8 rounded-2xl border border-tan-light shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-2">
                             <div className="w-12 h-12 bg-tan-light/30 text-tan rounded-xl flex items-center justify-center mb-6">
                                 <Users size={28} />
                             </div>
-                            <h3 className="text-2xl font-serif font-bold text-charcoal mb-4">Historic Figures</h3>
-                            <p className="text-charcoal-light leading-relaxed">
-                                Read about the individuals who have left a lasting impact on our community. Discover the history behind the names of local landmarks and the pioneers who built Senoia.
-                            </p>
+                            <EditableText
+                                textKey="exploreFigTitle"
+                                defaultText="Historic Figures"
+                                containerType="h3"
+                                className="text-2xl font-serif font-bold text-charcoal mb-4"
+                            />
+                            <EditableText
+                                textKey="exploreFigDesc"
+                                defaultText="Read about the individuals who have left a lasting impact on our community. Discover the history behind the names of local landmarks and the pioneers who built Senoia."
+                                multiline={true}
+                                containerType="p"
+                                className="text-charcoal-light leading-relaxed"
+                            />
                         </div>
 
                         <div className="bg-white p-8 rounded-2xl border border-tan-light shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-2">
                             <div className="w-12 h-12 bg-tan-light/30 text-tan rounded-xl flex items-center justify-center mb-6">
                                 <Building size={28} />
                             </div>
-                            <h3 className="text-2xl font-serif font-bold text-charcoal mb-4">Historic Organizations</h3>
-                            <p className="text-charcoal-light leading-relaxed">
-                                Explore the history of local businesses, churches, schools, and civic groups that have served as the foundation of our community's social and economic life.
-                            </p>
+                            <EditableText
+                                textKey="exploreOrgTitle"
+                                defaultText="Historic Organizations"
+                                containerType="h3"
+                                className="text-2xl font-serif font-bold text-charcoal mb-4"
+                            />
+                            <EditableText
+                                textKey="exploreOrgDesc"
+                                defaultText="Explore the history of local businesses, churches, schools, and civic groups that have served as the foundation of our community's social and economic life."
+                                multiline={true}
+                                containerType="p"
+                                className="text-charcoal-light leading-relaxed"
+                            />
                         </div>
 
                         <div className="bg-white p-8 rounded-2xl border border-tan-light shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-2 lg:col-start-2">
                             <div className="w-12 h-12 bg-tan-light/30 text-tan rounded-xl flex items-center justify-center mb-6">
                                 <Box size={28} />
                             </div>
-                            <h3 className="text-2xl font-serif font-bold text-charcoal mb-4">Artifact Collection</h3>
-                            <p className="text-charcoal-light leading-relaxed">
-                                Our collection of physical artifacts captures the material history of Senoia. From textiles and furniture to ceramics and historical memorabilia.
-                            </p>
+                            <EditableText
+                                textKey="exploreArtTitle"
+                                defaultText="Artifact Collection"
+                                containerType="h3"
+                                className="text-2xl font-serif font-bold text-charcoal mb-4"
+                            />
+                            <EditableText
+                                textKey="exploreArtDesc"
+                                defaultText="Our collection of physical artifacts captures the material history of Senoia. From textiles and furniture to ceramics and historical memorabilia."
+                                multiline={true}
+                                containerType="p"
+                                className="text-charcoal-light leading-relaxed"
+                            />
                         </div>
 
                         <div className="bg-white p-8 rounded-2xl border border-tan-light shadow-sm hover:shadow-md transition-shadow md:col-span-2 md:col-start-2 lg:col-span-2 lg:col-start-4">
                             <div className="w-12 h-12 bg-tan-light/30 text-tan rounded-xl flex items-center justify-center mb-6">
                                 <Search size={28} />
                             </div>
-                            <h3 className="text-2xl font-serif font-bold text-charcoal mb-4">Search the Archive</h3>
-                            <p className="text-charcoal-light leading-relaxed">
-                                Looking for something specific? Use our advanced search tool to query the archive by keyword, date, location, or subject tags. Use filters and categories to narrow down your search results.
-                            </p>
+                            <EditableText
+                                textKey="exploreSearchTitle"
+                                defaultText="Search the Archive"
+                                containerType="h3"
+                                className="text-2xl font-serif font-bold text-charcoal mb-4"
+                            />
+                            <EditableText
+                                textKey="exploreSearchDesc"
+                                defaultText="Looking for something specific? Use our advanced search tool to query the archive by keyword, date, location, or subject tags. Use filters and categories to narrow down your search results."
+                                multiline={true}
+                                containerType="p"
+                                className="text-charcoal-light leading-relaxed"
+                            />
                         </div>
                     </div>
                 </div>
@@ -290,41 +360,55 @@ export function Home() {
                             <Share2 size={18} />
                             Share the Archive
                         </div>
-                        <h2 className="text-4xl md:text-5xl font-serif font-bold text-charcoal mb-6 leading-tight">
-                            Help Us Spread the<br />History of Senoia
-                        </h2>
-                        <p className="text-xl text-charcoal-light leading-relaxed mb-10 max-w-2xl mx-auto">
-                            Our mission is to preserve and share the rich heritage of our community. Share this archive with friends and family, or follow us on social media for daily historical insights.
-                        </p>
+                        <EditableText
+                            textKey="homeShareTitle"
+                            defaultText="Help Us Spread the&#10;History of Senoia"
+                            multiline={true}
+                            containerType="h2"
+                            className="text-4xl md:text-5xl font-serif font-bold text-charcoal mb-6 leading-tight"
+                        />
+                        <EditableText
+                            textKey="homeShareDesc"
+                            defaultText="Our mission is to preserve and share the rich heritage of our community. Share this archive with friends and family, or follow us on social media for daily historical insights."
+                            multiline={true}
+                            containerType="p"
+                            className="text-xl text-charcoal-light leading-relaxed mb-10 max-w-2xl mx-auto"
+                        />
 
                         <div className="flex flex-wrap justify-center gap-6">
-                            <a 
-                                href="https://www.instagram.com/senoiahistory/" 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
-                            >
-                                <Instagram size={24} className="text-tan group-hover:text-white transition-colors" />
-                                <span className="font-bold">Instagram</span>
-                            </a>
-                            <a 
-                                href="https://www.facebook.com/profile.php?id=100064525936225&sk=directory_contact_info" 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
-                            >
-                                <Facebook size={24} className="text-tan group-hover:text-white transition-colors" />
-                                <span className="font-bold">Facebook</span>
-                            </a>
-                            <a 
-                                href="https://www.youtube.com/@SenoiaAreaHistoricalSociety" 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
-                            >
-                                <Youtube size={24} className="text-tan group-hover:text-white transition-colors" />
-                                <span className="font-bold">YouTube</span>
-                            </a>
+                            {settings.instagramUrl && (
+                                <a 
+                                    href={settings.instagramUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
+                                >
+                                    <Instagram size={24} className="text-tan group-hover:text-white transition-colors" />
+                                    <span className="font-bold">Instagram</span>
+                                </a>
+                            )}
+                            {settings.facebookUrl && (
+                                <a 
+                                    href={settings.facebookUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
+                                >
+                                    <Facebook size={24} className="text-tan group-hover:text-white transition-colors" />
+                                    <span className="font-bold">Facebook</span>
+                                </a>
+                            )}
+                            {settings.youtubeUrl && (
+                                <a 
+                                    href={settings.youtubeUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="group flex items-center gap-3 bg-white border border-tan-light px-6 py-4 rounded-2xl text-charcoal hover:bg-tan hover:text-white hover:border-tan transition-all shadow-sm hover:shadow-md"
+                                >
+                                    <Youtube size={24} className="text-tan group-hover:text-white transition-colors" />
+                                    <span className="font-bold">YouTube</span>
+                                </a>
+                            )}
                         </div>
                     </div>
 
@@ -334,15 +418,33 @@ export function Home() {
                             <div className="bg-white p-8 rounded-[2rem] shadow-xl relative z-10 flex flex-col items-center">
                                 <div className="mb-6 p-4 bg-tan/5 rounded-2xl border border-tan/10">
                                     <QRCodeSVG 
-                                        value="https://sahs-archives.web.app" 
+                                        value={settings.contentBlocks?.qrValue || "https://sahs-archives.web.app"} 
                                         size={200}
                                         level="H"
                                         includeMargin={false}
                                     />
                                 </div>
                                 <div className="text-center w-full">
-                                    <h3 className="text-lg font-serif font-bold text-charcoal mb-1">SAHS Website</h3>
-                                    <p className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-6">Scan to Visit Archive</p>
+                                    <EditableText
+                                        textKey="qrTitle"
+                                        defaultText="SAHS Website"
+                                        containerType="h3"
+                                        className="text-lg font-serif font-bold text-charcoal mb-1"
+                                    />
+                                    <EditableText
+                                        textKey="qrSubtitle"
+                                        defaultText="Scan to Visit Archive"
+                                        containerType="p"
+                                        className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2"
+                                    />
+                                    <div className="mt-1 mb-6">
+                                        <EditableText
+                                            textKey="qrValue"
+                                            defaultText="https://sahs-archives.web.app"
+                                            containerType="span"
+                                            className="text-[11px] text-tan hover:underline break-all font-mono font-medium block"
+                                        />
+                                    </div>
                                     
                                     <button 
                                         onClick={copyLink}
@@ -359,32 +461,54 @@ export function Home() {
             </div>
 
             {/* Footer / Copyright Notice */}
-            <footer className="bg-charcoal text-cream/70 py-16 px-8 text-center text-sm border-t-4 border-tan">
+            <footer className="bg-charcoal text-cream py-16 px-8 text-center text-sm border-t-4 border-tan">
                 <div className="max-w-4xl mx-auto flex flex-col items-center">
                     <div className="flex items-center gap-8 mb-10">
-                        <a href="https://www.instagram.com/senoiahistory/" target="_blank" rel="noopener noreferrer" className="text-cream/40 hover:text-tan transition-colors">
-                            <Instagram size={24} />
-                        </a>
-                        <a href="https://www.facebook.com/profile.php?id=100064525936225&sk=directory_contact_info" target="_blank" rel="noopener noreferrer" className="text-cream/40 hover:text-tan transition-colors">
-                            <Facebook size={24} />
-                        </a>
-                        <a href="https://www.youtube.com/@SenoiaAreaHistoricalSociety" target="_blank" rel="noopener noreferrer" className="text-cream/40 hover:text-tan transition-colors">
-                            <Youtube size={24} />
-                        </a>
+                        {settings.instagramUrl && (
+                            <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                                <Instagram size={24} />
+                            </a>
+                        )}
+                        {settings.facebookUrl && (
+                            <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                                <Facebook size={24} />
+                            </a>
+                        )}
+                        {settings.youtubeUrl && (
+                            <a href={settings.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                                <Youtube size={24} />
+                            </a>
+                        )}
                     </div>
-                    <h4 className="text-cream font-bold mb-6 tracking-widest uppercase text-xs">Copyright & Usage Notice</h4>
-                    <p className="mb-8 leading-loose max-w-3xl">
-                        All information, documents, photographs, and materials provided on this website are the exclusive property of the Senoia Area Historical Society. All rights are reserved. The materials are made available for personal, educational, and non-commercial research purposes only. Any reproduction, distribution, modification, public display, or commercial use of any photographs, scans, documents, or other content found on this website is strictly prohibited without the express written permission of the Senoia Area Historical Society.
-                    </p>
-                    <div className="w-12 h-px bg-tan-light/20 mb-8"></div>
-                    <h4 className="text-cream font-bold mb-6 tracking-widest uppercase text-xs">Authenticity & AI Disclaimer</h4>
-                    <p className="mb-8 leading-loose max-w-3xl">
-                        The Senoia Area Historical Society is committed to preserving history. No artificial intelligence (AI) is used to generate, transcribe, alter, or enhance the historical documents, photographs, and metadata within this archive. All historical materials are manually curated, researched, and transcribed by our dedicated curators and volunteers to ensure complete authenticity.
-                        <br /><br />
-                        While AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from altering the historical records themselves.
-                    </p>
-                    <div className="w-12 h-px bg-tan-light/20 mb-8"></div>
-                    <p className="text-cream/50 font-medium tracking-wide">
+                    <EditableText
+                        textKey="footerCopyrightTitle"
+                        defaultText="Copyright & Usage Notice"
+                        containerType="h4"
+                        className="text-cream font-bold mb-6 tracking-widest uppercase text-xs"
+                    />
+                    <EditableText
+                        textKey="footerCopyrightDesc"
+                        defaultText="All information, documents, photographs, and materials provided on this website are the exclusive property of the Senoia Area Historical Society. All rights are reserved. The materials are made available for personal, educational, and non-commercial research purposes only. Any reproduction, distribution, modification, public display, or commercial use of any photographs, scans, documents, or other content found on this website is strictly prohibited without the express written permission of the Senoia Area Historical Society."
+                        multiline={true}
+                        containerType="p"
+                        className="mb-8 leading-loose max-w-3xl opacity-70"
+                    />
+                    <div className="w-12 h-px bg-tan-light opacity-20 mb-8"></div>
+                    <EditableText
+                        textKey="footerAiTitle"
+                        defaultText="Authenticity & AI Disclaimer"
+                        containerType="h4"
+                        className="text-cream font-bold mb-6 tracking-widest uppercase text-xs"
+                    />
+                    <EditableText
+                        textKey="footerAiDesc"
+                        defaultText={"The Senoia Area Historical Society is committed to preserving history. No artificial intelligence (AI) is used to generate, transcribe, alter, or enhance the historical documents, photographs, and metadata within this archive. All historical materials are manually curated, researched, and transcribed by our dedicated curators and volunteers to ensure complete authenticity.\n\nWhile AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from altering the historical records themselves."}
+                        multiline={true}
+                        containerType="p"
+                        className="mb-8 leading-loose max-w-3xl opacity-70"
+                    />
+                    <div className="w-12 h-px bg-tan-light opacity-20 mb-8"></div>
+                    <p className="text-cream opacity-50 font-medium tracking-wide">
                         © 2026 Senoia Area Historical Society. All rights reserved.
                     </p>
                 </div>
