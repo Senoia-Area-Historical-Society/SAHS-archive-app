@@ -48,6 +48,7 @@ export function AppearanceSettings() {
     const [contactSupportUrl, setContactSupportUrl] = useState(settings.contactSupportUrl || '');
     const [archiveFeedbackUrl, setArchiveFeedbackUrl] = useState(settings.archiveFeedbackUrl || '');
     const [suggestionBoxUrl, setSuggestionBoxUrl] = useState(settings.suggestionBoxUrl || '');
+    const [stripeBillingPortalUrl, setStripeBillingPortalUrl] = useState(settings.stripeBillingPortalUrl || '');
 
     // Map Coordinates states
     const [mapCenterLat, setMapCenterLat] = useState(settings.mapCenterLat || 33.3001);
@@ -82,6 +83,7 @@ export function AppearanceSettings() {
         setContactSupportUrl(settings.contactSupportUrl || '');
         setArchiveFeedbackUrl(settings.archiveFeedbackUrl || '');
         setSuggestionBoxUrl(settings.suggestionBoxUrl || '');
+        setStripeBillingPortalUrl(settings.stripeBillingPortalUrl || '');
         setMapCenterLat(settings.mapCenterLat || 33.3001);
         setMapCenterLng(settings.mapCenterLng || -84.5544);
         setMapDefaultZoom(settings.mapDefaultZoom || 13);
@@ -174,6 +176,7 @@ export function AppearanceSettings() {
                 contactSupportUrl: contactSupportUrl.trim(),
                 archiveFeedbackUrl: archiveFeedbackUrl.trim(),
                 suggestionBoxUrl: suggestionBoxUrl.trim(),
+                stripeBillingPortalUrl: stripeBillingPortalUrl.trim(),
                 mapCenterLat: Number(mapCenterLat) || 33.3001,
                 mapCenterLng: Number(mapCenterLng) || -84.5544,
                 mapDefaultZoom: Number(mapDefaultZoom) || 13
@@ -545,8 +548,18 @@ export function AppearanceSettings() {
                                     placeholder="https://forms.google.com/..."
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-bold text-charcoal mb-2">Stripe Billing Portal URL</label>
+                                <input
+                                    type="url"
+                                    value={stripeBillingPortalUrl}
+                                    onChange={e => setStripeBillingPortalUrl(e.target.value)}
+                                    className="w-full px-4 py-3 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 text-sm"
+                                    placeholder="https://billing.stripe.com/..."
+                                />
+                            </div>
                         </div>
-                        <p className="text-xs text-charcoal/50">These URLs control social and help links. Leaving any link blank will automatically hide it from the sidebar navigation.</p>
+                        <p className="text-xs text-charcoal/50">These URLs control social, help, and billing links. Leaving any link blank will automatically hide it from the sidebar navigation or disable portal buttons.</p>
                     </div>
                 </div>
 

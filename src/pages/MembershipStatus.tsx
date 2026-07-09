@@ -146,14 +146,16 @@ export function MembershipStatus() {
                                         Update your payment method, view billing history, download invoices, or renew your subscription directly via our secure Stripe member portal.
                                     </p>
                                 </div>
-                                <a
-                                    href="https://billing.stripe.com/p/login/3cscOSe99bt8bvi000"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
-                                >
-                                    Stripe Portal <ArrowRight size={14} />
-                                </a>
+                                {settings.stripeBillingPortalUrl && (
+                                    <a
+                                        href={settings.stripeBillingPortalUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
+                                    >
+                                        Stripe Portal <ArrowRight size={14} />
+                                    </a>
+                                )}
                             </div>
                         </div>
                     ) : isExpiredMember && memberData ? (
@@ -161,7 +163,7 @@ export function MembershipStatus() {
                         <div className="bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
                             <div className="bg-amber-50/50 p-6 md:p-8 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="space-y-1">
-                                    <p className="text-xs font-black text-amber-600 uppercase tracking-widest">Senoia Area Historical Society</p>
+                                    <p className="text-xs font-black text-amber-600 uppercase tracking-widest">{settings.museumName}</p>
                                     <h2 className="text-2xl font-serif font-bold text-charcoal">{memberData.name || user?.displayName}</h2>
                                     <p className="text-sm text-charcoal/60">{user?.email}</p>
                                 </div>
@@ -205,14 +207,16 @@ export function MembershipStatus() {
                                         Renew to restore full research access — your saved folders, notes, and pins are all waiting for you.
                                     </p>
                                 </div>
-                                <a
-                                    href="https://billing.stripe.com/p/login/3cscOSe99bt8bvi000"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-600 text-white hover:bg-amber-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
-                                >
-                                    Renew Now <ArrowRight size={14} />
-                                </a>
+                                {settings.stripeBillingPortalUrl && (
+                                    <a
+                                        href={settings.stripeBillingPortalUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-amber-600 text-white hover:bg-amber-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
+                                    >
+                                        Renew Now <ArrowRight size={14} />
+                                    </a>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -285,27 +289,31 @@ export function MembershipStatus() {
                         <div className="space-y-2">
                             <h4 className="font-serif font-bold text-sm text-charcoal">Need to Renew or Inquire?</h4>
                             <p>
-                                For inquiries about your Senoia Area Historical Society paying membership tier, expiration, or lifetime registry, please visit our museum or contact our support team.
+                                For inquiries about your {settings.museumName || 'museum'} paying membership tier, expiration, or lifetime registry, please visit our museum or contact our support team.
                             </p>
                         </div>
-                        <a 
-                            href="https://billing.stripe.com/p/login/3cscOSe99bt8bvi000"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm text-center"
-                        >
-                            Stripe Billing Portal <ArrowRight size={12} />
-                        </a>
-                        <div className="border-t border-tan-light/30 pt-3">
+                        {settings.stripeBillingPortalUrl && (
                             <a 
-                                href="https://www.senoiahistory.com/contact-sahs"
+                                href={settings.stripeBillingPortalUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 font-bold text-tan hover:text-tan-dark transition-colors uppercase tracking-wider text-[11px]"
+                                className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm text-center font-sans"
                             >
-                                Contact SAHS Support <ArrowRight size={11} />
+                                Stripe Billing Portal <ArrowRight size={12} />
                             </a>
-                        </div>
+                        )}
+                        {settings.contactSupportUrl && (
+                            <div className="border-t border-tan-light/30 pt-3">
+                                <a 
+                                    href={settings.contactSupportUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 font-bold text-tan hover:text-tan-dark transition-colors uppercase tracking-wider text-[11px] font-sans"
+                                >
+                                    Contact {settings.museumShortName || 'Museum'} Support <ArrowRight size={11} />
+                                </a>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -95,6 +95,7 @@ interface AppearanceSettings {
     mapCenterLat?: number;
     mapCenterLng?: number;
     mapDefaultZoom?: number;
+    stripeBillingPortalUrl?: string;
 }
 
 interface AppearanceContextType {
@@ -116,6 +117,7 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
     mapCenterLat: 33.3001,
     mapCenterLng: -84.5544,
     mapDefaultZoom: 13,
+    stripeBillingPortalUrl: "https://billing.stripe.com/p/login/3cscOSe99bt8bvi000",
     heroTitle: 'Senoia Area\nHistorical Society',
     heroSubtitle: 'Preserving Our Past, Inspiring Our Future',
     backgroundImages: [
@@ -261,7 +263,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
                     suggestionBoxUrl: data.suggestionBoxUrl !== undefined ? data.suggestionBoxUrl : DEFAULT_SETTINGS.suggestionBoxUrl,
                     mapCenterLat: data.mapCenterLat !== undefined ? Number(data.mapCenterLat) : DEFAULT_SETTINGS.mapCenterLat,
                     mapCenterLng: data.mapCenterLng !== undefined ? Number(data.mapCenterLng) : DEFAULT_SETTINGS.mapCenterLng,
-                    mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom
+                    mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom,
+                    stripeBillingPortalUrl: data.stripeBillingPortalUrl !== undefined ? data.stripeBillingPortalUrl : DEFAULT_SETTINGS.stripeBillingPortalUrl
                 };
                 setSettings(fetched);
                 applyTheme(fetched.theme);
