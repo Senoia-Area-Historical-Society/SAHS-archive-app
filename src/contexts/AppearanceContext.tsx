@@ -98,6 +98,14 @@ interface AppearanceSettings {
     stripeBillingPortalUrl?: string;
     showLibraryNotice?: boolean;
     libraryNoticeText?: string;
+    spotlight?: {
+        enabled: boolean;
+        name: string;
+        role: string;
+        bio: string;
+        linkedInUrl?: string;
+        imageUrl: string;
+    };
 }
 
 interface AppearanceContextType {
@@ -193,6 +201,14 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
         enableMembership: true,
         enableMap: true,
         enableCollections: true
+    },
+    spotlight: {
+        enabled: false,
+        name: '',
+        role: '',
+        bio: '',
+        linkedInUrl: '',
+        imageUrl: ''
     }
 };
 

@@ -2,19 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, Facebook, Youtube, Share2, BookOpen } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { EditableText } from '../components/EditableText';
 
-interface SpotlightConfig {
-  enabled: boolean;
-  name: string;
-  role: string;
-  bio: string;
-  linkedInUrl?: string;
-  imageUrl: string;
-}
 
 const BACKGROUND_IMAGES = [
     "/home-pharmacy.jpg",
@@ -30,7 +20,6 @@ export function Home() {
         : BACKGROUND_IMAGES;
 
     const [currentSlide, setCurrentSlide] = useState(0);
-    const [spotlight, setSpotlight] = useState<SpotlightConfig | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [copied, setCopied] = useState(false);
     const navigate = useNavigate();
@@ -49,20 +38,7 @@ export function Home() {
         document.title = "Home | SAHS Digital Archive";
         const timer = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % backgroundImagesList.length);
-        }, 15000); // 15 seconds for a calmer, less distracting transition
-
-        const fetchSpotlight = async () => {
-            try {
-                const snap = await getDoc(doc(db, 'site_settings', 'intern_spotlight'));
-                if (snap.exists()) {
-                    setSpotlight(snap.data() as SpotlightConfig);
-                }
-            } catch (e) {
-                console.error("Failed to load spotlight configuration", e);
-            }
-        };
-        fetchSpotlight();
-
+        }, 15000);
         return () => clearInterval(timer);
     }, []);
 
@@ -290,7 +266,7 @@ export function Home() {
             </div>
 
             {/* Spotlight Banner */}
-            {spotlight?.enabled && (
+            {settings.spotlight?.enabled && (
                 <div className="relative bg-charcoal text-cream overflow-hidden border-t-4 border-tan">
                     {/* Background styling for banner feel */}
                     <div className="absolute inset-0 z-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
@@ -298,14 +274,14 @@ export function Home() {
                     
                     <div className="max-w-7xl mx-auto px-6 py-12 md:px-8 md:py-20 relative z-10 flex flex-col md:flex-row items-center gap-8 md:gap-12 lg:gap-20">
                         {/* Image Side */}
-                        {spotlight.imageUrl && (
+                        {settings.spotlight?.imageUrl && (
                             <div className="w-full md:w-auto flex justify-center md:justify-end shrink-0">
                                 <div className="relative group">
                                     <div className="absolute inset-0 bg-tan/30 rounded-full blur-2xl transform scale-110 group-hover:scale-125 transition-transform duration-700" />
                                     <div className="w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80 rounded-full border-[6px] border-tan/20 overflow-hidden relative z-10 shadow-2xl mx-auto transition-transform duration-500 group-hover:scale-[1.02]">
                                         <img 
-                                            src={spotlight.imageUrl} 
-                                            alt={spotlight.name} 
+                                            src={settings.spotlight.imageUrl} 
+                                            alt={settings.spotlight.name} 
                                             className="w-full h-full object-cover"
                                         />
                                     </div>
@@ -317,25 +293,25 @@ export function Home() {
                         )}
                         
                         {/* Text Side */}
-                        <div className={`w-full ${spotlight.imageUrl ? 'md:flex-1 text-center md:text-left' : 'text-center'}`}>
-                            <div className={`inline-flex items-center gap-3 text-tan text-xs font-black uppercase tracking-[0.25em] mb-6 ${!spotlight.imageUrl && 'mx-auto'}`}>
+                        <div className={`w-full ${settings.spotlight?.imageUrl ? 'md:flex-1 text-center md:text-left' : 'text-center'}`}>
+                            <div className={`inline-flex items-center gap-3 text-tan text-xs font-black uppercase tracking-[0.25em] mb-6 ${!settings.spotlight?.imageUrl && 'mx-auto'}`}>
                                 <span className="w-12 h-px bg-tan/50"></span>
                                 Spotlight
                                 <span className="w-12 h-px bg-tan/50"></span>
                             </div>
                             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-white mb-3 leading-tight tracking-tight drop-shadow-md">
-                                {spotlight.name}
+                                {settings.spotlight?.name}
                             </h2>
                             <h3 className="text-lg lg:text-xl text-cream/70 font-medium font-serif italic mb-6 lg:mb-10 pb-6 lg:pb-8 border-b border-tan/20 max-w-2xl md:mx-0 mx-auto">
-                                {spotlight.role}
+                                {settings.spotlight?.role}
                             </h3>
                             <p className="text-base sm:text-lg lg:text-xl text-cream/90 leading-relaxed font-sans whitespace-pre-line border-l-0 md:border-l-4 border-tan pl-0 md:pl-6 italic mb-8">
-                                "{spotlight.bio}"
+                                "{settings.spotlight?.bio}"
                             </p>
-                            {spotlight.linkedInUrl && (
+                            {settings.spotlight?.linkedInUrl && (
                                 <div>
                                     <a 
-                                        href={spotlight.linkedInUrl} 
+                                        href={settings.spotlight?.linkedInUrl} 
                                         target="_blank" 
                                         rel="noopener noreferrer" 
                                         className="inline-flex items-center gap-2 bg-tan hover:bg-white text-white hover:text-tan px-6 py-3 rounded-full font-bold transition-all shadow-sm group border border-transparent hover:border-tan"
