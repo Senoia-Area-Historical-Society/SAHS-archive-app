@@ -510,9 +510,12 @@ export function Home() {
                         className="mb-8 leading-loose max-w-3xl opacity-70"
                     />
                     <div className="w-12 h-px bg-tan-light opacity-20 mb-8"></div>
-                    <p className="text-cream opacity-50 font-medium tracking-wide">
-                        © 2026 Senoia Area Historical Society. All rights reserved.
-                    </p>
+                    <EditableText
+                        textKey="footerCopyright"
+                        defaultText={`© 2026 ${settings.museumName || 'Senoia Area Historical Society'}. All rights reserved.`}
+                        containerType="p"
+                        className="text-cream opacity-50 font-medium tracking-wide"
+                    />
                 </div>
             </footer>
         </div>
