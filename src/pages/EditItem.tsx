@@ -149,6 +149,7 @@ export default function EditItem() {
     const { lastSearchPath, user } = useAuth();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { settings } = useAppearance();
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const fromAudit = searchParams.get('from') === 'audit';
@@ -1013,10 +1014,10 @@ export default function EditItem() {
                 <p className="text-charcoal/70 mb-8 text-center max-w-md">The archive item metadata has been successfully updated.</p>
                 <div className="flex gap-4">
                     <button
-                        onClick={() => navigate(itemType === 'Oral History' ? `/senoia-stories` : `/archive`)}
+                        onClick={() => navigate(itemType === 'Oral History' ? `/stories` : `/archive`)}
                         className="bg-cream border border-tan-light/50 text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/20 transition-colors"
                     >
-                        {itemType === 'Oral History' ? 'Back to Senoia Stories' : 'Return to Archive'}
+                        {itemType === 'Oral History' ? `Back to ${settings.tabNames?.senoiaStories || 'Stories'}` : 'Return to Archive'}
                     </button>
                     <button
                         onClick={() => navigate(`/items/${id}`)}
@@ -1119,10 +1120,10 @@ export default function EditItem() {
                     ) : itemType === 'Oral History' ? (
                         <button 
                             type="button"
-                            onClick={() => navigate('/senoia-stories')}
+                            onClick={() => navigate('/stories')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
                         >
-                            <ArrowLeft size={16} /> Back to Senoia Stories
+                            <ArrowLeft size={16} /> Back to {settings.tabNames?.senoiaStories || 'Stories'}
                         </button>
                     ) : lastSearchPath && (
                         <button 

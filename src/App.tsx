@@ -133,7 +133,8 @@ function App() {
 
                 <Route element={<PageWrapper />}>
                   <Route path="archive" element={<BrowseArchive />} />
-                  <Route path="senoia-stories" element={<SenoiaStories />} />
+                  <Route path="stories" element={<SenoiaStories />} />
+                  <Route path="senoia-stories" element={<Navigate to="/stories" replace />} />
                   <Route path="collections" element={<Collections />} />
                   <Route path="collections/:id" element={<CollectionDetail />} />
                   

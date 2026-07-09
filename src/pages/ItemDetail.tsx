@@ -726,7 +726,7 @@ export function ItemDetail() {
         setIsDeleting(true);
         try {
             await deleteDoc(doc(db, 'archive_items', id));
-            navigate(isOralHistory ? '/senoia-stories' : '/archive');
+            navigate(isOralHistory ? '/stories' : '/archive');
         } catch (error) {
             console.error("Error deleting item:", error);
             alert("Failed to delete item.");

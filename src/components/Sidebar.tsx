@@ -251,7 +251,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                 <EditableLabel tabKey="home" defaultLabel="Home" />
                             </NavLink>
                             {settings.featureToggles?.enableOralHistories !== false && (
-                                <NavLink to="/senoia-stories" className={navLinkClass} onClick={handleLinkClick}>
+                                <NavLink to="/stories" className={navLinkClass} onClick={handleLinkClick}>
                                     <Mic size={20} className="text-tan" />
                                     <EditableLabel tabKey="senoiaStories" defaultLabel="Senoia Stories" />
                                 </NavLink>
