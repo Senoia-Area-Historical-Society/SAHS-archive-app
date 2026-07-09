@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AppearanceProvider } from './contexts/AppearanceContext';
 import AnalyticsTracker from './components/AnalyticsTracker';
 
 // Lazy load pages for better initial bundle size
@@ -36,6 +37,7 @@ const LibraryBrowse = lazy(() => import('./pages/LibraryBrowse').then(m => ({ de
 const LibraryDetail = lazy(() => import('./pages/LibraryDetail').then(m => ({ default: m.LibraryDetail })));
 const AddBook = lazy(() => import('./pages/AddBook').then(m => ({ default: m.AddBook })));
 const EditBook = lazy(() => import('./pages/EditBook'));
+const AppearanceSettings = lazy(() => import('./pages/AppearanceSettings').then(m => ({ default: m.AppearanceSettings })));
 
 function PageWrapper() {
   return (
@@ -88,6 +90,20 @@ function ResearchRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, realIsAdmin, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user || !realIsAdmin) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+}
+
 function App() {
   useEffect(() => {
     // Disable right-click on all images to prevent downloading
@@ -108,55 +124,58 @@ function App() {
   return (
     <BrowserRouter>
       <AnalyticsTracker />
-      <AuthProvider>
-        <Suspense fallback={<LoadingSpinner />}>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
+      <AppearanceProvider>
+        <AuthProvider>
+          <Suspense fallback={<LoadingSpinner />}>
+            <Routes>
+              <Route path="/" element={<Layout />}>
+                <Route index element={<Home />} />
 
-              <Route element={<PageWrapper />}>
-                <Route path="archive" element={<BrowseArchive />} />
-                <Route path="senoia-stories" element={<SenoiaStories />} />
-                <Route path="collections" element={<Collections />} />
-                <Route path="collections/:id" element={<CollectionDetail />} />
-                
-                {/* Book Library Routes */}
-                <Route path="library" element={<LibraryBrowse />} />
-                <Route path="library/:id" element={<LibraryDetail />} />
+                <Route element={<PageWrapper />}>
+                  <Route path="archive" element={<BrowseArchive />} />
+                  <Route path="senoia-stories" element={<SenoiaStories />} />
+                  <Route path="collections" element={<Collections />} />
+                  <Route path="collections/:id" element={<CollectionDetail />} />
+                  
+                  {/* Book Library Routes */}
+                  <Route path="library" element={<LibraryBrowse />} />
+                  <Route path="library/:id" element={<LibraryDetail />} />
 
-                {/* Authentication and Admin routes */}
-                <Route path="items/:id" element={<ItemDetail />} />
-                <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
-                <Route path="search" element={<SearchArchive />} />
-                <Route path="map" element={<BrowseMap />} />
-                <Route path="login" element={<Login />} />
+                  {/* Authentication and Admin routes */}
+                  <Route path="items/:id" element={<ItemDetail />} />
+                  <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
+                  <Route path="search" element={<SearchArchive />} />
+                  <Route path="map" element={<BrowseMap />} />
+                  <Route path="login" element={<Login />} />
 
-                {/* Protected Curator Routes */}
-                <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
-                <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
-                <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
-                <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
-                <Route path="library/add" element={<ProtectedRoute><AddBook /></ProtectedRoute>} />
-                <Route path="library/edit/:id" element={<ProtectedRoute><EditBook /></ProtectedRoute>} />
-                <Route path="settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
-                <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
-                <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
-                <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
-                <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
-                <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
-                <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
-                <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
-                <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-                
-                {/* Member Research Workspace Route */}
-                <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
-                <Route path="my-research/map" element={<ResearchRoute><MyResearchMap /></ResearchRoute>} />
-                <Route path="my-research/membership" element={<ResearchRoute><MembershipStatus /></ResearchRoute>} />
+                  {/* Protected Curator Routes */}
+                  <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
+                  <Route path="add-collection" element={<ProtectedRoute><AddCollection /></ProtectedRoute>} />
+                  <Route path="edit-item/:id" element={<ProtectedRoute><EditItem /></ProtectedRoute>} />
+                  <Route path="edit-collection/:id" element={<ProtectedRoute><EditCollection /></ProtectedRoute>} />
+                  <Route path="library/add" element={<ProtectedRoute><AddBook /></ProtectedRoute>} />
+                  <Route path="library/edit/:id" element={<ProtectedRoute><EditBook /></ProtectedRoute>} />
+                  <Route path="appearance" element={<AdminRoute><AppearanceSettings /></AdminRoute>} />
+                  <Route path="settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+                  <Route path="tagging" element={<ProtectedRoute><TaggingHub /></ProtectedRoute>} />
+                  <Route path="manage-locations" element={<ProtectedRoute><ManageLocations /></ProtectedRoute>} />
+                  <Route path="manage-locations/rooms/:roomId" element={<ProtectedRoute><ManageRoomLocations /></ProtectedRoute>} />
+                  <Route path="rooms/:id" element={<ProtectedRoute><RoomDetail /></ProtectedRoute>} />
+                  <Route path="locations/:id" element={<ProtectedRoute><LocationDetail /></ProtectedRoute>} />
+                  <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
+                  <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
+                  <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                  
+                  {/* Member Research Workspace Route */}
+                  <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
+                  <Route path="my-research/map" element={<ResearchRoute><MyResearchMap /></ResearchRoute>} />
+                  <Route path="my-research/membership" element={<ResearchRoute><MembershipStatus /></ResearchRoute>} />
+                </Route>
               </Route>
-            </Route>
-          </Routes>
-        </Suspense>
-      </AuthProvider>
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </AppearanceProvider>
     </BrowserRouter>
   );
 }
