@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:emulators": "VITE_USE_FIREBASE_EMULATOR=true vite",
+    "emulators": "firebase emulators:start",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -41,6 +43,7 @@
     "@types/firebase": "^2.4.32",
     "@types/node": "^24.10.1",
     "@types/pdfjs-dist": "^2.10.378",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
