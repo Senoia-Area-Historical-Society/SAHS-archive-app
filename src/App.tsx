@@ -38,6 +38,7 @@ const LibraryDetail = lazy(() => import('./pages/LibraryDetail').then(m => ({ de
 const AddBook = lazy(() => import('./pages/AddBook').then(m => ({ default: m.AddBook })));
 const EditBook = lazy(() => import('./pages/EditBook'));
 const AppearanceSettings = lazy(() => import('./pages/AppearanceSettings').then(m => ({ default: m.AppearanceSettings })));
+const SetupWizard = lazy(() => import('./pages/SetupWizard').then(m => ({ default: m.SetupWizard })));
 
 function PageWrapper() {
   return (
@@ -57,11 +58,15 @@ function LoadingSpinner() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isSAHSUser, realIsAdmin, loading } = useAuth();
+  const { user, isSAHSUser, realIsAdmin, loading, isSetupComplete } = useAuth();
   const location = useLocation();
   
   if (loading) {
     return <LoadingSpinner />;
+  }
+
+  if (user && !isSetupComplete && location.pathname !== '/setup') {
+    return <Navigate to="/setup" replace />;
   }
 
   // Admins always have access to /settings to toggle simulation
@@ -69,7 +74,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!user || !isSAHSUser) {
+  if (!user || (!isSAHSUser && isSetupComplete)) {
     return <Navigate to="/login" replace />;
   }
   
@@ -104,18 +109,32 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function App() {
+function SetupInterceptor({ children }: { children: React.ReactNode }) {
+  const { user, isSetupComplete, loading } = useAuth();
+  const location = useLocation();
+
   useEffect(() => {
-    // Disable right-click on all images to prevent downloading
-    // Future iteration: check if user is a member/admin to bypass this
+    if (!loading && user && !isSetupComplete && location.pathname !== '/setup') {
+      window.location.href = '/setup';
+    }
+  }, [user, isSetupComplete, loading, location.pathname]);
+
+  if (!loading && user && !isSetupComplete && location.pathname !== '/setup') {
+    return null; // Don't render the app while redirecting
+  }
+
+  return <>{children}</>;
+}
+
+export default function App() {
+  useEffect(() => {
+    // Disable right click globally for images
     const handleContextMenu = (e: MouseEvent) => {
       if (e.target instanceof HTMLImageElement) {
         e.preventDefault();
       }
     };
-
     document.addEventListener('contextmenu', handleContextMenu);
-    
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
     };
@@ -126,10 +145,11 @@ function App() {
       <AnalyticsTracker />
       <AppearanceProvider>
         <AuthProvider>
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Home />} />
+          <SetupInterceptor>
+            <Suspense fallback={<LoadingSpinner />}>
+              <Routes>
+                <Route path="/" element={<Layout />}>
+                  <Route index element={<Home />} />
 
                 <Route element={<PageWrapper />}>
                   <Route path="archive" element={<BrowseArchive />} />
@@ -148,6 +168,7 @@ function App() {
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />
+                  <Route path="setup" element={<SetupWizard />} />
 
                   {/* Protected Curator Routes */}
                   <Route path="add-item" element={<ProtectedRoute><AddItem /></ProtectedRoute>} />
@@ -175,10 +196,9 @@ function App() {
               </Route>
             </Routes>
           </Suspense>
+          </SetupInterceptor>
         </AuthProvider>
       </AppearanceProvider>
     </BrowserRouter>
   );
 }
-
-export default App;

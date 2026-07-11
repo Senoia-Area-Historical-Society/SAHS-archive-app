@@ -14,6 +14,12 @@ service cloud.firestore {
         );
     }
 
+    // Helper function for setup check
+    function isSetupComplete() {
+      return exists(/databases/$(database)/documents/site_settings/setup) &&
+             get(/databases/$(database)/documents/site_settings/setup).data.isComplete == true;
+    }
+
     // Helper function to check if user is an active member
     function isActiveMember() {
       return request.auth != null && 
@@ -37,13 +43,14 @@ service cloud.firestore {
       );
     }
 
-    // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles
+    // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles OR first user during setup
     match /user_roles/{email} {
       allow get: if request.auth != null;
       allow list: if isSAHSUser();
       allow write: if request.auth != null && (
         request.auth.token.email.lower() == 'catnolan@senoiahistory.com' ||
-        request.auth.token.email.lower() == 'jeremywarren@senoiahistory.com'
+        request.auth.token.email.lower() == 'jeremywarren@senoiahistory.com' ||
+        (!isSetupComplete() && request.auth.token.email.lower() == email.lower() && request.resource.data.role == 'admin')
       );
     }
 
@@ -78,10 +85,10 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
-    // site_settings collection: Anyone can read, only SAHS users can write
+    // site_settings collection: Anyone can read, only SAHS users can write (or any user during initial setup)
     match /site_settings/{document} {
       allow read: if true;
-      allow write: if isSAHSUser();
+      allow write: if isSAHSUser() || (request.auth != null && !isSetupComplete());
     }
 
     // settings collection: Anyone can read, only SAHS users can write

@@ -35,7 +35,10 @@ export function Home() {
     };
 
     useEffect(() => {
-        document.title = "Home | SAHS Digital Archive";
+        document.title = `Home | ${settings.museumShortName || 'SAHS'} Digital Archive`;
+    }, [settings.museumShortName]);
+
+    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentSlide((prev) => (prev + 1) % backgroundImagesList.length);
         }, 15000);

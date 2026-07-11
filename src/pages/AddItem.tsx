@@ -117,7 +117,7 @@ export function AddItem() {
     const [showTagSuggestions, setShowTagSuggestions] = useState(false);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
-    const [physicalLocationValue, setPhysicalLocationValue] = useState('SAHS (Physical Archive)');
+    const [physicalLocationValue, setPhysicalLocationValue] = useState('');
 
     // Document linking for Figures
     const [allDocs, setAllDocs] = useState<{ id: string, title: string }[]>([]);
@@ -1337,12 +1337,12 @@ export function AddItem() {
                                                     <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Location</label>
                                                     <div className="relative">
                                                         <select name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                            <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                            <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
                                                             <option value="Digital Archive">Digital Archive</option>
                                                         </select>
                                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                                     </div>
-                                                    {physicalLocationValue === 'SAHS (Physical Archive)' && (
+                                                    {(physicalLocationValue === `${settings.museumShortName || 'SAHS'} (Physical Archive)` || physicalLocationValue === '') && (
                                                         <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                                             <label htmlFor="archive_specific_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Specific Location in Archive</label>
                                                             <input type="text" name="archive_specific_location" id="archive_specific_location" placeholder="e.g. Filing Cabinet 3, Drawer B, Folder 12" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />

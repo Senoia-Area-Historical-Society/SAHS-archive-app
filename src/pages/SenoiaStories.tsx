@@ -346,7 +346,7 @@ export function SenoiaStories() {
                             Coming Soon
                         </h2>
                         <p className="text-base text-charcoal/70 font-sans max-w-md mx-auto leading-relaxed">
-                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the Senoia Area community over the decades. 
+                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the {settings.museumShortName || 'Senoia Area'} community over the decades. 
                         </p>
                         <p className="text-sm text-tan font-sans font-medium italic pt-2">
                             Check back soon to listen to our first published interviews.

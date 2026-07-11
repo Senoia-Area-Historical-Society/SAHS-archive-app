@@ -1789,7 +1789,7 @@ export default function EditItem() {
                                                 <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
                                                 <div className="relative">
                                                     <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                        <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                        <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
                                                         <option value="Digital Archive">Digital Archive</option>
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />

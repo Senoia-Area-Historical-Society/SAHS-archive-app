@@ -206,6 +206,14 @@ export function AppearanceSettings() {
                 mapCenterLat: Number(mapCenterLat) || 33.3001,
                 mapCenterLng: Number(mapCenterLng) || -84.5544,
                 mapDefaultZoom: Number(mapDefaultZoom) || 13,
+                // Mirror heroTitle/heroSubtitle into contentBlocks so EditableText
+                // components on the homepage (which read from contentBlocks[textKey])
+                // stay in sync with the Appearance Settings form.
+                contentBlocks: {
+                    ...(settings.contentBlocks || {}),
+                    heroTitle: heroTitle.trim(),
+                    heroSubtitle: heroSubtitle.trim(),
+                },
             }, { merge: true });
             await refreshSettings();
             alert('Appearance settings saved successfully!');
@@ -448,8 +456,7 @@ export function AppearanceSettings() {
                                 <Toggle value={spotlightEnabled} onChange={() => setSpotlightEnabled(v => !v)} />
                             </div>
 
-                            {spotlightEnabled && (
-                                <div className="space-y-6 pt-2">
+                            <div className="space-y-6 pt-2">
                                     {/* Image upload + preview */}
                                     <div className="flex flex-col sm:flex-row items-start gap-6">
                                         {/* Circular preview */}
@@ -498,7 +505,6 @@ export function AppearanceSettings() {
                                         <p className={hintCls}>If provided, a "Connect on LinkedIn" button will appear on the banner.</p>
                                     </div>
                                 </div>
-                            )}
                         </div>
                     </>
                 )}

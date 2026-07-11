@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 export interface ThemeConfig {
     name: string;
@@ -247,64 +247,114 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }
     };
 
+    // ── Parse raw Firestore data into typed AppearanceSettings ────────────────
+    const parseAppearanceData = (data: Record<string, any>): AppearanceSettings => ({
+        theme: data.theme || 'classic',
+        heroTitle: data.heroTitle || DEFAULT_SETTINGS.heroTitle,
+        heroSubtitle: data.heroSubtitle || DEFAULT_SETTINGS.heroSubtitle,
+        backgroundImages: (data.backgroundImages && data.backgroundImages.length > 0)
+            ? data.backgroundImages
+            : DEFAULT_SETTINGS.backgroundImages,
+        logoUrl: data.logoUrl || '',
+        instagramUrl: data.instagramUrl || DEFAULT_SETTINGS.instagramUrl,
+        facebookUrl: data.facebookUrl || DEFAULT_SETTINGS.facebookUrl,
+        youtubeUrl: data.youtubeUrl || DEFAULT_SETTINGS.youtubeUrl,
+        sidebarTitle: data.sidebarTitle || DEFAULT_SETTINGS.sidebarTitle,
+        museumName: data.museumName || DEFAULT_SETTINGS.museumName,
+        museumShortName: data.museumShortName || DEFAULT_SETTINGS.museumShortName,
+        tabNames: { ...DEFAULT_SETTINGS.tabNames, ...(data.tabNames || {}) },
+        contentBlocks: { ...DEFAULT_SETTINGS.contentBlocks, ...(data.contentBlocks || {}) },
+        featureToggles: { ...DEFAULT_SETTINGS.featureToggles, ...(data.featureToggles || {}) },
+        contactSupportUrl: data.contactSupportUrl !== undefined ? data.contactSupportUrl : DEFAULT_SETTINGS.contactSupportUrl,
+        archiveFeedbackUrl: data.archiveFeedbackUrl !== undefined ? data.archiveFeedbackUrl : DEFAULT_SETTINGS.archiveFeedbackUrl,
+        suggestionBoxUrl: data.suggestionBoxUrl !== undefined ? data.suggestionBoxUrl : DEFAULT_SETTINGS.suggestionBoxUrl,
+        mapCenterLat: data.mapCenterLat !== undefined ? Number(data.mapCenterLat) : DEFAULT_SETTINGS.mapCenterLat,
+        mapCenterLng: data.mapCenterLng !== undefined ? Number(data.mapCenterLng) : DEFAULT_SETTINGS.mapCenterLng,
+        mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom,
+        stripeBillingPortalUrl: data.stripeBillingPortalUrl !== undefined ? data.stripeBillingPortalUrl : DEFAULT_SETTINGS.stripeBillingPortalUrl,
+        showLibraryNotice: data.showLibraryNotice !== undefined ? data.showLibraryNotice : DEFAULT_SETTINGS.showLibraryNotice,
+        libraryNoticeText: data.libraryNoticeText !== undefined ? data.libraryNoticeText : DEFAULT_SETTINGS.libraryNoticeText,
+        spotlight: data.spotlight
+            ? {
+                enabled: data.spotlight.enabled ?? false,
+                name: data.spotlight.name || '',
+                role: data.spotlight.role || '',
+                bio: data.spotlight.bio || '',
+                linkedInUrl: data.spotlight.linkedInUrl || '',
+                imageUrl: data.spotlight.imageUrl || '',
+            }
+            : DEFAULT_SETTINGS.spotlight,
+    });
+
+    // ── Manual refresh (used after saves) ─────────────────────────────────────
     const refreshSettings = async () => {
         try {
             const snap = await getDoc(doc(db, 'site_settings', 'appearance'));
             if (snap.exists()) {
-                const data = snap.data();
-                const fetched: AppearanceSettings = {
-                    theme: data.theme || 'classic',
-                    heroTitle: data.heroTitle || DEFAULT_SETTINGS.heroTitle,
-                    heroSubtitle: data.heroSubtitle || DEFAULT_SETTINGS.heroSubtitle,
-                    backgroundImages: (data.backgroundImages && data.backgroundImages.length > 0)
-                        ? data.backgroundImages
-                        : DEFAULT_SETTINGS.backgroundImages,
-                    logoUrl: data.logoUrl || '',
-                    instagramUrl: data.instagramUrl || DEFAULT_SETTINGS.instagramUrl,
-                    facebookUrl: data.facebookUrl || DEFAULT_SETTINGS.facebookUrl,
-                    youtubeUrl: data.youtubeUrl || DEFAULT_SETTINGS.youtubeUrl,
-                    sidebarTitle: data.sidebarTitle || DEFAULT_SETTINGS.sidebarTitle,
-                    museumName: data.museumName || DEFAULT_SETTINGS.museumName,
-                    museumShortName: data.museumShortName || DEFAULT_SETTINGS.museumShortName,
-                    tabNames: {
-                        ...DEFAULT_SETTINGS.tabNames,
-                        ...(data.tabNames || {})
-                    },
-                    contentBlocks: {
-                        ...DEFAULT_SETTINGS.contentBlocks,
-                        ...(data.contentBlocks || {})
-                    },
-                    featureToggles: {
-                        ...DEFAULT_SETTINGS.featureToggles,
-                        ...(data.featureToggles || {})
-                    },
-                    contactSupportUrl: data.contactSupportUrl !== undefined ? data.contactSupportUrl : DEFAULT_SETTINGS.contactSupportUrl,
-                    archiveFeedbackUrl: data.archiveFeedbackUrl !== undefined ? data.archiveFeedbackUrl : DEFAULT_SETTINGS.archiveFeedbackUrl,
-                    suggestionBoxUrl: data.suggestionBoxUrl !== undefined ? data.suggestionBoxUrl : DEFAULT_SETTINGS.suggestionBoxUrl,
-                    mapCenterLat: data.mapCenterLat !== undefined ? Number(data.mapCenterLat) : DEFAULT_SETTINGS.mapCenterLat,
-                    mapCenterLng: data.mapCenterLng !== undefined ? Number(data.mapCenterLng) : DEFAULT_SETTINGS.mapCenterLng,
-                    mapDefaultZoom: data.mapDefaultZoom !== undefined ? Number(data.mapDefaultZoom) : DEFAULT_SETTINGS.mapDefaultZoom,
-                    stripeBillingPortalUrl: data.stripeBillingPortalUrl !== undefined ? data.stripeBillingPortalUrl : DEFAULT_SETTINGS.stripeBillingPortalUrl,
-                    showLibraryNotice: data.showLibraryNotice !== undefined ? data.showLibraryNotice : DEFAULT_SETTINGS.showLibraryNotice,
-                    libraryNoticeText: data.libraryNoticeText !== undefined ? data.libraryNoticeText : DEFAULT_SETTINGS.libraryNoticeText
-                };
-                setSettings(fetched);
-                applyTheme(fetched.theme);
+                const parsed = parseAppearanceData(snap.data());
+                setSettings(parsed);
+                applyTheme(parsed.theme);
             } else {
                 setSettings(DEFAULT_SETTINGS);
                 applyTheme('classic');
             }
         } catch (e) {
             console.error("Failed to load appearance settings from db", e);
-            setSettings(DEFAULT_SETTINGS);
-            applyTheme('classic');
-        } finally {
-            setLoading(false);
         }
     };
 
+    // ── One-time migration: copy intern_spotlight → appearance.spotlight ───────
+    const migrateSpotlightIfNeeded = async () => {
+        try {
+            const appearanceSnap = await getDoc(doc(db, 'site_settings', 'appearance'));
+            if (appearanceSnap.exists() && !appearanceSnap.data()?.spotlight) {
+                const oldSnap = await getDoc(doc(db, 'site_settings', 'intern_spotlight'));
+                if (oldSnap.exists()) {
+                    const old = oldSnap.data();
+                    await setDoc(doc(db, 'site_settings', 'appearance'), {
+                        spotlight: {
+                            enabled: old.enabled ?? false,
+                            name: old.name || '',
+                            role: old.role || '',
+                            bio: old.bio || '',
+                            linkedInUrl: old.linkedInUrl || '',
+                            imageUrl: old.imageUrl || '',
+                        }
+                    }, { merge: true });
+                }
+            }
+        } catch (e) {
+            console.warn('Spotlight migration skipped:', e);
+        }
+    };
+
+    // ── Real-time listener: pushes updates to all connected clients instantly ──
     useEffect(() => {
-        refreshSettings();
+        const unsubscribe = onSnapshot(
+            doc(db, 'site_settings', 'appearance'),
+            (snap) => {
+                if (snap.exists()) {
+                    const parsed = parseAppearanceData(snap.data());
+                    setSettings(parsed);
+                    applyTheme(parsed.theme);
+                } else {
+                    setSettings(DEFAULT_SETTINGS);
+                    applyTheme('classic');
+                }
+                setLoading(false);
+            },
+            (e) => {
+                console.error("Appearance listener error", e);
+                setSettings(DEFAULT_SETTINGS);
+                applyTheme('classic');
+                setLoading(false);
+            }
+        );
+
+        // Run migration after first snapshot fires
+        migrateSpotlightIfNeeded();
+
+        return () => unsubscribe();
     }, []);
 
     return (

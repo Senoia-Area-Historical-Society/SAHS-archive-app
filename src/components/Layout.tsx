@@ -84,7 +84,7 @@ export default function Layout() {
             navigate(`/rooms/${parsed.id}`);
             showToast("Redirecting to room details...");
         } else {
-            showToast("Invalid QR code format. Please scan a SAHS item, book, or location QR code.");
+            showToast(`Invalid QR code format. Please scan a ${settings.museumShortName || 'SAHS'} item, book, or location QR code.`);
         }
     };
 

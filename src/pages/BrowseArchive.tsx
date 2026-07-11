@@ -191,8 +191,8 @@ export function BrowseArchive() {
     const headerText = getHeaderText();
 
     useEffect(() => {
-        document.title = `${headerText.title} | SAHS Digital Archive`;
-    }, [headerText.title]);
+        document.title = `${headerText.title} | ${settings.museumShortName || 'SAHS'} Digital Archive`;
+    }, [headerText.title, settings.museumShortName]);
 
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;

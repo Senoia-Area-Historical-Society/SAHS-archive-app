@@ -25,6 +25,7 @@ interface AuthContextType {
     isExpiredMember: boolean; // Logged in but membership has lapsed
     memberData: Member | null;
     hasResearchAccess: boolean;
+    isSetupComplete: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isMember, setIsMember] = useState(false);
     const [isExpiredMember, setIsExpiredMember] = useState(false);
     const [memberData, setMemberData] = useState<Member | null>(null);
+    const [isSetupComplete, setIsSetupComplete] = useState(true); // Default true to prevent flash
 
     const location = useLocation();
 
@@ -197,27 +199,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const effectiveIsMember = simulatedRole === 'member' || (isMember && !simulatedRole);
     const hasResearchAccess = effectiveIsSAHSUser || effectiveIsMember;
 
+    const value = {
+        user,
+        loading,
+        loginWithGoogle,
+        logout,
+        isSAHSUser: effectiveIsSAHSUser,
+        isAdmin: effectiveIsAdmin,
+        isCurator: effectiveIsCurator,
+        realIsAdmin: isAdmin,
+        realIsCurator: isCurator,
+        simulatedRole,
+        setSimulatedRole: handleSetSimulatedRole,
+        isEditingMode,
+        setIsEditingMode,
+        lastSearchPath,
+        isMember,
+        isExpiredMember,
+        memberData,
+        hasResearchAccess,
+        isSetupComplete
+    };
+
     return (
-        <AuthContext.Provider value={{ 
-            user, 
-            loading, 
-            loginWithGoogle, 
-            logout, 
-            isSAHSUser: effectiveIsSAHSUser, 
-            isAdmin: effectiveIsAdmin, 
-            isCurator: effectiveIsCurator,
-            realIsAdmin: isAdmin,
-            realIsCurator: isCurator,
-            simulatedRole,
-            setSimulatedRole: handleSetSimulatedRole,
-            isEditingMode,
-            setIsEditingMode,
-            lastSearchPath,
-            isMember,
-            isExpiredMember,
-            memberData,
-            hasResearchAccess
-        }}>
+        <AuthContext.Provider value={value}>
             {loading ? (
                 <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-4">
                     <div className="w-12 h-12 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>

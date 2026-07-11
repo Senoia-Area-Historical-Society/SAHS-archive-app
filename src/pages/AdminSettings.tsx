@@ -632,6 +632,16 @@ export function AdminSettings() {
                             <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-6 text-sm text-blue-900/70 font-sans leading-relaxed">
                                 <strong>Permanent Admins:</strong> <code>catnolan@senoiahistory.com</code> and <code>jeremywarren@senoiahistory.com</code> are hardcoded as permanent system administrators. You cannot revoke their access here.
                             </div>
+                            <div className="bg-tan/10 rounded-xl border border-tan/30 p-6 text-sm text-charcoal/80 font-sans leading-relaxed mt-4">
+                                <h3 className="font-bold text-charcoal mb-2 flex items-center gap-2"><Settings size={16} /> Run Setup Wizard</h3>
+                                <p className="mb-4">Need to completely reset or update your core organization names and branding?</p>
+                                <button
+                                    onClick={() => window.location.href = '/setup'}
+                                    className="px-4 py-2 bg-white border border-tan/30 hover:border-tan text-tan font-bold rounded-lg shadow-sm transition-all flex items-center gap-2"
+                                >
+                                    Launch Wizard
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

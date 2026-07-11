@@ -504,7 +504,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
 
                 {!user && settings.featureToggles?.enableMembership !== false && (
                     <div className="p-4 rounded-xl bg-tan/5 border border-tan/20 flex flex-col gap-2 mb-2">
-                        <h3 className="font-serif font-bold text-[13px] text-charcoal leading-snug">SAHS Member Benefits</h3>
+                        <h3 className="font-serif font-bold text-[13px] text-charcoal leading-snug">{settings.museumShortName || 'SAHS'} Member Benefits</h3>
                         <p className="text-[11px] text-charcoal/60 leading-relaxed font-medium">
                             Active members can sign in to save custom research folders, bookmark resources, and download archival images.
                         </p>

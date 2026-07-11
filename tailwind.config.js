@@ -7,16 +7,16 @@ export default {
   theme: {
     extend: {
       colors: {
-        cream: '#fcfaf6',
-        beige: '#f1ede4',
+        cream: 'var(--color-cream, #fcfaf6)',
+        beige: 'var(--color-beige, #f1ede4)',
         tan: {
-          light: '#e1d7c6',
-          DEFAULT: '#8b7355',
-          dark: '#68543f'
+          light: 'var(--color-tan-light, #e1d7c6)',
+          DEFAULT: 'var(--color-tan, #8b7355)',
+          dark: 'var(--color-tan-dark, #68543f)'
         },
         charcoal: {
-          DEFAULT: '#3a2d1d',
-          light: '#746048'
+          DEFAULT: 'var(--color-charcoal, #3a2d1d)',
+          light: 'var(--color-charcoal-light, #746048)'
         }
       },
       fontFamily: {

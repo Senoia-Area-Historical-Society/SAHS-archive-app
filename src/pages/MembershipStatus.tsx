@@ -79,7 +79,7 @@ export function MembershipStatus() {
                             {/* Card Hero Header */}
                             <div className="bg-cream/40 p-6 md:p-8 border-b border-tan-light/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="space-y-1">
-                                    <p className="text-xs font-black text-tan uppercase tracking-widest">Senoia Area Historical Society</p>
+                                    <p className="text-xs font-black text-tan uppercase tracking-widest">{settings.museumName || 'Senoia Area Historical Society'}</p>
                                     <h2 className="text-2xl font-serif font-bold text-charcoal">{memberName}</h2>
                                     <p className="text-sm text-charcoal/60">{memberEmail}</p>
                                 </div>

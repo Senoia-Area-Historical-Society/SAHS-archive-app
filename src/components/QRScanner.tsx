@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Camera, X, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState } from 'react';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 interface QRScannerProps {
     onScan: (data: string) => void;
@@ -10,6 +11,7 @@ interface QRScannerProps {
 }
 
 export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
+    const { settings } = useAppearance();
     const scannerRef = useRef<Html5QrcodeScanner | null>(null);
     const hasScannedRef = useRef<boolean>(false);
     const activeTracksRef = useRef<MediaStreamTrack[]>([]);
@@ -183,7 +185,7 @@ export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
                     
                     <div className="mt-6 flex flex-col items-center text-center">
                         <p className="text-sm text-charcoal/70 max-w-xs">
-                            Point your camera at a SAHS artifact or location QR code.
+                            Point your camera at a {settings.museumShortName || 'SAHS'} artifact or location QR code.
                         </p>
                         
                         <div className="mt-4 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-tan/60 animate-pulse">
