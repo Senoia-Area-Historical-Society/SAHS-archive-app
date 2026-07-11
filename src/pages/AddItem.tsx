@@ -32,6 +32,7 @@ function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
 export function AddItem() {
     const [searchParams] = useSearchParams();
     const { user } = useAuth();
+    const { settings } = useAppearance();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);

@@ -1874,6 +1874,7 @@ function parseTimeToSeconds(timeStr: string): number {
 
 export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoomedImage }: OralHistoryDetailProps) {
     const { user, hasResearchAccess, isAdmin, isCurator } = useAuth();
+    const { settings } = useAppearance();
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
