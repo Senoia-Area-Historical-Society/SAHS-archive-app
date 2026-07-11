@@ -31,7 +31,7 @@ const MyResearch = lazy(() => import('./pages/MyResearch'));
 const MyResearchMap = lazy(() => import('./pages/MyResearchMap').then(m => ({ default: m.MyResearchMap })));
 const MembershipStatus = lazy(() => import('./pages/MembershipStatus').then(m => ({ default: m.MembershipStatus })));
 const Notifications = lazy(() => import('./pages/Notifications').then(m => ({ default: m.Notifications })));
-
+const BulkQRPrint = lazy(() => import('./pages/BulkQRPrint').then(m => ({ default: m.BulkQRPrint })));
 // Book Library System Pages
 const LibraryBrowse = lazy(() => import('./pages/LibraryBrowse').then(m => ({ default: m.LibraryBrowse })));
 const LibraryDetail = lazy(() => import('./pages/LibraryDetail').then(m => ({ default: m.LibraryDetail })));
@@ -187,6 +187,7 @@ export default function App() {
                   <Route path="interactive-map" element={<ProtectedRoute><InteractiveMap /></ProtectedRoute>} />
                   <Route path="audit" element={<ProtectedRoute><AuditDashboard /></ProtectedRoute>} />
                   <Route path="notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                  <Route path="bulk-qr-print" element={<ProtectedRoute><BulkQRPrint /></ProtectedRoute>} />
                   
                   {/* Member Research Workspace Route */}
                   <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />

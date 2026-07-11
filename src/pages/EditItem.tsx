@@ -1017,7 +1017,7 @@ export default function EditItem() {
                         onClick={() => navigate(itemType === 'Oral History' ? `/stories` : `/archive`)}
                         className="bg-cream border border-tan-light/50 text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/20 transition-colors"
                     >
-                        {itemType === 'Oral History' ? `Back to ${settings.tabNames?.senoiaStories || 'Stories'}` : 'Return to Archive'}
+                        {itemType === 'Oral History' ? `Back to ${settings.tabNames?.oralHistories || 'Stories'}` : 'Return to Archive'}
                     </button>
                     <button
                         onClick={() => navigate(`/items/${id}`)}
@@ -1123,7 +1123,7 @@ export default function EditItem() {
                             onClick={() => navigate('/stories')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
                         >
-                            <ArrowLeft size={16} /> Back to {settings.tabNames?.senoiaStories || 'Stories'}
+                            <ArrowLeft size={16} /> Back to {settings.tabNames?.oralHistories || 'Stories'}
                         </button>
                     ) : lastSearchPath && (
                         <button 

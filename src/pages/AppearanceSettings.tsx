@@ -232,9 +232,13 @@ export function AppearanceSettings() {
         <button
             type="button"
             onClick={onChange}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${value ? 'bg-tan' : 'bg-charcoal/20'}`}
+            className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-tan-light/50 transition-colors duration-300 ease-in-out focus:outline-none items-center ${value ? 'bg-tan text-white' : 'bg-cream text-charcoal/40'}`}
         >
-            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${value ? 'translate-x-5' : 'translate-x-0'}`} />
+            <span className="sr-only">Toggle</span>
+            <span className={`absolute text-[9px] font-black tracking-wider uppercase transition-all duration-300 ${value ? 'left-2.5 opacity-100 text-white' : 'right-2.5 opacity-100 text-charcoal/40'}`}>
+                {value ? 'ON' : 'OFF'}
+            </span>
+            <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md border border-tan-light/20 transition-transform duration-300 ease-in-out ${value ? 'translate-x-8' : 'translate-x-0.5'}`} />
         </button>
     );
 

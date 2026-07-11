@@ -253,7 +253,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             {settings.featureToggles?.enableOralHistories !== false && (
                                 <NavLink to="/stories" className={navLinkClass} onClick={handleLinkClick}>
                                     <Mic size={20} className="text-tan" />
-                                    <EditableLabel tabKey="senoiaStories" defaultLabel="Senoia Stories" />
+                                    <EditableLabel tabKey="oralHistories" defaultLabel="Oral Histories" />
                                 </NavLink>
                             )}
                         </nav>
@@ -403,6 +403,10 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         <QrCode size={20} className="text-tan" />
                                         <EditableLabel tabKey="qrSearch" defaultLabel="Search via QR Code" />
                                     </button>
+                                    <NavLink to="/bulk-qr-print" className={navLinkClass} onClick={handleLinkClick}>
+                                        <QrCode size={20} />
+                                        <EditableLabel tabKey="bulkQrPrint" defaultLabel="Bulk QR Print" />
+                                    </NavLink>
                                 </nav>
                             </div>
                         )}
