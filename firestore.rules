@@ -16,8 +16,9 @@ service cloud.firestore {
 
     // Helper function for setup check
     function isSetupComplete() {
-      return exists(/databases/$(database)/documents/site_settings/setup) &&
-             get(/databases/$(database)/documents/site_settings/setup).data.isComplete == true;
+      return (exists(/databases/$(database)/documents/site_settings/setup) &&
+             get(/databases/$(database)/documents/site_settings/setup).data.isComplete == true) ||
+             exists(/databases/$(database)/documents/site_settings/appearance);
     }
 
     // Helper function to check if user is an active member
