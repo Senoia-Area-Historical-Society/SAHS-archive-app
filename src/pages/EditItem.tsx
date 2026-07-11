@@ -6,6 +6,7 @@ import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
@@ -148,6 +149,7 @@ export default function EditItem() {
     const { lastSearchPath, user } = useAuth();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { settings } = useAppearance();
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const fromAudit = searchParams.get('from') === 'audit';
@@ -1012,10 +1014,10 @@ export default function EditItem() {
                 <p className="text-charcoal/70 mb-8 text-center max-w-md">The archive item metadata has been successfully updated.</p>
                 <div className="flex gap-4">
                     <button
-                        onClick={() => navigate(itemType === 'Oral History' ? `/senoia-stories` : `/archive`)}
+                        onClick={() => navigate(itemType === 'Oral History' ? `/stories` : `/archive`)}
                         className="bg-cream border border-tan-light/50 text-charcoal px-6 py-3 rounded-lg font-medium hover:bg-tan-light/20 transition-colors"
                     >
-                        {itemType === 'Oral History' ? 'Back to Senoia Stories' : 'Return to Archive'}
+                        {itemType === 'Oral History' ? `Back to ${settings.tabNames?.oralHistories || 'Stories'}` : 'Return to Archive'}
                     </button>
                     <button
                         onClick={() => navigate(`/items/${id}`)}
@@ -1118,10 +1120,10 @@ export default function EditItem() {
                     ) : itemType === 'Oral History' ? (
                         <button 
                             type="button"
-                            onClick={() => navigate('/senoia-stories')}
+                            onClick={() => navigate('/stories')}
                             className="flex items-center gap-2 px-6 py-2.5 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-charcoal/80 transition-all shadow-md active:scale-95"
                         >
-                            <ArrowLeft size={16} /> Back to Senoia Stories
+                            <ArrowLeft size={16} /> Back to {settings.tabNames?.oralHistories || 'Stories'}
                         </button>
                     ) : lastSearchPath && (
                         <button 
@@ -1787,7 +1789,7 @@ export default function EditItem() {
                                                 <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
                                                 <div className="relative">
                                                     <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                        <option value="SAHS (Physical Archive)">SAHS (Physical Archive)</option>
+                                                        <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
                                                         <option value="Digital Archive">Digital Archive</option>
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
@@ -2325,6 +2327,7 @@ export function OralHistoryEditForm({
     showFigureResults,
     setShowFigureResults
 }: OralHistoryEditFormProps) {
+    const { settings } = useAppearance();
     const [transcriptLines, setTranscriptLines] = useState<{ id: string; timestamp: string; speaker: string; text: string }[]>([]);
     const [audioPlayerTime, setAudioPlayerTime] = useState(0);
     const [audioPlayerDuration, setAudioPlayerDuration] = useState(0);
@@ -2946,7 +2949,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="creator" 
                                 id="creator" 
-                                defaultValue={item.creator || "Senoia Area Historical Society"} 
+                                defaultValue={item.creator || settings.museumName || "Senoia Area Historical Society"} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2958,7 +2961,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="publisher" 
                                 id="publisher" 
-                                defaultValue={item.publisher || "Senoia Area Historical Society"} 
+                                defaultValue={item.publisher || settings.museumName || "Senoia Area Historical Society"} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2970,7 +2973,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="rights" 
                                 id="rights" 
-                                defaultValue={item.rights || "Copyright Senoia Area Historical Society. All rights reserved."} 
+                                defaultValue={item.rights || `Copyright ${settings.museumName || "Senoia Area Historical Society"}. All rights reserved.`} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>

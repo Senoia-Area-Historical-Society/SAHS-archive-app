@@ -5,11 +5,22 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem } from '../types/database';
 import { ArchiveMap } from '../components/ArchiveMap';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 export function BrowseMap() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
+
+    if (settings.featureToggles?.enableMap === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Map Discovery module is not active for this archive site.</p>
+            </div>
+        );
+    }
 
     useEffect(() => {
         const fetchItems = async () => {
@@ -70,7 +81,7 @@ export function BrowseMap() {
                     Map View
                 </h1>
                 <p className="text-xl text-charcoal-light max-w-3xl leading-relaxed">
-                    Explore the history of Senoia through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
+                    Explore the history of {settings.museumShortName || "Senoia"} through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
                 </p>
             </div>
 

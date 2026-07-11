@@ -1,6 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Caveat:wght@400;700&display=swap');
 
 @import 'leaflet/dist/leaflet.css';
+
+:root {
+  --color-cream: #fcfaf6;
+  --color-beige: #f1ede4;
+  --color-tan-light: #e1d7c6;
+  --color-tan: #8b7355;
+  --color-tan-dark: #68543f;
+  --color-charcoal: #3a2d1d;
+  --color-charcoal-light: #746048;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

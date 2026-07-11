@@ -5,10 +5,22 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { LibraryBook, MuseumLocation } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
+import { EditableText } from '../components/EditableText';
 
 export function LibraryBrowse() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
+
+    if (settings.featureToggles?.enableLibrary === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Book Library module is not active for this archive site.</p>
+            </div>
+        );
+    }
 
     // Search and filter parameters from URL
     const search = searchParams.get('q') || '';
@@ -154,12 +166,18 @@ export function LibraryBrowse() {
             {/* Header section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-tan-light/30 pb-6">
                 <div>
-                    <h1 className="font-serif text-3xl sm:text-4xl font-bold text-charcoal tracking-tight">
-                        SAHS Library Catalog
-                    </h1>
-                    <p className="font-serif text-charcoal-light/80 italic mt-1.5 text-base">
-                        Browse, search, and find reference books within the museum collections.
-                    </p>
+                    <EditableText
+                        textKey="libraryTitle"
+                        defaultText="SAHS Library Catalog"
+                        containerType="h1"
+                        className="font-serif text-3xl sm:text-4xl font-bold text-charcoal tracking-tight"
+                    />
+                    <EditableText
+                        textKey="librarySubtitle"
+                        defaultText="Browse, search, and find reference books within the museum collections."
+                        containerType="p"
+                        className="font-serif text-charcoal-light/80 italic mt-1.5 text-base"
+                    />
                 </div>
                 {isSAHSUser && (
                     <Link
@@ -173,15 +191,22 @@ export function LibraryBrowse() {
             </div>
 
             {/* Lending Notice Banner */}
-            <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-start gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm">
-                <Info size={18} className="shrink-0 mt-0.5 text-amber-600" />
-                <div className="space-y-0.5">
-                    <h4 className="font-bold text-amber-900">Research & Reference Library Notice</h4>
-                    <p className="text-amber-800/90 leading-relaxed font-medium">
-                        Books in our collection are reference-only and are currently <strong>not available for check out</strong>. However, all items can be browsed and enjoyed here in person at the Senoia Area Historical Society library.
-                    </p>
+            {settings.showLibraryNotice !== false && settings.libraryNoticeText && (
+                <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex items-start gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-4 duration-300 shadow-sm">
+                    <Info size={18} className="shrink-0 mt-0.5 text-amber-600" />
+                    <div className="space-y-0.5">
+                        <EditableText
+                            textKey="libraryNoticeTitle"
+                            defaultText="Research & Reference Library Notice"
+                            containerType="h4"
+                            className="font-bold text-amber-900"
+                        />
+                        <p className="text-amber-800/90 leading-relaxed font-medium whitespace-pre-line">
+                            {settings.libraryNoticeText}
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Search and Filters panel */}
             <div className="bg-white border border-tan-light/50 rounded-2xl p-5 shadow-sm space-y-4">

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, Minus, Edit2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
@@ -14,6 +15,7 @@ export function CollectionDetail() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     
     // Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -66,7 +68,7 @@ export function CollectionDetail() {
                     setCollectionData({
                         id: 'on-loan',
                         title: 'Items on Loan',
-                        description: 'A curated showcase of items currently on loan to the Senoia Area Historical Society for temporary exhibition.',
+                        description: `A curated showcase of items currently on loan to the ${settings.museumName || "Senoia Area Historical Society"} for temporary exhibition.`,
                         is_private: false,
                         created_at: new Date(0).toISOString()
                     } as Collection);

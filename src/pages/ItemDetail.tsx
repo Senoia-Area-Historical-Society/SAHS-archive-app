@@ -7,6 +7,7 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 import { containsBannedWords } from '../utils/profanityFilter';
 
@@ -15,6 +16,7 @@ export function ItemDetail() {
     const navigate = useNavigate();
     const location = useLocation();
     const { isSAHSUser, user, hasResearchAccess, isAdmin, isCurator, isMember, memberData } = useAuth();
+    const { settings } = useAppearance();
 
     const galleryIds = (location.state?.galleryIds as string[]) || [];
     const currentIndex = galleryIds.indexOf(id || '');
@@ -726,7 +728,7 @@ export function ItemDetail() {
         setIsDeleting(true);
         try {
             await deleteDoc(doc(db, 'archive_items', id));
-            navigate(isOralHistory ? '/senoia-stories' : '/archive');
+            navigate(isOralHistory ? '/stories' : '/archive');
         } catch (error) {
             console.error("Error deleting item:", error);
             alert("Failed to delete item.");
@@ -1664,7 +1666,7 @@ export function ItemDetail() {
                             </div>
                             <h4 className="font-serif font-bold text-lg text-charcoal">Join the Historical Circle</h4>
                             <p className="text-charcoal/60 font-sans text-xs max-w-sm leading-relaxed">
-                                Only verified, active members of the Senoia Area Historical Society can post comments and contribute transcript annotations. Visitors are welcome to read existing comments.
+                                Only verified, active members of the {settings.museumName || 'Senoia Area Historical Society'} can post comments and contribute transcript annotations. Visitors are welcome to read existing comments.
                             </p>
                             <div className="flex gap-4 mt-2">
                                 <Link
@@ -2156,7 +2158,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Senoia Stories - Transcription - ${narratorName}</title>
+                    <title>${settings.contentBlocks?.storiesTitle || 'Senoia Stories'} - Transcription - ${narratorName}</title>
                     <style>
                         @page {
                             margin: 20mm;
@@ -2230,7 +2232,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                 <body>
                     <div class="header">
                         <div class="header-left">
-                            <h1>Senoia Stories Oral Histories</h1>
+                            <h1>${settings.contentBlocks?.storiesTitle || 'Senoia Stories'} Oral Histories</h1>
                             <p>Official Archive Transcription</p>
                         </div>
                         <div style="font-size: 12px; color: #8c7662; font-family: monospace;">
@@ -2253,7 +2255,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                         </div>
                         <div class="meta-item">
                             <strong>Publisher</strong>
-                            <span>Senoia Area Historical Society</span>
+                            <span>${settings.museumName || 'Senoia Area Historical Society'}</span>
                         </div>
                     </div>
                     
@@ -2262,7 +2264,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                     </div>
                     
                     <div class="footer">
-                        Senoia Area Historical Society Archive &bull; Copyright &copy; All rights reserved. &bull; Printed on ${new Date().toLocaleDateString()}
+                        ${settings.museumName || 'Senoia Area Historical Society'} Archive &bull; Copyright &copy; All rights reserved. &bull; Printed on ${new Date().toLocaleDateString()}
                     </div>
                     
                     <script>

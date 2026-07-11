@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, Mic, Search, Calendar, ArrowRight, Info, Sparkles, MessageSquare, Edit2, Plus, Lock } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { Play, Pause, Mic, Search, Calendar, ArrowRight, Info, Sparkles, MessageSquare, Edit2, Plus, Lock, Upload } from 'lucide-react';
+import { db, storage } from '../lib/firebase';
 import { collection, getDocs, query, where, addDoc, onSnapshot } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
+import { EditableText } from '../components/EditableText';
 
 // Premium Curated Mock Stories for a spectacular initial experience
 const MOCK_STORIES: ArchiveItem[] = [
@@ -54,13 +57,43 @@ const MOCK_STORIES: ArchiveItem[] = [
 ];
 
 export function SenoiaStories() {
-    const { isSAHSUser } = useAuth();
+    const { isSAHSUser, realIsAdmin } = useAuth();
+    const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
+    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
+    const [logoUploading, setLogoUploading] = useState(false);
+
+    if (settings.featureToggles?.enableOralHistories === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Oral Histories module is not active for this archive site.</p>
+            </div>
+        );
+    }
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setLogoUploading(true);
+        try {
+            const storageRef = ref(storage, `site_assets/stories_logo_${Date.now()}`);
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+            await updateContentBlock('storiesLogoUrl', url);
+        } catch (err) {
+            console.error('Failed to upload Senoia Stories logo:', err);
+            alert('Upload failed. Please try again.');
+        } finally {
+            setLogoUploading(false);
+        }
+    };
     const [dbStories, setDbStories] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [playingStoryId, setPlayingStoryId] = useState<string | null>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
+    const [isPlaying, setIsPlaying] = useState(false);
     
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -96,6 +129,7 @@ export function SenoiaStories() {
             if (isSAHSUser && dbStories.length === 0 && !loading) {
                 try {
                     for (const story of MOCK_STORIES) {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
                         const { id, ...storyData } = story;
                         await addDoc(collection(db, 'archive_items'), {
                             ...storyData,
@@ -149,18 +183,25 @@ export function SenoiaStories() {
 
         const onTimeUpdate = () => setCurrentTime(audio.currentTime);
         const onLoadedMetadata = () => setDuration(audio.duration);
+        const onPlay = () => setIsPlaying(true);
+        const onPause = () => setIsPlaying(false);
         const onEnded = () => {
             setPlayingStoryId(null);
+            setIsPlaying(false);
             setCurrentTime(0);
         };
 
         audio.addEventListener('timeupdate', onTimeUpdate);
         audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        audio.addEventListener('play', onPlay);
+        audio.addEventListener('pause', onPause);
         audio.addEventListener('ended', onEnded);
 
         return () => {
             audio.removeEventListener('timeupdate', onTimeUpdate);
             audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+            audio.removeEventListener('play', onPlay);
+            audio.removeEventListener('pause', onPause);
             audio.removeEventListener('ended', onEnded);
         };
     }, [playingStoryId]);
@@ -235,15 +276,24 @@ export function SenoiaStories() {
                     </div>
                     
                     <h1 className="text-4xl sm:text-5xl lg:text-7xl font-serif font-bold leading-tight tracking-tight text-white">
-                        Senoia <span className="text-tan italic">Stories</span>
+                        <EditableText
+                            textKey="storiesTitle"
+                            defaultText="Senoia Stories"
+                            containerType="span"
+                            className=""
+                        />
                     </h1>
                     
-                    <p className="text-base sm:text-lg text-cream/70 font-sans max-w-xl leading-relaxed">
-                        A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped the Senoia Area community over the decades.
-                    </p>
+                    <EditableText
+                        textKey="storiesDesc"
+                        defaultText="A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped the Senoia Area community over the decades."
+                        multiline={true}
+                        containerType="p"
+                        className="text-base sm:text-lg text-cream font-sans max-w-xl leading-relaxed opacity-70"
+                    />
 
                     {allStories.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 pt-4 text-sm font-sans text-cream/50">
+                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 pt-4 text-sm font-sans text-cream opacity-50">
                             <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full">
                                 <Mic size={16} className="text-tan" />
                                 <span>{allStories.length} Voices Recorded</span>
@@ -257,15 +307,21 @@ export function SenoiaStories() {
                 </div>
 
                 {/* Hero Right Content: Logo */}
-                <div className="w-full lg:w-auto shrink-0 relative z-10 flex justify-center lg:justify-end animate-in fade-in duration-1000">
+                <div className="w-full lg:w-auto shrink-0 relative z-10 flex flex-col justify-center lg:justify-end items-center gap-3 animate-in fade-in duration-1000">
                     <div className="relative group bg-white rounded-3xl p-5 border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                         <img 
-                            src="/senoia_stories_logo.png" 
+                            src={storiesLogoUrl || "/senoia_stories_logo.png"} 
                             alt="Senoia Stories Logo" 
                             className="h-32 sm:h-40 lg:h-44 w-auto object-contain opacity-95 transition-all duration-300 transform group-hover:scale-105"
                         />
                     </div>
+                    {realIsAdmin && isAppearanceEditMode && (
+                        <label className="cursor-pointer flex items-center gap-2 text-xs font-bold text-tan border border-tan/30 bg-tan/10 hover:bg-tan/20 px-3 py-1.5 rounded-full transition-all">
+                            {logoUploading ? 'Uploading...' : <><Upload size={12} /> Change Logo</>}
+                            <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={logoUploading} />
+                        </label>
+                    )}
                 </div>
             </div>
 
@@ -290,7 +346,7 @@ export function SenoiaStories() {
                             Coming Soon
                         </h2>
                         <p className="text-base text-charcoal/70 font-sans max-w-md mx-auto leading-relaxed">
-                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the Senoia Area community over the decades. 
+                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the {settings.museumShortName || 'Senoia Area'} community over the decades. 
                         </p>
                         <p className="text-sm text-tan font-sans font-medium italic pt-2">
                             Check back soon to listen to our first published interviews.
@@ -335,7 +391,7 @@ export function SenoiaStories() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {filteredStories.map(story => {
                                 const isCurrentPlaying = playingStoryId === story.id;
-                                const isPaused = audioRef.current?.paused ?? true;
+                                const isCurrentPlayingActive = isCurrentPlaying && isPlaying;
                                 const portrait = story.file_urls && story.file_urls.length > 0 ? story.file_urls[0] : null;
 
                                 return (
@@ -366,9 +422,9 @@ export function SenoiaStories() {
                                                 <button 
                                                     onClick={() => handlePlayStory(story)}
                                                     className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-tan text-white flex items-center justify-center shadow-xl transition-all hover:bg-tan-light hover:scale-110 active:scale-95 z-20"
-                                                    title={isCurrentPlaying && !isPaused ? "Pause Interview" : "Play Interview"}
+                                                    title={isCurrentPlayingActive ? "Pause Interview" : "Play Interview"}
                                                 >
-                                                    {isCurrentPlaying && !isPaused ? (
+                                                    {isCurrentPlayingActive ? (
                                                         <Pause size={20} fill="currentColor" />
                                                     ) : (
                                                         <Play size={20} className="ml-0.5" fill="currentColor" />
@@ -434,9 +490,9 @@ export function SenoiaStories() {
                                                                 return (
                                                                     <span 
                                                                         key={idx}
-                                                                        className={`w-[2px] bg-tan rounded-full transition-all duration-300 ${!isPaused ? 'animate-wave' : ''}`}
+                                                                        className={`w-[2px] bg-tan rounded-full transition-all duration-300 ${isPlaying ? 'animate-wave' : ''}`}
                                                                         style={{
-                                                                            height: !isPaused ? `${h}px` : '3px',
+                                                                            height: isPlaying ? `${h}px` : '3px',
                                                                             animationDelay: `${idx * 0.08}s`
                                                                         }}
                                                                     />

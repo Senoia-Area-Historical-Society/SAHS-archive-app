@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { db, defaultDb } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
@@ -19,6 +20,7 @@ interface ResearchFolder {
 
 export function MyResearch() {
     const { user, hasResearchAccess, isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     
     const [folders, setFolders] = useState<ResearchFolder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -476,14 +478,14 @@ export function MyResearch() {
             // Trigger collaborative email notification
             await addDoc(collection(defaultDb, 'mail'), {
                 to: emailToShare,
-                from: "Senoia Area Historical Society <noreply@senoiahistory.com>",
+                from: `${settings.museumName || 'Senoia Area Historical Society'} <noreply@senoiahistory.com>`,
                 ownerEmail: user.email.toLowerCase(),
                 message: {
-                    subject: `SAHS Archives: Collaborative Folder Shared!`,
-                    text: `${user.email} has shared the research folder "${sharingFolder.name}"${sharingFolder.description ? ` (${sharingFolder.description})` : ''} with you. Visit your SAHS Archives Research Workspace to collaborate!`,
+                    subject: `${settings.museumShortName || 'SAHS'} Archives: Collaborative Folder Shared!`,
+                    text: `${user.email} has shared the research folder "${sharingFolder.name}"${sharingFolder.description ? ` (${sharingFolder.description})` : ''} with you. Visit your ${settings.museumShortName || 'SAHS'} Archives Research Workspace to collaborate!`,
                     html: `
                         <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; background-color: #faf7f2; border: 1px solid #e1d8c7; border-radius: 8px;">
-                            <h2 style="color: #2b2b2b; font-family: serif; border-bottom: 1px solid #e1d8c7; padding-bottom: 12px; margin-top: 0;">SAHS Research Workspace</h2>
+                            <h2 style="color: #2b2b2b; font-family: serif; border-bottom: 1px solid #e1d8c7; padding-bottom: 12px; margin-top: 0;">${settings.museumShortName || 'SAHS'} Research Workspace</h2>
                             <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6;">
                                 <strong>${user.email}</strong> has shared a collaborative research folder with you:
                             </p>
@@ -503,7 +505,7 @@ export function MyResearch() {
                             </a>
                             <hr style="border: 0; border-top: 1px solid #e1d8c7; margin: 24px 0;" />
                             <p style="font-size: 11px; color: #8c8c8c; margin-bottom: 0;">
-                                Sent automatically by the Senoia Area Historical Society Archives platform.
+                                Sent automatically by the ${settings.museumName || 'Senoia Area Historical Society'} Archives platform.
                             </p>
                         </div>
                     `

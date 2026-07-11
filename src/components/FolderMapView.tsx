@@ -6,6 +6,7 @@ import L from 'leaflet';
 import { ArrowRight, Eye, Trash2, X, MapPin } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, where, addDoc, deleteDoc, doc } from 'firebase/firestore';
 
@@ -101,6 +102,7 @@ interface FolderMapViewProps {
 
 export function FolderMapView({ items, folderId }: FolderMapViewProps) {
     const { isEditingMode, user, hasResearchAccess } = useAuth();
+    const { settings } = useAppearance();
     
     const [activeCoord, setActiveCoord] = useState<[number, number] | null>(null);
     const markerRefs = useRef<Record<string, L.Marker | null>>({});
@@ -159,15 +161,18 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
         fetchPersonalPins();
     }, [user, hasResearchAccess]);
 
-    // Default center to Senoia, GA
-    const senoiaCenter: [number, number] = [33.3001, -84.5544];
+    // Default center from settings
+    const defaultCenter: [number, number] = [
+        settings.mapCenterLat !== undefined ? Number(settings.mapCenterLat) : 33.3001,
+        settings.mapCenterLng !== undefined ? Number(settings.mapCenterLng) : -84.5544
+    ];
 
     // Determine initial map center
     const initialCenter: [number, number] = mappedItems.length > 0 
         ? [mappedItems[0].coordinates!.lat, mappedItems[0].coordinates!.lng]
         : personalPins.length > 0
             ? [personalPins[0].coordinates.lat, personalPins[0].coordinates.lng]
-            : senoiaCenter;
+            : defaultCenter;
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -480,7 +485,7 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
 
                 <MapContainer 
                     center={initialCenter} 
-                    zoom={15} 
+                    zoom={settings.mapDefaultZoom !== undefined ? Number(settings.mapDefaultZoom) : 15} 
                     scrollWheelZoom={true}
                     dragging={true}
                     doubleClickZoom={true}

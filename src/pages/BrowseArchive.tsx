@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 export function BrowseArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -22,6 +23,7 @@ export function BrowseArchive() {
     const [loading, setLoading] = useState(true);
     const [localSearch, setLocalSearch] = useState(search);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
 
     // Pagination state
     const [visibleCount, setVisibleCount] = useState(24);
@@ -174,7 +176,7 @@ export function BrowseArchive() {
             case 'Oral History':
                 return {
                     title: 'Oral Histories',
-                    description: `Listen and read along with ${filteredItems.length} personal stories from the Senoia community`,
+                    description: `Listen and read along with ${filteredItems.length} personal stories from the ${settings.museumShortName || "Senoia"} community`,
                     placeholder: 'Search oral histories by narrator, interviewer, tags, or transcript...'
                 };
             default:
@@ -189,8 +191,8 @@ export function BrowseArchive() {
     const headerText = getHeaderText();
 
     useEffect(() => {
-        document.title = `${headerText.title} | SAHS Digital Archive`;
-    }, [headerText.title]);
+        document.title = `${headerText.title} | ${settings.museumShortName || 'SAHS'} Digital Archive`;
+    }, [headerText.title, settings.museumShortName]);
 
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;
@@ -227,7 +229,9 @@ export function BrowseArchive() {
                         <option value="Historic Figure">Historic Figures</option>
                         <option value="Historic Organization">Historic Organizations</option>
                         <option value="Artifact">Artifacts</option>
-                        <option value="Oral History">Oral Histories</option>
+                        {settings.featureToggles?.enableOralHistories !== false && (
+                            <option value="Oral History">Oral Histories</option>
+                        )}
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-charcoal-light"><polyline points="6 9 12 15 18 9"></polyline></svg>

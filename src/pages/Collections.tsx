@@ -3,6 +3,7 @@ import { FolderOpen, Plus, Trash2, Edit2, Lock } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
 import { CollectionGridImage } from '../components/CollectionGridImage';
@@ -11,6 +12,17 @@ export function Collections() {
     const [collections, setCollections] = useState<Collection[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
+
+    if (settings.featureToggles?.enableCollections === false) {
+        return (
+            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
+                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
+                <p className="text-charcoal/60 max-w-md">The Curated Collections module is not active for this archive site.</p>
+            </div>
+        );
+    }
+
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -50,7 +62,7 @@ export function Collections() {
                     {
                         id: 'on-loan',
                         title: 'Items on Loan',
-                        description: 'A curated showcase of items currently on loan to the Senoia Area Historical Society for temporary exhibition.',
+                        description: `A curated showcase of items currently on loan to the ${settings.museumName || "Senoia Area Historical Society"} for temporary exhibition.`,
                         is_private: false,
                         created_at: new Date(0).toISOString()
                     }

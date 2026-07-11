@@ -41,7 +41,7 @@ export const containsBannedWords = (text: string): boolean => {
     
     return BANNED_WORDS.some(word => {
         // Escapes special regex characters if there are any
-        const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const escapedWord = word.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
         // Matches word boundaries so we don't trigger false positives
         const regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
         return regex.test(lowercaseText);
@@ -60,7 +60,7 @@ export const censorText = (text: string): string => {
     
     let censoredText = text;
     BANNED_WORDS.forEach(word => {
-        const escapedWord = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const escapedWord = word.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regex = new RegExp(`\\b${escapedWord}\\b`, 'gi');
         censoredText = censoredText.replace(regex, match => {
             if (match.length <= 2) return "*".repeat(match.length);

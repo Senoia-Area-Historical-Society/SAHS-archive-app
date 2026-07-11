@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import L from 'leaflet';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 // Cluster Styles
 import 'react-leaflet-cluster/dist/assets/MarkerCluster.css';
@@ -39,6 +40,7 @@ interface ArchiveMapProps {
 
 export function ArchiveMap({ items }: ArchiveMapProps) {
     const { isEditingMode } = useAuth();
+    const { settings } = useAppearance();
     
     // Filter items that have valid coordinates
     const mapItems = items.filter(item => 
@@ -47,13 +49,17 @@ export function ArchiveMap({ items }: ArchiveMapProps) {
         typeof item.coordinates.lng === 'number'
     );
 
-    const senioaCenter: [number, number] = [33.3001, -84.5544];
+    const defaultCenter: [number, number] = [
+        settings.mapCenterLat !== undefined ? Number(settings.mapCenterLat) : 33.3001,
+        settings.mapCenterLng !== undefined ? Number(settings.mapCenterLng) : -84.5544
+    ];
+    const defaultZoom = settings.mapDefaultZoom !== undefined ? Number(settings.mapDefaultZoom) : 15;
 
     return (
         <div className="w-full h-[600px] rounded-2xl border border-tan-light overflow-hidden shadow-sm bg-cream/20 relative z-0">
             <MapContainer 
-                center={senioaCenter} 
-                zoom={15} 
+                center={defaultCenter} 
+                zoom={defaultZoom} 
                 scrollWheelZoom={true}
                 dragging={true}
                 doubleClickZoom={true}

@@ -2,8 +2,9 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useLocation } from 'react-router-dom';
+import { useAppearance } from './AppearanceContext';
 import type { Member } from '../types/database';
 
 interface AuthContextType {
@@ -25,6 +26,7 @@ interface AuthContextType {
     isExpiredMember: boolean; // Logged in but membership has lapsed
     memberData: Member | null;
     hasResearchAccess: boolean;
+    isSetupComplete: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isMember, setIsMember] = useState(false);
     const [isExpiredMember, setIsExpiredMember] = useState(false);
     const [memberData, setMemberData] = useState<Member | null>(null);
+    const [isSetupComplete, setIsSetupComplete] = useState(true); // Default true to prevent flash
 
     const location = useLocation();
 
@@ -54,6 +57,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem('sahs_simulated_role');
         }
     };
+
+    useEffect(() => {
+        const unsubSetup = onSnapshot(doc(db, 'site_settings', 'setup'), async (snapshot) => {
+            if (snapshot.exists()) {
+                setIsSetupComplete(snapshot.data().isComplete === true);
+            } else {
+                // Production Safety Net: if setup doc doesn't exist, check if appearance settings exist
+                try {
+                    const appSnap = await getDoc(doc(db, 'site_settings', 'appearance'));
+                    if (appSnap.exists()) {
+                        // Auto-create the setup document to mark it complete
+                        await setDoc(doc(db, 'site_settings', 'setup'), {
+                            isComplete: true,
+                            completedAt: new Date().toISOString(),
+                            autoMigrated: true
+                        });
+                        setIsSetupComplete(true);
+                    } else {
+                        setIsSetupComplete(false);
+                    }
+                } catch (e) {
+                    console.error("Setup validation failed, defaulting to complete for safety:", e);
+                    setIsSetupComplete(true); // Default to true on error to avoid locking out production
+                }
+            }
+        });
+        return () => unsubSetup();
+    }, []);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -197,31 +228,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const effectiveIsMember = simulatedRole === 'member' || (isMember && !simulatedRole);
     const hasResearchAccess = effectiveIsSAHSUser || effectiveIsMember;
 
+    const value = {
+        user,
+        loading,
+        loginWithGoogle,
+        logout,
+        isSAHSUser: effectiveIsSAHSUser,
+        isAdmin: effectiveIsAdmin,
+        isCurator: effectiveIsCurator,
+        realIsAdmin: isAdmin,
+        realIsCurator: isCurator,
+        simulatedRole,
+        setSimulatedRole: handleSetSimulatedRole,
+        isEditingMode,
+        setIsEditingMode,
+        lastSearchPath,
+        isMember,
+        isExpiredMember,
+        memberData,
+        hasResearchAccess,
+        isSetupComplete
+    };
+
+    const { settings } = useAppearance();
+    const shortName = settings?.museumShortName || 'Museum';
+
     return (
-        <AuthContext.Provider value={{ 
-            user, 
-            loading, 
-            loginWithGoogle, 
-            logout, 
-            isSAHSUser: effectiveIsSAHSUser, 
-            isAdmin: effectiveIsAdmin, 
-            isCurator: effectiveIsCurator,
-            realIsAdmin: isAdmin,
-            realIsCurator: isCurator,
-            simulatedRole,
-            setSimulatedRole: handleSetSimulatedRole,
-            isEditingMode,
-            setIsEditingMode,
-            lastSearchPath,
-            isMember,
-            isExpiredMember,
-            memberData,
-            hasResearchAccess
-        }}>
+        <AuthContext.Provider value={value}>
             {loading ? (
                 <div className="min-h-screen bg-cream flex flex-col items-center justify-center gap-4">
                     <div className="w-12 h-12 border-4 border-tan/30 border-t-tan rounded-full animate-spin"></div>
-                    <p className="font-serif text-charcoal/60 text-lg">Initializing SAHS Archive...</p>
+                    <p className="font-serif text-charcoal/60 text-lg">Initializing {shortName} Archive...</p>
                 </div>
             ) : children}
         </AuthContext.Provider>

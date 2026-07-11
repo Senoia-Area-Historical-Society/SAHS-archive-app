@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
+import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
@@ -26,6 +26,15 @@ export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
+
+if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+  console.log("🔥 CONNECTING TO FIREBASE EMULATORS 🔥");
+  connectFirestoreEmulator(db, 'localhost', 8080);
+  connectFirestoreEmulator(defaultDb, 'localhost', 8080);
+  connectAuthEmulator(auth, 'http://localhost:9099');
+  connectStorageEmulator(storage, 'localhost', 9199);
+}
+
 export const analytics = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && firebaseConfig.measurementId
   ? getAnalytics(app)
   : null;

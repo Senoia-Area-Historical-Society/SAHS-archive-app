@@ -4,6 +4,7 @@ import { Bell, Check, ExternalLink, MessageSquare, Clock, User, ShieldAlert } fr
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 
 interface NotificationItem {
     id: string;
@@ -20,16 +21,18 @@ interface NotificationItem {
 
 export function Notifications() {
     const { user, isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        document.title = "Moderation Notifications | SAHS Digital Archive";
-    }, []);
+        document.title = `Moderation Notifications | ${settings.museumShortName || 'SAHS'} Digital Archive`;
+    }, [settings.museumShortName]);
 
     // Subscribe to notifications collection in real-time
     useEffect(() => {
         if (!isSAHSUser) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLoading(false);
             return;
         }
@@ -126,7 +129,7 @@ export function Notifications() {
                 </div>
                 <h1 className="text-3xl font-serif font-bold text-charcoal">Access Denied</h1>
                 <p className="text-charcoal/70 font-sans">
-                    You must be a Senoia Area Historical Society curator or administrator to moderate comments.
+                    You must be a {settings.museumName || 'Senoia Area Historical Society'} curator or administrator to moderate comments.
                 </p>
                 <Link
                     to="/"
