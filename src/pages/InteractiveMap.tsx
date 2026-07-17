@@ -1925,6 +1925,8 @@ export function InteractiveMap() {
                                         }}
                                         position={undefined}
                                         size={undefined}
+                                        dragGrid={isSnapping ? [12, 12] : undefined}
+                                        resizeGrid={isSnapping ? [12, 12] : undefined}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
                                         onDragStop={(_e: any, d: any) => handleGroupDragStopStateSync(room.docId!, index, d)}
@@ -2072,7 +2074,9 @@ export function InteractiveMap() {
                                         }}
                                         position={undefined}
                                         size={undefined}
-                                        onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
+                                        dragGrid={isSnapping ? [12, 12] : undefined}
+                                         resizeGrid={isSnapping ? [12, 12] : undefined}
+                                         onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
                                         onDrag={(_e: any, d: any) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
                                             const updatedY = c.display_type === 'pin' ? d.y + 50 : d.y;
