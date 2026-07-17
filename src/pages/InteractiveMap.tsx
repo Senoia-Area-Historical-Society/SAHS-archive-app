@@ -892,7 +892,7 @@ export function InteractiveMap() {
 
         // If not shift, clear previous selection...
         if (!isShift) {
-            if (!selectedIdsRef.current.has(id)) {
+            if (selectedIdsRef.current.size > 1 || !selectedIdsRef.current.has(id)) {
                 selectedIdsRef.current.forEach(sid => setSelectionDOM(sid, false));
                 selectedIdsRef.current.clear();
                 stateChanged = true;
@@ -1064,52 +1064,59 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        selectedIdsRef.current.forEach(id => {
-
-            // Handle Node following (Rooms and Pins) using inner data attribute selection and closest('.react-draggable') wrapper
-            const innerEl = document.querySelector(`[data-selection-id="${id}"]`);
-            const node = innerEl?.closest('.react-draggable') as HTMLElement | null;
-            const nodeStart = dragStartPosRef.current[id];
-            
-            if (node && nodeStart) {
-                const lCoords = localCoords[id];
-                const isPin = lCoords?.display_type === 'pin';
-                const visualX = nodeStart.x + offsetX - (isPin ? 30 : 0);
-                const visualY = nodeStart.y + offsetY - (isPin ? 50 : 0);
-                node.style.transform = `translate(${visualX}px, ${visualY}px)`;
+        // Update Rooms (coordinates dynamically snapped if isSnapping is true)
+        setRooms(prev => prev.map(r => {
+            const id = r.docId || r.id;
+            if (selectedIdsRef.current.has(id)) {
+                if (r.geometries && r.geometries.length > 0) {
+                    return {
+                        ...r,
+                        geometries: r.geometries.map((gc: any, gi: number) => {
+                            const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
+                            if (!gStart) return gc;
+                            return {
+                                ...gc,
+                                x: absoluteSnap(gStart.x + offsetX),
+                                y: absoluteSnap(gStart.y + offsetY)
+                            };
+                        })
+                    };
+                }
+                const sStart = dragStartPosRef.current[id];
+                if (r.map_coordinates && sStart) {
+                    return {
+                        ...r,
+                        map_coordinates: {
+                            ...r.map_coordinates,
+                            x: absoluteSnap(sStart.x + offsetX),
+                            y: absoluteSnap(sStart.y + offsetY)
+                        }
+                    };
+                }
             }
+            return r;
+        }));
 
-            // Handle Merged Room Sub-Geometries (Internal Boxes)
-            const room = rooms.find(r => r.id === id || r.docId === id);
-            if (room && room.geometries && room.geometries.length > 1) {
-                room.geometries.forEach((_, gi) => {
-                    if (gi === 0) return; // Handled by main node logic above
-
-                    const innerGeom = document.querySelector(`[data-geom-id="${id}-geom-${gi}"]`);
-                    const geomNode = innerGeom?.closest('.react-draggable') as HTMLElement | null;
-                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                    if (geomNode && gStart) {
-                        // Interior room boxes never use pin offsets
-                        geomNode.style.transform = `translate(${gStart.x + offsetX}px, ${gStart.y + offsetY}px)`;
+        // Update Locations (Shelves/Pins coordinates snapped if isSnapping is true)
+        setLocalCoords(prev => {
+            const next = { ...prev };
+            let hasChanges = false;
+            Object.keys(next).forEach(id => {
+                const sStart = dragStartPosRef.current[id];
+                if (selectedIdsRef.current.has(id) && sStart) {
+                    const nextX = absoluteSnap(sStart.x + offsetX);
+                    const nextY = absoluteSnap(sStart.y + offsetY);
+                    if (!isNaN(nextX) && !isNaN(nextY)) {
+                        next[id] = {
+                            ...next[id],
+                            x: nextX,
+                            y: nextY
+                        };
+                        hasChanges = true;
                     }
-                });
-            }
-
-            // Handle Room Label following
-            const labelNode = document.getElementById(`room-label-${id}`);
-            if (labelNode && nodeStart) {
-                labelNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-            }
-
-            // Handle Ghost Walls
-            if (room && room.geometries) {
-                room.geometries.forEach((_, gi) => {
-                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
-                    if (wallNode) {
-                        wallNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-                    }
-                });
-            }
+                }
+            });
+            return hasChanges ? next : prev;
         });
     };
 
@@ -1894,7 +1901,7 @@ export function InteractiveMap() {
 
                                 const renderBox = (c: any, index: number) => (
                                     <Rnd
-                                        key={`${room.docId}-box-${index}-${c.x}-${c.y}-${c.width}-${c.height}`}
+                                        key={`${room.docId}-box-${index}`}
                                         id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                         className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -1917,14 +1924,8 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        default={{
-                                            x: c.x,
-                                            y: c.y,
-                                            width: c.width,
-                                            height: c.height
-                                        }}
-                                        position={undefined}
-                                        size={undefined}
+                                        position={{ x: c.x, y: c.y }}
+                                        size={{ width: c.width, height: c.height }}
                                         dragGrid={isSnapping ? [12, 12] : undefined}
                                         resizeGrid={isSnapping ? [12, 12] : undefined}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
@@ -2047,7 +2048,7 @@ export function InteractiveMap() {
                                 
                                 return (
                                     <Rnd
-                                        key={`${loc.id}-${c.x}-${c.y}-${c.width || 0}-${c.height || 0}-${c.scale || 1}-${c.display_type}`}
+                                        key={loc.id}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2066,17 +2067,17 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
-                                        default={{
-                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x,
-                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y,
-                                            width: c.display_type === 'pin' ? 60 : c.width,
-                                            height: c.display_type === 'pin' ? 60 : c.height
+                                        position={{ 
+                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
+                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
-                                        position={undefined}
-                                        size={undefined}
+                                        size={{ 
+                                            width: c.display_type === 'pin' ? 60 : c.width, 
+                                            height: c.display_type === 'pin' ? 60 : c.height 
+                                        }}
                                         dragGrid={isSnapping ? [12, 12] : undefined}
-                                         resizeGrid={isSnapping ? [12, 12] : undefined}
-                                         onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
+                                        resizeGrid={isSnapping ? [12, 12] : undefined}
+                                        onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
                                         onDrag={(_e: any, d: any) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
                                             const updatedY = c.display_type === 'pin' ? d.y + 50 : d.y;
