@@ -892,7 +892,7 @@ export function InteractiveMap() {
 
         // If not shift, clear previous selection...
         if (!isShift) {
-            if (selectedIdsRef.current.size > 1 || !selectedIdsRef.current.has(id)) {
+            if (!selectedIdsRef.current.has(id)) {
                 selectedIdsRef.current.forEach(sid => setSelectionDOM(sid, false));
                 selectedIdsRef.current.clear();
                 stateChanged = true;
