@@ -104,6 +104,8 @@ export function InteractiveMap() {
     const selectedIdsRef = useRef<Set<string>>(new Set());
     const dirtyIdsRef = useRef<Set<string>>(new Set());
     const dragStartPosRef = useRef<Record<string, {x: number, y: number}>>({});
+    // Maps "roomDocId-geomIndex" and "locId" to Rnd instances for imperative updatePosition calls
+    const rndRefsMap = useRef<Map<string, any>>(new Map());
     const [, setSelectionTick] = useState(0); // For triggering UI buttons reacting to ref changes
     const [sidebarPos, setSidebarPos] = useState({ x: 16, y: 16 });
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
@@ -1054,9 +1056,10 @@ export function InteractiveMap() {
     };
 
     const handleGroupDrag = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
-        const start = draggedIndex !== undefined 
-            ? dragStartPosRef.current[`${draggedId}-geom-${draggedIndex}`] 
-            : dragStartPosRef.current[draggedId];
+        const startKey = draggedIndex !== undefined 
+            ? `${draggedId}-geom-${draggedIndex}`
+            : draggedId;
+        const start = dragStartPosRef.current[startKey];
         
         // Safety: Prevent jumping to (0,0) or NaN
         if (!start || isNaN(d.x) || isNaN(d.y)) return;
@@ -1064,59 +1067,45 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        // Update Rooms (coordinates dynamically snapped if isSnapping is true)
-        setRooms(prev => prev.map(r => {
-            const id = r.docId || r.id;
-            if (selectedIdsRef.current.has(id)) {
-                if (r.geometries && r.geometries.length > 0) {
-                    return {
-                        ...r,
-                        geometries: r.geometries.map((gc: any, gi: number) => {
-                            const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                            if (!gStart) return gc;
-                            return {
-                                ...gc,
-                                x: absoluteSnap(gStart.x + offsetX),
-                                y: absoluteSnap(gStart.y + offsetY)
-                            };
-                        })
-                    };
+        // Move all SELECTED items imperatively via Rnd.updatePosition() — zero React re-renders.
+        // This avoids the controlled-position re-render loop that causes ghost labels.
+        selectedIdsRef.current.forEach(id => {
+            const room = rooms.find(r => r.docId === id || r.id === id);
+
+            if (room && room.geometries && room.geometries.length > 0) {
+                // Move each geometry box
+                room.geometries.forEach((_g, gi) => {
+                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
+                    if (!gStart) return;
+                    const rndRef = rndRefsMap.current.get(`${id}-geom-${gi}`);
+                    if (rndRef) {
+                        rndRef.updatePosition({
+                            x: absoluteSnap(gStart.x + offsetX),
+                            y: absoluteSnap(gStart.y + offsetY),
+                        });
+                    }
+                });
+                // Move the room label in sync via direct DOM style
+                const label = document.getElementById(`room-label-${id}`);
+                if (label) {
+                    const baseLeft = parseFloat(label.getAttribute('data-base-left') || '0');
+                    const baseTop = parseFloat(label.getAttribute('data-base-top') || '0');
+                    label.style.left = `${absoluteSnap(baseLeft + offsetX)}px`;
+                    label.style.top = `${absoluteSnap(baseTop + offsetY)}px`;
                 }
-                const sStart = dragStartPosRef.current[id];
-                if (r.map_coordinates && sStart) {
-                    return {
-                        ...r,
-                        map_coordinates: {
-                            ...r.map_coordinates,
-                            x: absoluteSnap(sStart.x + offsetX),
-                            y: absoluteSnap(sStart.y + offsetY)
-                        }
-                    };
+            } else {
+                // Location pin/block
+                const lCoords = dragStartPosRef.current[id];
+                if (!lCoords) return;
+                const isPin = localCoords[id]?.display_type === 'pin';
+                const rndRef = rndRefsMap.current.get(`${id}-geom-0`);
+                if (rndRef) {
+                    rndRef.updatePosition({
+                        x: absoluteSnap(lCoords.x + offsetX) - (isPin ? 30 : 0),
+                        y: absoluteSnap(lCoords.y + offsetY) - (isPin ? 50 : 0),
+                    });
                 }
             }
-            return r;
-        }));
-
-        // Update Locations (Shelves/Pins coordinates snapped if isSnapping is true)
-        setLocalCoords(prev => {
-            const next = { ...prev };
-            let hasChanges = false;
-            Object.keys(next).forEach(id => {
-                const sStart = dragStartPosRef.current[id];
-                if (selectedIdsRef.current.has(id) && sStart) {
-                    const nextX = absoluteSnap(sStart.x + offsetX);
-                    const nextY = absoluteSnap(sStart.y + offsetY);
-                    if (!isNaN(nextX) && !isNaN(nextY)) {
-                        next[id] = {
-                            ...next[id],
-                            x: nextX,
-                            y: nextY
-                        };
-                        hasChanges = true;
-                    }
-                }
-            });
-            return hasChanges ? next : prev;
         });
     };
 
@@ -1902,6 +1891,11 @@ export function InteractiveMap() {
                                 const renderBox = (c: any, index: number) => (
                                     <Rnd
                                         key={`${room.docId}-box-${index}`}
+                                        ref={(el: any) => {
+                                            const key = `${room.docId}-geom-${index}`;
+                                            if (el) rndRefsMap.current.set(key, el);
+                                            else rndRefsMap.current.delete(key);
+                                        }}
                                         id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                         className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2016,6 +2010,8 @@ export function InteractiveMap() {
                                         {/* Master Room Label (Centered over Anchor) */}
                                         <div 
                                             id={`room-label-${room.docId}`}
+                                            data-base-left={anchorX - 60}
+                                            data-base-top={anchorY - 40}
                                             className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
                                             style={{ 
                                                 left: anchorX - 60, 
@@ -2049,6 +2045,11 @@ export function InteractiveMap() {
                                 return (
                                     <Rnd
                                         key={loc.id}
+                                        ref={(el: any) => {
+                                            const key = `${loc.id}-geom-0`;
+                                            if (el) rndRefsMap.current.set(key, el);
+                                            else rndRefsMap.current.delete(key);
+                                        }}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
