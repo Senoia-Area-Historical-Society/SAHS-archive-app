@@ -892,7 +892,7 @@ export function InteractiveMap() {
 
         // If not shift, clear previous selection...
         if (!isShift) {
-            if (selectedIdsRef.current.size > 1 || !selectedIdsRef.current.has(id)) {
+            if (!selectedIdsRef.current.has(id)) {
                 selectedIdsRef.current.forEach(sid => setSelectionDOM(sid, false));
                 selectedIdsRef.current.clear();
                 stateChanged = true;
@@ -1917,7 +1917,7 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        position={(draggingId === room.docId || (draggingId && isSelected)) ? undefined : { x: c.x, y: c.y }}
+                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
                                         size={{ width: c.width, height: c.height }}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
@@ -2058,7 +2058,7 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
-                                        position={(draggingId === loc.id || (draggingId && isSelected)) ? undefined : { 
+                                        position={draggingId === loc.id ? undefined : { 
                                             x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
                                             y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
