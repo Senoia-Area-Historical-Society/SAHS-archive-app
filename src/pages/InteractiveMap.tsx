@@ -1796,7 +1796,7 @@ export function InteractiveMap() {
 
                 {!loading && (
                     <div className="relative flex-shrink-0 m-auto shadow-2xl bg-white border border-tan-light/30" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
-                                <div className="absolute top-0 left-0 blueprint-grid" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                <div className={`absolute top-0 left-0 blueprint-grid ${draggingId ? 'dragging-active' : ''}`} onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                                     {/* Render Marquee Selection Box */}
                                     {selectionBox && (
                                         <div 
@@ -1894,7 +1894,7 @@ export function InteractiveMap() {
 
                                 const renderBox = (c: any, index: number) => (
                                     <Rnd
-                                        key={`${room.docId}-box-${index}`}
+                                        key={`${room.docId}-box-${index}-${c.x}-${c.y}`}
                                         id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                         className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -1917,7 +1917,8 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
+                                        position={undefined}
+                                        defaultPosition={{ x: c.x, y: c.y }}
                                         size={{ width: c.width, height: c.height }}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
@@ -2039,7 +2040,7 @@ export function InteractiveMap() {
                                 
                                 return (
                                     <Rnd
-                                        key={loc.id}
+                                        key={`${loc.id}-${c.x}-${c.y}-${c.scale || 1}-${c.display_type}`}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2058,7 +2059,8 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
-                                        position={draggingId === loc.id ? undefined : { 
+                                        position={undefined}
+                                        defaultPosition={{ 
                                             x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
                                             y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
