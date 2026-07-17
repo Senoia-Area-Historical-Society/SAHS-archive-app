@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, NavLink } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Menu, QrCode, LogIn, LogOut, User } from 'lucide-react';
+import { Menu, QrCode, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
 import { useAppearance } from '../contexts/AppearanceContext';
