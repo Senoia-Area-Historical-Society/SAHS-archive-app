@@ -2427,9 +2427,13 @@ export function InteractiveMap() {
                                 anchorY = totalArea > 0 ? weightedY / totalArea : geometries[0].y + geometries[0].height / 2;
 
                                 // Still need bounding box for large-text breakout
-                                maxX = Math.max(maxX, g.x + g.width);
-                                    maxY = Math.max(maxY, g.y + g.height);
-                                });
+                                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                                 geometries.forEach(g => {
+                                     minX = Math.min(minX, g.x);
+                                     minY = Math.min(minY, g.y);
+                                     maxX = Math.max(maxX, g.x + g.width);
+                                     maxY = Math.max(maxY, g.y + g.height);
+                                 });
                                 const isSelected = selectedIdsRef.current.has(room.docId!);
 
                                 const renderBox = (c: any, index: number) => {
