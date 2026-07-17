@@ -1894,7 +1894,7 @@ export function InteractiveMap() {
 
                                 const renderBox = (c: any, index: number) => (
                                     <Rnd
-                                        key={`${room.docId}-box-${index}-${c.x}-${c.y}`}
+                                        key={`${room.docId}-box-${index}-${c.x}-${c.y}-${c.width}-${c.height}`}
                                         id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                         className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -1917,9 +1917,14 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
+                                        default={{
+                                            x: c.x,
+                                            y: c.y,
+                                            width: c.width,
+                                            height: c.height
+                                        }}
                                         position={undefined}
-                                        defaultPosition={{ x: c.x, y: c.y }}
-                                        size={{ width: c.width, height: c.height }}
+                                        size={undefined}
                                         onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
                                         onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
                                         onDragStop={(_e: any, d: any) => handleGroupDragStopStateSync(room.docId!, index, d)}
@@ -2040,7 +2045,7 @@ export function InteractiveMap() {
                                 
                                 return (
                                     <Rnd
-                                        key={`${loc.id}-${c.x}-${c.y}-${c.scale || 1}-${c.display_type}`}
+                                        key={`${loc.id}-${c.x}-${c.y}-${c.width || 0}-${c.height || 0}-${c.scale || 1}-${c.display_type}`}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2059,15 +2064,14 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
+                                        default={{
+                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x,
+                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y,
+                                            width: c.display_type === 'pin' ? 60 : c.width,
+                                            height: c.display_type === 'pin' ? 60 : c.height
+                                        }}
                                         position={undefined}
-                                        defaultPosition={{ 
-                                            x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
-                                            y: c.display_type === 'pin' ? (c.y - 50) : c.y 
-                                        }}
-                                        size={{ 
-                                            width: c.display_type === 'pin' ? 60 : c.width, 
-                                            height: c.display_type === 'pin' ? 60 : c.height 
-                                        }}
+                                        size={undefined}
                                         onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
                                         onDrag={(_e: any, d: any) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
