@@ -20,7 +20,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore, Storage, and Auth
-export const db = getFirestore(app, 'sahs-archives');
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+export const db = useEmulator ? getFirestore(app) : getFirestore(app, 'sahs-archives');
 export const defaultDb = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
@@ -29,10 +30,10 @@ export const googleProvider = new GoogleAuthProvider();
 
 if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   console.log("🔥 CONNECTING TO FIREBASE EMULATORS 🔥");
-  connectFirestoreEmulator(db, 'localhost', 8080);
-  connectFirestoreEmulator(defaultDb, 'localhost', 8080);
-  connectAuthEmulator(auth, 'http://localhost:9099');
-  connectStorageEmulator(storage, 'localhost', 9199);
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectFirestoreEmulator(defaultDb, '127.0.0.1', 8080);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099');
+  connectStorageEmulator(storage, '127.0.0.1', 9199);
 }
 
 export const analytics = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && firebaseConfig.measurementId

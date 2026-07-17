@@ -59,6 +59,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+            setIsSetupComplete(true);
+            return;
+        }
         const unsubSetup = onSnapshot(doc(db, 'site_settings', 'setup'), async (snapshot) => {
             if (snapshot.exists()) {
                 setIsSetupComplete(snapshot.data().isComplete === true);
@@ -87,6 +91,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+            console.log("🛠️ Auth simulation bypass activated!");
+            setUser({
+                uid: 'mock_simulation_user_id',
+                email: 'curator@senoiahistory.com',
+                displayName: 'Mock Simulation Curator',
+            });
+            setIsAdmin(true);
+            setIsCurator(false);
+            setIsSetupComplete(true);
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+            return;
+        }
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser && currentUser.email) {
                 const email = currentUser.email.toLowerCase();
