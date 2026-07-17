@@ -104,8 +104,6 @@ export function InteractiveMap() {
     const selectedIdsRef = useRef<Set<string>>(new Set());
     const dirtyIdsRef = useRef<Set<string>>(new Set());
     const dragStartPosRef = useRef<Record<string, {x: number, y: number}>>({});
-    // Maps "roomDocId-geomIndex" and "locId" to Rnd instances for imperative updatePosition calls
-    const rndRefsMap = useRef<Map<string, any>>(new Map());
     const [, setSelectionTick] = useState(0); // For triggering UI buttons reacting to ref changes
     const [sidebarPos, setSidebarPos] = useState({ x: 16, y: 16 });
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
@@ -1056,10 +1054,9 @@ export function InteractiveMap() {
     };
 
     const handleGroupDrag = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
-        const startKey = draggedIndex !== undefined 
-            ? `${draggedId}-geom-${draggedIndex}`
-            : draggedId;
-        const start = dragStartPosRef.current[startKey];
+        const start = draggedIndex !== undefined 
+            ? dragStartPosRef.current[`${draggedId}-geom-${draggedIndex}`] 
+            : dragStartPosRef.current[draggedId];
         
         // Safety: Prevent jumping to (0,0) or NaN
         if (!start || isNaN(d.x) || isNaN(d.y)) return;
@@ -1067,44 +1064,51 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        // Move all SELECTED items imperatively via Rnd.updatePosition() — zero React re-renders.
-        // This avoids the controlled-position re-render loop that causes ghost labels.
         selectedIdsRef.current.forEach(id => {
-            const room = rooms.find(r => r.docId === id || r.id === id);
 
-            if (room && room.geometries && room.geometries.length > 0) {
-                // Move each geometry box
-                room.geometries.forEach((_g, gi) => {
+            // Handle Node following (Rooms and Pins) using inner data attribute selection and closest('.react-draggable') wrapper
+            const innerEl = document.querySelector(`[data-selection-id="${id}"]`);
+            const node = innerEl?.closest('.react-draggable') as HTMLElement | null;
+            const nodeStart = dragStartPosRef.current[id];
+            
+            if (node && nodeStart) {
+                const lCoords = localCoords[id];
+                const isPin = lCoords?.display_type === 'pin';
+                const visualX = nodeStart.x + offsetX - (isPin ? 30 : 0);
+                const visualY = nodeStart.y + offsetY - (isPin ? 50 : 0);
+                node.style.transform = `translate(${visualX}px, ${visualY}px)`;
+            }
+
+            // Handle Merged Room Sub-Geometries (Internal Boxes)
+            const room = rooms.find(r => r.id === id || r.docId === id);
+            if (room && room.geometries && room.geometries.length > 1) {
+                room.geometries.forEach((_, gi) => {
+                    if (gi === 0) return; // Handled by main node logic above
+
+                    const innerGeom = document.querySelector(`[data-geom-id="${id}-geom-${gi}"]`);
+                    const geomNode = innerGeom?.closest('.react-draggable') as HTMLElement | null;
                     const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                    if (!gStart) return;
-                    const rndRef = rndRefsMap.current.get(`${id}-geom-${gi}`);
-                    if (rndRef) {
-                        rndRef.updatePosition({
-                            x: absoluteSnap(gStart.x + offsetX),
-                            y: absoluteSnap(gStart.y + offsetY),
-                        });
+                    if (geomNode && gStart) {
+                        // Interior room boxes never use pin offsets
+                        geomNode.style.transform = `translate(${gStart.x + offsetX}px, ${gStart.y + offsetY}px)`;
                     }
                 });
-                // Move the room label in sync via direct DOM style
-                const label = document.getElementById(`room-label-${id}`);
-                if (label) {
-                    const baseLeft = parseFloat(label.getAttribute('data-base-left') || '0');
-                    const baseTop = parseFloat(label.getAttribute('data-base-top') || '0');
-                    label.style.left = `${absoluteSnap(baseLeft + offsetX)}px`;
-                    label.style.top = `${absoluteSnap(baseTop + offsetY)}px`;
-                }
-            } else {
-                // Location pin/block
-                const lCoords = dragStartPosRef.current[id];
-                if (!lCoords) return;
-                const isPin = localCoords[id]?.display_type === 'pin';
-                const rndRef = rndRefsMap.current.get(`${id}-geom-0`);
-                if (rndRef) {
-                    rndRef.updatePosition({
-                        x: absoluteSnap(lCoords.x + offsetX) - (isPin ? 30 : 0),
-                        y: absoluteSnap(lCoords.y + offsetY) - (isPin ? 50 : 0),
-                    });
-                }
+            }
+
+            // Handle Room Label following
+            const labelNode = document.getElementById(`room-label-${id}`);
+            if (labelNode && nodeStart) {
+                labelNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            }
+
+            // Handle Ghost Walls
+            if (room && room.geometries) {
+                room.geometries.forEach((_, gi) => {
+                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
+                    if (wallNode) {
+                        wallNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                    }
+                });
             }
         });
     };
@@ -1891,11 +1895,6 @@ export function InteractiveMap() {
                                 const renderBox = (c: any, index: number) => (
                                     <Rnd
                                         key={`${room.docId}-box-${index}`}
-                                        ref={(el: any) => {
-                                            const key = `${room.docId}-geom-${index}`;
-                                            if (el) rndRefsMap.current.set(key, el);
-                                            else rndRefsMap.current.delete(key);
-                                        }}
                                         id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                         className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -1918,7 +1917,7 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode}
-                                        position={{ x: c.x, y: c.y }}
+                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
                                         size={{ width: c.width, height: c.height }}
                                         dragGrid={isSnapping ? [12, 12] : undefined}
                                         resizeGrid={isSnapping ? [12, 12] : undefined}
@@ -2010,8 +2009,6 @@ export function InteractiveMap() {
                                         {/* Master Room Label (Centered over Anchor) */}
                                         <div 
                                             id={`room-label-${room.docId}`}
-                                            data-base-left={anchorX - 60}
-                                            data-base-top={anchorY - 40}
                                             className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
                                             style={{ 
                                                 left: anchorX - 60, 
@@ -2045,11 +2042,6 @@ export function InteractiveMap() {
                                 return (
                                     <Rnd
                                         key={loc.id}
-                                        ref={(el: any) => {
-                                            const key = `${loc.id}-geom-0`;
-                                            if (el) rndRefsMap.current.set(key, el);
-                                            else rndRefsMap.current.delete(key);
-                                        }}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2068,7 +2060,7 @@ export function InteractiveMap() {
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
-                                        position={{ 
+                                        position={draggingId === loc.id ? undefined : { 
                                             x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
                                             y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
@@ -2077,8 +2069,8 @@ export function InteractiveMap() {
                                             height: c.display_type === 'pin' ? 60 : c.height 
                                         }}
                                         dragGrid={isSnapping ? [12, 12] : undefined}
-                                        resizeGrid={isSnapping ? [12, 12] : undefined}
-                                        onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
+                                         resizeGrid={isSnapping ? [12, 12] : undefined}
+                                         onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
                                         onDrag={(_e: any, d: any) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
                                             const updatedY = c.display_type === 'pin' ? d.y + 50 : d.y;
