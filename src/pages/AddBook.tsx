@@ -7,6 +7,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '../contexts/AuthContext';
 import type { MuseumLocation } from '../types/database';
+import { ImageCropper } from '../components/ImageCropper';
 
 export function AddBook() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,6 +24,7 @@ export function AddBook() {
     const [coverFile, setCoverFile] = useState<File | null>(null);
     const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+    const [isCropping, setIsCropping] = useState(false);
 
     // Form states
     const [title, setTitle] = useState('');
@@ -76,6 +78,19 @@ export function AddBook() {
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
+    };
+
+    const handleCropComplete = (croppedBlob: Blob) => {
+        if (coverPreviewUrl && coverPreviewUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(coverPreviewUrl);
+        }
+        const name = coverFile ? coverFile.name : 'cover.jpg';
+        const croppedFile = new File([croppedBlob], name, { type: 'image/jpeg' });
+        setCoverFile(croppedFile);
+        const newPreviewUrl = URL.createObjectURL(croppedFile);
+        setCoverPreviewUrl(newPreviewUrl);
+        setIsCropping(false);
+        setFetchedCoverUrl(null);
     };
 
     const isbn10To13 = (isbn10: string): string | null => {
@@ -442,14 +457,33 @@ export function AddBook() {
                             <h3 className="text-xs font-bold text-charcoal/70 uppercase tracking-wider">Book Cover Image</h3>
                             
                             {coverPreviewUrl ? (
-                                <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-cream/20 border border-tan-light/30">
-                                    <img src={coverPreviewUrl} alt="Cover Preview" className="w-full h-full object-cover" />
+                                <div className="space-y-3">
+                                    <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-cream/20 border border-tan-light/30 group">
+                                        <img src={coverPreviewUrl} alt="Cover Preview" className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsCropping(true)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-charcoal hover:bg-tan hover:text-white rounded-lg transition-all text-xs font-bold shadow-md"
+                                                title="Crop & Rotate"
+                                            >
+                                                Edit / Rotate
+                                            </button>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={removeCoverFile}
+                                            className="absolute top-2 right-2 bg-charcoal/80 text-white p-1.5 rounded-full hover:bg-charcoal transition-colors z-10"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={removeCoverFile}
-                                        className="absolute top-2 right-2 bg-charcoal/80 text-white p-1.5 rounded-full hover:bg-charcoal transition-colors"
+                                        onClick={() => setIsCropping(true)}
+                                        className="w-full py-2 bg-tan/10 text-tan hover:bg-tan hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5"
                                     >
-                                        <X size={16} />
+                                        Crop & Rotate Image
                                     </button>
                                 </div>
                             ) : (
@@ -722,6 +756,14 @@ export function AddBook() {
                     </button>
                 </div>
             </form>
+            {isCropping && coverPreviewUrl && (
+                <ImageCropper
+                    image={coverPreviewUrl}
+                    onCropComplete={handleCropComplete}
+                    onCancel={() => setIsCropping(false)}
+                    aspectRatio={0.75}
+                />
+            )}
         </div>
     );
 }

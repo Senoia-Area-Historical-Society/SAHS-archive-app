@@ -10,6 +10,7 @@ export interface Room {
         width: number;
         height: number;
         rotation?: number;
+        skewX?: number;
         z_index?: number;
         display_type?: 'pin' | 'block';
     } | null;
@@ -19,6 +20,7 @@ export interface Room {
         width: number;
         height: number;
         rotation?: number;
+        skewX?: number;
         z_index?: number;
         display_type?: 'pin' | 'block';
     }>;
@@ -58,6 +60,7 @@ export interface MuseumLocation {
         width: number;
         height: number;
         rotation?: number;
+        skewX?: number;
         z_index?: number;
         display_type?: 'pin' | 'block';
     } | null;
