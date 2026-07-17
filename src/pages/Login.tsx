@@ -32,10 +32,10 @@ export function Login() {
                 <LogIn size={32} />
             </div>
 
-            <h1 className="text-3xl font-serif font-bold text-charcoal mb-2 text-center">Curator Sign In</h1>
+            <h1 className="text-3xl font-serif font-bold text-charcoal mb-2 text-center">Member & Curator Sign In</h1>
 
             <p className="text-charcoal/70 mb-8 text-center px-4">
-                Access to upload documents and add historical figures is restricted to authorized curators and administrators.
+                Sign in to access Member benefits, bookmark historical documents, or perform authorized Curator duties.
             </p>
 
             {error && (
@@ -55,7 +55,7 @@ export function Login() {
             </button>
 
             <p className="text-xs text-charcoal/50 mt-6 text-center">
-                Only authorized SAHS Curators and Admins can sign in.
+                Only active Members, authorized Curators, and Admins can sign in.
             </p>
         </div>
     );

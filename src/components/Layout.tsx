@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, NavLink } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
-import { Menu, QrCode } from 'lucide-react';
+import { Menu, QrCode, LogIn, LogOut, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -52,7 +52,7 @@ export default function Layout() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const { isSAHSUser } = useAuth();
+    const { isSAHSUser, user, logout } = useAuth();
     const { settings } = useAppearance();
     const navigate = useNavigate();
 
@@ -110,17 +110,65 @@ export default function Layout() {
                             {settings.museumName}
                         </h1>
                     </div>
-                    {isSAHSUser && (
-                        <button 
-                            onClick={() => setIsScannerOpen(true)}
-                            className="p-2 -mr-2 text-tan hover:bg-tan/10 rounded-lg transition-colors flex items-center justify-center animate-in fade-in"
-                            title="Search via QR Code"
-                            aria-label="Search via QR Code"
-                        >
-                            <QrCode size={24} />
-                        </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {isSAHSUser && (
+                            <button 
+                                onClick={() => setIsScannerOpen(true)}
+                                className="p-2 text-tan hover:bg-tan/10 rounded-lg transition-colors flex items-center justify-center animate-in fade-in"
+                                title="Search via QR Code"
+                                aria-label="Search via QR Code"
+                            >
+                                <QrCode size={20} />
+                            </button>
+                        )}
+                        {user ? (
+                            <button
+                                onClick={logout}
+                                className="p-2 -mr-2 text-charcoal hover:bg-black/5 rounded-lg transition-colors flex items-center justify-center"
+                                title="Sign Out"
+                                aria-label="Sign Out"
+                            >
+                                <LogOut size={20} />
+                            </button>
+                        ) : (
+                            <NavLink
+                                to="/login"
+                                className="flex items-center gap-1.5 bg-tan hover:bg-tan-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98]"
+                            >
+                                <LogIn size={14} /> Log In
+                            </NavLink>
+                        )}
+                    </div>
                 </header>
+
+                {/* Desktop/Tablet Top-Right Login / Account Status Floating Bar */}
+                <div className="hidden md:block absolute top-6 right-6 z-50">
+                    {user ? (
+                        <div className="flex items-center gap-3 bg-white/90 backdrop-blur border border-tan-light/50 px-4 py-2 rounded-xl shadow-sm hover:shadow transition-shadow">
+                            <div className="w-8 h-8 rounded-full bg-tan/20 flex items-center justify-center text-tan font-bold text-sm">
+                                {user.email?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-charcoal/50 font-bold uppercase tracking-wider">Signed in</span>
+                                <span className="text-xs font-semibold text-charcoal max-w-[120px] truncate">{user.email}</span>
+                            </div>
+                            <button
+                                onClick={logout}
+                                className="ml-2 p-1.5 hover:bg-black/5 rounded-lg text-charcoal-light hover:text-charcoal transition-colors"
+                                title="Sign Out"
+                            >
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <NavLink
+                            to="/login"
+                            className="flex items-center gap-2 bg-tan hover:bg-tan-dark text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        >
+                            <LogIn size={16} /> Log In
+                        </NavLink>
+                    )}
+                </div>
 
                 <div className="flex-1 w-full flex flex-col">
                     <Outlet />
