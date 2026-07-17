@@ -104,6 +104,7 @@ export function InteractiveMap() {
     const selectedIdsRef = useRef<Set<string>>(new Set());
     const dirtyIdsRef = useRef<Set<string>>(new Set());
     const dragStartPosRef = useRef<Record<string, {x: number, y: number}>>({});
+    const dragOffsetRef = useRef<{x: number, y: number} | null>(null);
     const [, setSelectionTick] = useState(0); // For triggering UI buttons reacting to ref changes
     const [sidebarPos, setSidebarPos] = useState({ x: 16, y: 16 });
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
@@ -1064,59 +1065,54 @@ export function InteractiveMap() {
         const offsetX = d.x - start.x;
         const offsetY = d.y - start.y;
 
-        // Update Rooms (coordinates dynamically snapped if isSnapping is true)
-        setRooms(prev => prev.map(r => {
-            const id = r.docId || r.id;
-            if (selectedIdsRef.current.has(id)) {
-                if (r.geometries && r.geometries.length > 0) {
-                    return {
-                        ...r,
-                        geometries: r.geometries.map((gc: any, gi: number) => {
-                            const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                            if (!gStart) return gc;
-                            return {
-                                ...gc,
-                                x: absoluteSnap(gStart.x + offsetX),
-                                y: absoluteSnap(gStart.y + offsetY)
-                            };
-                        })
-                    };
-                }
-                const sStart = dragStartPosRef.current[id];
-                if (r.map_coordinates && sStart) {
-                    return {
-                        ...r,
-                        map_coordinates: {
-                            ...r.map_coordinates,
-                            x: absoluteSnap(sStart.x + offsetX),
-                            y: absoluteSnap(sStart.y + offsetY)
-                        }
-                    };
-                }
-            }
-            return r;
-        }));
+        // Store current offset in ref (no React state update = no re-render fighting react-rnd)
+        dragOffsetRef.current = { x: offsetX, y: offsetY };
 
-        // Update Locations (Shelves/Pins coordinates snapped if isSnapping is true)
-        setLocalCoords(prev => {
-            const next = { ...prev };
-            let hasChanges = false;
-            Object.keys(next).forEach(id => {
-                const sStart = dragStartPosRef.current[id];
-                if (selectedIdsRef.current.has(id) && sStart) {
-                    const nextX = absoluteSnap(sStart.x + offsetX);
-                    const nextY = absoluteSnap(sStart.y + offsetY);
-                    if (!isNaN(nextX) && !isNaN(nextY)) {
-                        next[id] = {
-                            ...next[id],
-                            x: nextX,
-                            y: nextY
-                        };
-                        hasChanges = true;
+        // Move all selected items using DOM transforms only (zero re-renders during drag)
+        selectedIdsRef.current.forEach(id => {
+            const room = rooms.find(r => r.docId === id || r.id === id);
+            
+            if (room && room.geometries) {
+                // Move each geometry box via its Rnd wrapper's inner draggable element
+                room.geometries.forEach((_g, gi) => {
+                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
+                    if (!gStart) return;
+                    const el = document.getElementById(gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`);
+                    const draggable = el?.querySelector('.react-draggable') as HTMLElement | null || el?.closest('.react-draggable') as HTMLElement | null;
+                    // The inner wrapper react-rnd uses for positioning
+                    const wrapper = el?.parentElement as HTMLElement | null;
+                    if (wrapper) {
+                        const snapX = absoluteSnap(gStart.x + offsetX);
+                        const snapY = absoluteSnap(gStart.y + offsetY);
+                        wrapper.style.transform = `translate(${snapX}px, ${snapY}px)`;
+                    } else if (draggable) {
+                        const snapX = absoluteSnap(gStart.x + offsetX);
+                        const snapY = absoluteSnap(gStart.y + offsetY);
+                        draggable.style.transform = `translate(${snapX}px, ${snapY}px)`;
+                    }
+                });
+                // Move the label in sync
+                const label = document.getElementById(`room-label-${id}`);
+                if (label) {
+                    const baseX = parseFloat(label.getAttribute('data-base-left') || '0');
+                    const baseY = parseFloat(label.getAttribute('data-base-top') || '0');
+                    label.style.left = `${absoluteSnap(baseX + offsetX)}px`;
+                    label.style.top = `${absoluteSnap(baseY + offsetY)}px`;
+                }
+            } else {
+                // Location pin/block
+                const lCoords = dragStartPosRef.current[id];
+                if (lCoords) {
+                    const el = document.getElementById(`rnd-node-${id}`);
+                    const wrapper = el?.parentElement as HTMLElement | null;
+                    if (wrapper) {
+                        const isPin = localCoords[id]?.display_type === 'pin';
+                        const snapX = absoluteSnap(lCoords.x + offsetX) - (isPin ? 30 : 0);
+                        const snapY = absoluteSnap(lCoords.y + offsetY) - (isPin ? 50 : 0);
+                        wrapper.style.transform = `translate(${snapX}px, ${snapY}px)`;
                     }
                 }
-            });
-            return hasChanges ? next : prev;
+            }
         });
     };
 
@@ -2016,6 +2012,8 @@ export function InteractiveMap() {
                                         {/* Master Room Label (Centered over Anchor) */}
                                         <div 
                                             id={`room-label-${room.docId}`}
+                                            data-base-left={anchorX - 60}
+                                            data-base-top={anchorY - 40}
                                             className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
                                             style={{ 
                                                 left: anchorX - 60, 
