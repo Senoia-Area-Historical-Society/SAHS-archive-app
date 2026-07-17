@@ -133,6 +133,85 @@ export function InteractiveMap() {
     const [showHelpModal, setShowHelpModal] = useState(false);
     const [tourStep, setTourStep] = useState<number | null>(null);
 
+    // States for polygon dragging
+    const [draggingVertex, setDraggingVertex] = useState<{
+        roomId: string;
+        geomIndex: number;
+        pointIndex: number;
+        startPoints: Array<{ x: number; y: number }>;
+        startX: number;
+        startY: number;
+    } | null>(null);
+
+    const [draggingPolygon, setDraggingPolygon] = useState<{
+        roomId: string;
+        geomIndex: number;
+        startPoints: Array<{ x: number; y: number }>;
+        startX: number;
+        startY: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!draggingVertex && !draggingPolygon) return;
+
+        const handlePointerMove = (e: PointerEvent) => {
+            if (draggingVertex) {
+                const dx = (e.clientX - draggingVertex.startX) / scale;
+                const dy = (e.clientY - draggingVertex.startY) / scale;
+                
+                let snapX = dx;
+                let snapY = dy;
+                if (isSnapping) {
+                    const initialPt = draggingVertex.startPoints[draggingVertex.pointIndex];
+                    const targetX = initialPt.x + dx;
+                    const targetY = initialPt.y + dy;
+                    const snappedX = Math.round(targetX / 12) * 12;
+                    const snappedY = Math.round(targetY / 12) * 12;
+                    snapX = snappedX - initialPt.x;
+                    snapY = snappedY - initialPt.y;
+                }
+
+                const updatedPoints = draggingVertex.startPoints.map((pt, idx) => 
+                    idx === draggingVertex.pointIndex 
+                        ? { x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
+                        : pt
+                );
+                handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
+            } else if (draggingPolygon) {
+                const dx = (e.clientX - draggingPolygon.startX) / scale;
+                const dy = (e.clientY - draggingPolygon.startY) / scale;
+
+                let snapX = dx;
+                let snapY = dy;
+                if (isSnapping) {
+                    const snappedX = Math.round(dx / 12) * 12;
+                    const snappedY = Math.round(dy / 12) * 12;
+                    snapX = snappedX;
+                    snapY = snappedY;
+                }
+
+                const updatedPoints = draggingPolygon.startPoints.map(pt => ({
+                    x: Math.round(pt.x + snapX),
+                    y: Math.round(pt.y + snapY)
+                }));
+                handleUpdateRoomProperty(draggingPolygon.roomId, 'points', updatedPoints, draggingPolygon.geomIndex);
+            }
+        };
+
+        const handlePointerUp = () => {
+            setDraggingVertex(null);
+            setDraggingPolygon(null);
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [draggingVertex, draggingPolygon, scale, isSnapping]);
+
     const TOUR_STEPS = [
         {
             title: "Welcome to the Map Editor! 👋",
@@ -1387,20 +1466,32 @@ export function InteractiveMap() {
         setSelectionTick(t => t + 1); // Finally sync selection UI
     };
 
-    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale' | 'skewX', value: string | number) => {
+    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale' | 'skewX' | 'shape' | 'points', value: any) => {
         saveSnapshot();
         markDirty(id);
         
-        const val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
-        if (isNaN(val)) return;
+        let val = 0;
+        if (property !== 'shape' && property !== 'points') {
+            val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+            if (isNaN(val)) return;
+        }
 
         // Units conversion: feet to pixels for spatial properties
-        // NEW: 'scale' is a raw multiplier, rotation/skewX are raw degrees
-        const pixels = (property === 'rotation' || property === 'scale' || property === 'skewX') ? val : absoluteSnap(val * PIXELS_PER_FOOT);
+        // NEW: 'scale' is a raw multiplier, rotation/skewX/shape/points are raw values
+        const pixels = (property === 'rotation' || property === 'scale' || property === 'skewX' || property === 'shape' || property === 'points') ? value : absoluteSnap(val * PIXELS_PER_FOOT);
 
         setLocalCoords(prev => {
             const c = prev[id];
             if (!c) return prev;
+
+            let updatedFields: any = { [property]: pixels };
+            
+            // Enforce circle properties
+            if (property === 'shape' && pixels === 'circle') {
+                const diameter = Math.max(c.width, c.height);
+                updatedFields.width = diameter;
+                updatedFields.height = diameter;
+            }
 
             // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
             if (property === 'rotation' && val % 180 !== (c.rotation || 0) % 180 && val % 90 === 0) {
@@ -1421,12 +1512,12 @@ export function InteractiveMap() {
 
             return {
                 ...prev,
-                [id]: { ...c, [property]: pixels }
+                [id]: { ...c, ...updatedFields }
             };
         });
     };
 
-    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation' | 'skewX', value: string | number, index?: number) => {
+    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation' | 'skewX' | 'shape' | 'points', value: any, index?: number) => {
         // If it's a name update, don't snapshot every keystroke to avoid spam
         if (property !== 'name') saveSnapshot();
         
@@ -1436,15 +1527,51 @@ export function InteractiveMap() {
             if (rid === id) {
                 if (property === 'name') return { ...r, name: value as string };
                 
-                const val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
-                if (isNaN(val)) return r;
+                let val = 0;
+                if (property !== 'shape' && property !== 'points') {
+                    val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+                    if (isNaN(val)) return r;
+                }
 
                 // Units conversion: feet to pixels for spatial properties
-                const pixels = (property === 'rotation' || property === 'skewX') ? val : absoluteSnap(val * PIXELS_PER_FOOT);
+                const pixels = (property === 'rotation' || property === 'skewX' || property === 'shape' || property === 'points') ? value : absoluteSnap(val * PIXELS_PER_FOOT);
+
+                const updateCoords = (c: any, i: number) => {
+                    if (index !== undefined && i !== index) return c;
+                    
+                    let updatedFields: any = { [property]: pixels };
+                    
+                    // Enforce circle properties
+                    if (property === 'shape' && pixels === 'circle') {
+                        const diameter = Math.max(c.width, c.height);
+                        updatedFields.width = diameter;
+                        updatedFields.height = diameter;
+                    }
+                    
+                    // Enforce polygon coordinates initialization
+                    if (property === 'shape' && pixels === 'polygon' && !c.points) {
+                        updatedFields.points = [
+                            { x: c.x, y: c.y },
+                            { x: c.x + c.width, y: c.y },
+                            { x: c.x + c.width, y: c.y + c.height },
+                            { x: c.x, y: c.y + c.height }
+                        ];
+                    }
+                    
+                    // Clear points if shape is reset to rectangle or circle
+                    if (property === 'shape' && pixels !== 'polygon') {
+                        updatedFields.points = null;
+                    }
+
+                    return { ...c, ...updatedFields };
+                };
+
+                const currentGeom = r.geometries?.[index || 0] || r.map_coordinates;
+                const isPolygon = currentGeom?.shape === 'polygon';
 
                 // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
-                if (property === 'rotation' && val % 180 !== (r.geometries?.[index || 0]?.rotation || r.map_coordinates?.rotation || 0) % 180 && val % 90 === 0) {
-                    const updateCoords = (c: any, i: number) => {
+                if (!isPolygon && property === 'rotation' && val % 180 !== (currentGeom?.rotation || 0) % 180 && val % 90 === 0) {
+                    const swapCoords = (c: any, i: number) => {
                         if (index !== undefined && i !== index) return c;
                         const centerX = c.x + c.width / 2;
                         const centerY = c.y + c.height / 2;
@@ -1459,22 +1586,21 @@ export function InteractiveMap() {
                     };
                     return {
                         ...r,
-                        map_coordinates: r.map_coordinates ? updateCoords(r.map_coordinates, 0) : null,
-                        geometries: r.geometries ? r.geometries.map(updateCoords) : undefined
+                        map_coordinates: r.map_coordinates ? swapCoords(r.map_coordinates, 0) : null,
+                        geometries: r.geometries ? r.geometries.map(swapCoords) : undefined
                     };
                 }
 
                 if (r.geometries && r.geometries.length > 0) {
-                    const targetIndex = index ?? 0;
                     return {
                         ...r,
-                        geometries: r.geometries.map((g, i) => i === targetIndex ? { ...g, [property]: pixels } : g)
+                        geometries: r.geometries.map(updateCoords)
                     };
                 }
                 if (r.map_coordinates) {
                     return {
                         ...r,
-                        map_coordinates: { ...r.map_coordinates, [property]: pixels }
+                        map_coordinates: updateCoords(r.map_coordinates, 0)
                     };
                 }
             }
@@ -1873,70 +1999,153 @@ export function InteractiveMap() {
                                                                                 <span className="text-[9px] font-mono text-tan/40">{(geom.width * geom.height / (PIXELS_PER_FOOT**2)).toFixed(1)} sq.ft.</span>
                                                                             </div>
                                                                         </div>
-                                                                        <div className="grid grid-cols-2 gap-3 mb-3">
-                                                                            <div>
-                                                                                <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Width (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.width / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'width', e.target.value, idx)}
-                                                                                    className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.height / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'height', e.target.value, idx)}
-                                                                                    className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
+                                                                        <div className="flex gap-2 mb-3">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'rectangle', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(!geom.shape || geom.shape === 'rectangle') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ▭ Rect
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'circle', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(geom.shape === 'circle') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ◯ Circle
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'polygon', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(geom.shape === 'polygon') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ⬡ Polygon
+                                                                            </button>
                                                                         </div>
-                                                                        <div className="grid grid-cols-4 gap-1.5">
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.x / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'x', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
+
+                                                                        {geom.shape === 'polygon' ? (
+                                                                            <div className="space-y-2 mb-3">
+                                                                                <div className="flex justify-between items-center text-[10px] text-charcoal/50 font-bold bg-tan/5 p-2 rounded border border-tan/10">
+                                                                                    <span>Corners: {geom.points?.length || 0}</span>
+                                                                                    <div className="flex gap-1">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                const currentPoints = geom.points || [];
+                                                                                                if (currentPoints.length === 0) return;
+                                                                                                // Add a point midway between point 0 and point 1
+                                                                                                const p0 = currentPoints[0];
+                                                                                                const p1 = currentPoints[1] || p0;
+                                                                                                const newPt = {
+                                                                                                    x: Math.round((p0.x + p1.x) / 2),
+                                                                                                    y: Math.round((p0.y + p1.y) / 2)
+                                                                                                };
+                                                                                                const updatedPoints = [p0, newPt, ...currentPoints.slice(1)];
+                                                                                                handleUpdateRoomProperty(id, 'points', updatedPoints, idx);
+                                                                                            }}
+                                                                                            className="px-2 py-0.5 bg-tan text-white rounded text-[8px] font-black hover:bg-tan-dark transition-colors"
+                                                                                        >
+                                                                                            + Corner
+                                                                                        </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => {
+                                                                                                const currentPoints = geom.points || [];
+                                                                                                if (currentPoints.length <= 3) return; // Keep at least a triangle
+                                                                                                // Remove the last point
+                                                                                                const updatedPoints = currentPoints.slice(0, -1);
+                                                                                                handleUpdateRoomProperty(id, 'points', updatedPoints, idx);
+                                                                                            }}
+                                                                                            className="px-2 py-0.5 bg-red-500 text-white rounded text-[8px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
+                                                                                            disabled={(geom.points?.length || 0) <= 3}
+                                                                                        >
+                                                                                            - Corner
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-[8px] font-mono font-bold text-tan-dark/80 bg-cream/30 p-2 rounded leading-relaxed border border-tan-light/10">
+                                                                                    💡 Drag vertices (corners) on the map to reshape the room.
+                                                                                </div>
                                                                             </div>
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.y / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'y', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="45"
-                                                                                    value={geom.rotation || 0} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'rotation', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="15"
-                                                                                    value={geom.skewX || 0} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'skewX', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                        </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                                    <div>
+                                                                                        <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">
+                                                                                            {geom.shape === 'circle' ? 'Diameter (ft)' : 'Width (ft)'}
+                                                                                        </label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.width / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => {
+                                                                                                handleUpdateRoomProperty(id, 'width', e.target.value, idx);
+                                                                                                if (geom.shape === 'circle') {
+                                                                                                    handleUpdateRoomProperty(id, 'height', e.target.value, idx);
+                                                                                                }
+                                                                                            }}
+                                                                                            className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    {geom.shape !== 'circle' && (
+                                                                                        <div>
+                                                                                            <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
+                                                                                            <input 
+                                                                                                type="number" 
+                                                                                                step="0.5"
+                                                                                                value={geom.height / PIXELS_PER_FOOT} 
+                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'height', e.target.value, idx)}
+                                                                                                className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="grid grid-cols-4 gap-1.5">
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.x / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'x', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.y / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'y', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="45"
+                                                                                            value={geom.rotation || 0} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'rotation', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    {geom.shape !== 'circle' && (
+                                                                                        <div>
+                                                                                            <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
+                                                                                            <input 
+                                                                                                type="number" 
+                                                                                                step="15"
+                                                                                                value={geom.skewX || 0} 
+                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'skewX', e.target.value, idx)}
+                                                                                                className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -2218,15 +2427,97 @@ export function InteractiveMap() {
                                 anchorY = totalArea > 0 ? weightedY / totalArea : geometries[0].y + geometries[0].height / 2;
 
                                 // Still need bounding box for large-text breakout
-                                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                                geometries.forEach(g => {
-                                    maxX = Math.max(maxX, g.x + g.width);
+                                maxX = Math.max(maxX, g.x + g.width);
                                     maxY = Math.max(maxY, g.y + g.height);
                                 });
                                 const isSelected = selectedIdsRef.current.has(room.docId!);
 
                                 const renderBox = (c: any, index: number) => {
+                                    const isCircle = c.shape === 'circle';
+                                    const isPolygon = c.shape === 'polygon';
                                     const hasTransform = (c.rotation && c.rotation % 360 !== 0) || (c.skewX && c.skewX % 360 !== 0);
+
+                                    if (isPolygon) {
+                                        const points = c.points || [
+                                            { x: c.x, y: c.y },
+                                            { x: c.x + c.width, y: c.y },
+                                            { x: c.x + c.width, y: c.y + c.height },
+                                            { x: c.x, y: c.y + c.height }
+                                        ];
+                                        return (
+                                            <Fragment key={`${room.docId}-poly-${index}`}>
+                                                {/* SVG Canvas overlay for the polygon room */}
+                                                <svg 
+                                                    className="absolute inset-0 pointer-events-none w-full h-full"
+                                                    style={{ zIndex: isSelected ? 40 : 5 }}
+                                                >
+                                                    <polygon
+                                                        points={points.map(p => `${p.x},${p.y}`).join(' ')}
+                                                        className={`pointer-events-auto ${isEditMode ? 'cursor-move' : ''}`}
+                                                        style={{
+                                                            fill: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index)
+                                                                ? 'rgba(59, 130, 246, 0.4)'
+                                                                : isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)',
+                                                            stroke: isSelected ? '#3b82f6' : '#d2b48c',
+                                                            strokeWidth: isSelected ? 2 : 1,
+                                                            transition: 'fill 0.15s ease-in-out'
+                                                        }}
+                                                        onMouseEnter={() => setHoveredBlock({ roomId: room.docId!, index })}
+                                                        onMouseLeave={() => setHoveredBlock(null)}
+                                                        onMouseDown={(e) => {
+                                                            if (isEditMode && e.shiftKey) {
+                                                                handleItemSelection(room.docId!, e);
+                                                            } else if (isEditMode && !e.shiftKey) {
+                                                                handleItemSelection(room.docId!, e);
+                                                                e.stopPropagation();
+                                                                setDraggingPolygon({
+                                                                    roomId: room.docId!,
+                                                                    geomIndex: index,
+                                                                    startPoints: [...points],
+                                                                    startX: e.clientX,
+                                                                    startY: e.clientY
+                                                                });
+                                                            }
+                                                        }}
+                                                        onClickCapture={(e) => {
+                                                            if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
+                                                        }}
+                                                    />
+                                                    {isEditMode && isSelected && points.map((pt, pIdx) => (
+                                                        <circle
+                                                            key={pIdx}
+                                                            cx={pt.x}
+                                                            cy={pt.y}
+                                                            r={6}
+                                                            className="pointer-events-auto cursor-pointer fill-white stroke-blue-500 stroke-2 hover:scale-125 transition-transform"
+                                                            onMouseDown={(e) => {
+                                                                e.stopPropagation();
+                                                                setDraggingVertex({
+                                                                    roomId: room.docId!,
+                                                                    geomIndex: index,
+                                                                    pointIndex: pIdx,
+                                                                    startPoints: [...points],
+                                                                    startX: e.clientX,
+                                                                    startY: e.clientY
+                                                                });
+                                                            }}
+                                                        />
+                                                    ))}
+                                                </svg>
+
+                                                {/* Local Controls Overlay positioned at the top-right corner of bounding box */}
+                                                {isEditMode && (isSelected || index === 0) && (
+                                                    <div 
+                                                        className="absolute pointer-events-auto z-[60] flex gap-1"
+                                                        style={{ left: c.x + c.width - 24, top: c.y - 12 }}
+                                                    >
+                                                        <button onClick={(e) => removeFromMap(room.docId!, e)} className="bg-red-500 text-white p-1.5 rounded-md hover:bg-red-600 shadow-md transition-all hover:scale-110 active:scale-90"><X size={14}/></button>
+                                                    </div>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    }
+
                                     return (
                                         <Rnd
                                             key={`${room.docId}-box-${index}`}
@@ -2251,20 +2542,22 @@ export function InteractiveMap() {
                                                 border: hasTransform
                                                     ? (isSelected ? '1px dashed rgba(59, 130, 246, 0.4)' : 'none')
                                                     : (isSelected ? '2px solid #3b82f6' : '1px solid #d2b48c'),
+                                                borderRadius: isCircle ? '50%' : '0',
                                                 ...(hasTransform ? {} : getSmartBorders(c, geometries, isSelected))
                                             }}
                                             scale={scale}
                                             disableDragging={!isEditMode}
                                             enableResizing={isEditMode}
+                                            lockAspectRatio={isCircle}
                                             resizeHandleClasses={isSelected && isEditMode ? {
                                                 topLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
                                                 topRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
                                                 bottomLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
                                                 bottomRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
-                                                top: "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
-                                                bottom: "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute bottom-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
-                                                left: "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 left-0 z-[90] transition-colors cursor-ew-resize rounded-full",
-                                                right: "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 right-0 z-[90] transition-colors cursor-ew-resize rounded-full"
+                                                top: isCircle ? "hidden" : "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                                bottom: isCircle ? "hidden" : "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute bottom-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                                left: isCircle ? "hidden" : "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 left-0 z-[90] transition-colors cursor-ew-resize rounded-full",
+                                                right: isCircle ? "hidden" : "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 right-0 z-[90] transition-colors cursor-ew-resize rounded-full"
                                             } : {}}
                                             dragGrid={isSnapping && isEditMode ? [12, 12] : undefined}
                                             resizeGrid={isSnapping && isEditMode ? [12, 12] : undefined}
@@ -2288,9 +2581,13 @@ export function InteractiveMap() {
                                                 markDirty(room.docId!);
                                                 setResizingRoomId(null);
                                                 setActiveDimensions(null);
+                                                
+                                                const newW = parseInt(ref.style.width, 10);
+                                                const newH = isCircle ? newW : parseInt(ref.style.height, 10);
+                                                
                                                 setRooms(prev => prev.map(r => r.docId === room.docId ? {
                                                     ...r,
-                                                    geometries: (r.geometries || (r.map_coordinates ? [r.map_coordinates] : [])).map((gc, gi) => gi === index ? { ...gc, x: pos.x, y: pos.y, width: parseInt(ref.style.width, 10), height: parseInt(ref.style.height, 10) } : gc)
+                                                    geometries: (r.geometries || (r.map_coordinates ? [r.map_coordinates] : [])).map((gc, gi) => gi === index ? { ...gc, x: pos.x, y: pos.y, width: newW, height: newH } : gc)
                                                 } : r));
                                             }}
                                         >
@@ -2307,14 +2604,19 @@ export function InteractiveMap() {
                                                         : 'none',
                                                     backgroundColor: hasTransform
                                                         ? (isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)')
-                                                        : 'transparent'
+                                                        : 'transparent',
+                                                    borderRadius: isCircle ? '50%' : '0'
                                                 }}
                                             >
                                                 {/* Dimensional Feedback (Center on box being resized) */}
                                                 {resizingRoomId === `${room.docId}-${index}` && activeDimensions && (
                                                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
                                                         <div className="bg-charcoal text-white text-[10px] font-mono px-2 py-1 rounded shadow-lg border border-white/20 whitespace-nowrap">
-                                                            {(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}' x {(activeDimensions.height / PIXELS_PER_FOOT).toFixed(1)}'
+                                                            {isCircle ? (
+                                                                <>Dia: {(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}'</>
+                                                            ) : (
+                                                                <>{(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}' x {(activeDimensions.height / PIXELS_PER_FOOT).toFixed(1)}'</>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 )}
