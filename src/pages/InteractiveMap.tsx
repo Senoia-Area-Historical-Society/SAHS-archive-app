@@ -1493,6 +1493,24 @@ export function InteractiveMap() {
                 updatedFields.height = diameter;
             }
 
+            // Recalculate bounding box for polygon points
+            if (property === 'points') {
+                const pts = pixels;
+                if (pts && pts.length > 0) {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    pts.forEach(pt => {
+                        minX = Math.min(minX, pt.x);
+                        minY = Math.min(minY, pt.y);
+                        maxX = Math.max(maxX, pt.x);
+                        maxY = Math.max(maxY, pt.y);
+                    });
+                    updatedFields.x = minX;
+                    updatedFields.y = minY;
+                    updatedFields.width = maxX - minX;
+                    updatedFields.height = maxY - minY;
+                }
+            }
+
             // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
             if (property === 'rotation' && val % 180 !== (c.rotation || 0) % 180 && val % 90 === 0) {
                 const centerX = c.x + c.width / 2;
@@ -1556,6 +1574,24 @@ export function InteractiveMap() {
                             { x: c.x + c.width, y: c.y + c.height },
                             { x: c.x, y: c.y + c.height }
                         ];
+                    }
+
+                    // Recalculate bounding box for polygon points
+                    if (property === 'points') {
+                        const pts = pixels;
+                        if (pts && pts.length > 0) {
+                            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                            pts.forEach(pt => {
+                                minX = Math.min(minX, pt.x);
+                                minY = Math.min(minY, pt.y);
+                                maxX = Math.max(maxX, pt.x);
+                                maxY = Math.max(maxY, pt.y);
+                            });
+                            updatedFields.x = minX;
+                            updatedFields.y = minY;
+                            updatedFields.width = maxX - minX;
+                            updatedFields.height = maxY - minY;
+                        }
                     }
                     
                     // Clear points if shape is reset to rectangle or circle
