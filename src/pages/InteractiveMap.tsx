@@ -2488,7 +2488,7 @@ export function InteractiveMap() {
                                             <Fragment key={`${room.docId}-poly-${index}`}>
                                                 {/* SVG Canvas overlay for the polygon room */}
                                                 <svg 
-                                                    className="absolute inset-0 pointer-events-none w-full h-full"
+                                                    className="absolute inset-0 pointer-events-none w-full h-full react-draggable"
                                                     style={{ zIndex: isSelected ? 40 : 5 }}
                                                 >
                                                     <polygon
