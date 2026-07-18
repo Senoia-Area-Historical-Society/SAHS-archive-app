@@ -1,6 +1,7 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, QrCode, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
@@ -778,9 +779,9 @@ export function ItemDetail() {
 
     return (
         <div className="flex flex-col min-h-screen max-w-full mx-auto animate-in fade-in duration-500 pb-12">
-            {zoomedImage && (
+            {zoomedImage && createPortal(
                 <div
-                    className="fixed inset-0 z-[2000] bg-charcoal/95 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden animate-in fade-in duration-300"
+                    className="fixed inset-0 z-[2000] bg-neutral-950/95 flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden animate-in fade-in duration-300"
                     onClick={() => {
                         setZoomedImage(null);
                         setZoomScale(1);
@@ -835,7 +836,7 @@ export function ItemDetail() {
                                     e.stopPropagation();
                                     setCurrentImageIndex(prev => (prev === 0 ? file_urls.length - 1 : prev - 1));
                                 }}
-                                className="fixed left-6 md:left-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-charcoal/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
+                                className="fixed left-6 md:left-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-neutral-900/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
                                 title="Previous Page"
                             >
                                 <ChevronLeft size={32} strokeWidth={3} className="group-hover/nav:-translate-x-1 transition-transform" />
@@ -846,7 +847,7 @@ export function ItemDetail() {
                                     e.stopPropagation();
                                     setCurrentImageIndex(prev => (prev === file_urls.length - 1 ? 0 : prev + 1));
                                 }}
-                                className="fixed right-6 md:right-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-charcoal/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
+                                className="fixed right-6 md:right-12 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-neutral-900/60 backdrop-blur-xl border-2 border-white/30 flex items-center justify-center text-white hover:bg-white hover:text-charcoal transition-all shadow-[0_0_40px_rgba(0,0,0,0.5)] z-[2100] group/nav"
                                 title="Next Page"
                             >
                                 <ChevronRight size={32} strokeWidth={3} className="group-hover/nav:translate-x-1 transition-transform" />
@@ -855,7 +856,7 @@ export function ItemDetail() {
                     )}
                     
                     {file_urls && (file_urls.length > 1 || (item.file_captions && item.file_captions[0])) && (
-                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-charcoal/80 backdrop-blur-xl px-8 py-3 rounded-2xl border border-white/20 text-white font-black tracking-[0.4em] uppercase text-sm z-[2100] shadow-2xl text-center min-w-[200px] max-w-[80vw]">
+                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-neutral-900/80 backdrop-blur-xl px-8 py-3 rounded-2xl border border-white/20 text-white font-black tracking-[0.4em] uppercase text-sm z-[2100] shadow-2xl text-center min-w-[200px] max-w-[80vw]">
                             {file_urls.length > 1 && (
                                 <div>Page {currentImageIndex + 1} / {file_urls.length}</div>
                             )}
@@ -940,7 +941,8 @@ export function ItemDetail() {
                             />
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
