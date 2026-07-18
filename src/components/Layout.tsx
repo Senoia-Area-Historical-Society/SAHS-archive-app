@@ -142,7 +142,7 @@ export default function Layout() {
                 </header>
 
                 {/* Desktop/Tablet Top-Right Login / Account Status Floating Bar */}
-                <div className="hidden md:block absolute top-6 right-6 z-50">
+                <div className="hidden md:block absolute md:top-8 lg:top-12 md:right-8 lg:right-12 z-50">
                     {user ? (
                         <div className="flex items-center gap-3 bg-white/90 backdrop-blur border border-tan-light/50 px-4 py-2 rounded-xl shadow-sm hover:shadow transition-shadow">
                             <div className="w-8 h-8 rounded-full bg-tan/20 flex items-center justify-center text-tan font-bold text-sm">
