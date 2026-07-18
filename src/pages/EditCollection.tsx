@@ -194,7 +194,7 @@ export function EditCollection() {
 
     return (
         <div className="max-w-3xl mx-auto h-full flex flex-col pb-12">
-            <div className="mb-8 border-b border-tan-light/50 pb-6 flex justify-between items-end md:pr-72">
+            <div className="mb-8 border-b border-tan-light/50 pb-6 flex justify-between items-end">
                 <div>
                     <h1 className="text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">
                         <FolderEdit className="text-tan" size={32} />

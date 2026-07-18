@@ -56,11 +56,36 @@ export default function Layout() {
     const { settings } = useAppearance();
     const navigate = useNavigate();
 
+    const [showHeader, setShowHeader] = useState(true);
+    const [lastScrollY, setLastScrollY] = useState(0);
+
     useEffect(() => {
         if (settings.museumName) {
             document.title = `${settings.museumName} | Digital Archive`;
         }
     }, [settings.museumName]);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            
+            // At the top of the page, always show header
+            if (currentScrollY <= 10) {
+                setShowHeader(true);
+            } else if (currentScrollY > lastScrollY) {
+                // Scrolling down -> hide header
+                setShowHeader(false);
+            } else if (currentScrollY < lastScrollY) {
+                // Scrolling up -> show header
+                setShowHeader(true);
+            }
+            
+            setLastScrollY(currentScrollY);
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [lastScrollY]);
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -95,80 +120,91 @@ export default function Layout() {
                 onClose={() => setIsMobileMenuOpen(false)} 
                 onScanClick={() => setIsScannerOpen(true)}
             />
-            <main className="flex-1 flex flex-col min-w-0 relative z-0 md:z-auto">
-                {/* Mobile Header */}
-                <header className="md:hidden flex flex-shrink-0 items-center justify-between p-4 bg-white border-b border-tan-light shadow-[0_2px_8px_rgba(0,0,0,0.02)] z-[40] sticky top-0">
+            <main className="flex-1 flex flex-col min-w-0 relative z-0 md:z-auto pt-16">
+                {/* Unified Headroom Header */}
+                <header 
+                    className={`fixed top-0 left-0 md:left-72 right-0 h-16 bg-white/90 backdrop-blur-md border-b border-tan-light/30 z-[990] flex items-center justify-between px-6 md:px-8 transition-transform duration-300 ease-in-out ${
+                        showHeader ? 'translate-y-0' : '-translate-y-full'
+                    }`}
+                >
+                    {/* Left Section (Mobile title + menu toggle) */}
                     <div className="flex items-center gap-3">
                         <button 
                             onClick={() => setIsMobileMenuOpen(true)}
-                            className="p-2 -ml-2 text-charcoal hover:bg-black/5 rounded-lg transition-colors"
+                            className="p-2 -ml-2 text-charcoal hover:bg-black/5 rounded-lg transition-colors md:hidden"
                             aria-label="Open menu"
                         >
                             <Menu size={24} />
                         </button>
-                        <h1 className="font-serif text-lg leading-tight font-bold text-charcoal">
+                        <h1 className="font-serif text-lg leading-tight font-bold text-charcoal md:hidden">
                             {settings.museumName}
                         </h1>
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    {/* Right Section (QR and Account Profile Status) */}
+                    <div className="flex items-center gap-3 ml-auto">
                         {isSAHSUser && (
                             <button 
                                 onClick={() => setIsScannerOpen(true)}
-                                className="p-2 text-tan hover:bg-tan/10 rounded-lg transition-colors flex items-center justify-center animate-in fade-in"
+                                className="p-2 text-tan hover:bg-tan/10 rounded-lg transition-colors flex items-center justify-center"
                                 title="Search via QR Code"
                                 aria-label="Search via QR Code"
                             >
                                 <QrCode size={20} />
                             </button>
                         )}
-                        {user ? (
-                            <button
-                                onClick={logout}
-                                className="p-2 -mr-2 text-charcoal hover:bg-black/5 rounded-lg transition-colors flex items-center justify-center"
-                                title="Sign Out"
-                                aria-label="Sign Out"
-                            >
-                                <LogOut size={20} />
-                            </button>
-                        ) : (
-                            <NavLink
-                                to="/login"
-                                className="flex items-center gap-1.5 bg-tan hover:bg-tan-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98]"
-                            >
-                                <LogIn size={14} /> Log In
-                            </NavLink>
-                        )}
+                        
+                        {/* Desktop Account Status Box */}
+                        <div className="hidden md:flex items-center">
+                            {user ? (
+                                <div className="flex items-center gap-3 bg-white/90 backdrop-blur border border-tan-light/50 px-4 py-2 rounded-xl shadow-sm hover:shadow transition-shadow">
+                                    <div className="w-8 h-8 rounded-full bg-tan/20 flex items-center justify-center text-tan font-bold text-sm">
+                                        {user.email?.charAt(0).toUpperCase() || 'U'}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-charcoal/50 font-bold uppercase tracking-wider">Signed in</span>
+                                        <span className="text-xs font-semibold text-charcoal max-w-[120px] truncate">{user.email}</span>
+                                    </div>
+                                    <button
+                                        onClick={logout}
+                                        className="ml-2 p-1.5 hover:bg-black/5 rounded-lg text-charcoal-light hover:text-charcoal transition-colors"
+                                        title="Sign Out"
+                                    >
+                                        <LogOut size={16} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <NavLink
+                                    to="/login"
+                                    className="flex items-center gap-2 bg-tan hover:bg-tan-dark text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    <LogIn size={16} /> Log In
+                                </NavLink>
+                            )}
+                        </div>
+
+                        {/* Mobile Account Status Button */}
+                        <div className="flex md:hidden items-center">
+                            {user ? (
+                                <button
+                                    onClick={logout}
+                                    className="p-2 -mr-2 text-charcoal hover:bg-black/5 rounded-lg transition-colors flex items-center justify-center"
+                                    title="Sign Out"
+                                    aria-label="Sign Out"
+                                >
+                                    <LogOut size={20} />
+                                </button>
+                            ) : (
+                                <NavLink
+                                    to="/login"
+                                    className="flex items-center gap-1.5 bg-tan hover:bg-tan-dark text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.98]"
+                                >
+                                    <LogIn size={14} /> Log In
+                                </NavLink>
+                            )}
+                        </div>
                     </div>
                 </header>
-
-                {/* Desktop/Tablet Top-Right Login / Account Status Floating Bar */}
-                <div className="hidden md:block absolute md:top-8 lg:top-12 md:right-8 lg:right-12 z-50">
-                    {user ? (
-                        <div className="flex items-center gap-3 bg-white/90 backdrop-blur border border-tan-light/50 px-4 py-2 rounded-xl shadow-sm hover:shadow transition-shadow">
-                            <div className="w-8 h-8 rounded-full bg-tan/20 flex items-center justify-center text-tan font-bold text-sm">
-                                {user.email?.charAt(0).toUpperCase() || 'U'}
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] text-charcoal/50 font-bold uppercase tracking-wider">Signed in</span>
-                                <span className="text-xs font-semibold text-charcoal max-w-[120px] truncate">{user.email}</span>
-                            </div>
-                            <button
-                                onClick={logout}
-                                className="ml-2 p-1.5 hover:bg-black/5 rounded-lg text-charcoal-light hover:text-charcoal transition-colors"
-                                title="Sign Out"
-                            >
-                                <LogOut size={16} />
-                            </button>
-                        </div>
-                    ) : (
-                        <NavLink
-                            to="/login"
-                            className="flex items-center gap-2 bg-tan hover:bg-tan-dark text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow transition-all hover:scale-[1.02] active:scale-[0.98]"
-                        >
-                            <LogIn size={16} /> Log In
-                        </NavLink>
-                    )}
-                </div>
 
                 <div className="flex-1 w-full flex flex-col">
                     <Outlet />

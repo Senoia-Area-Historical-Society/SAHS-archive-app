@@ -155,7 +155,7 @@ export function LibraryDetail() {
     return (
         <div className="space-y-8 animate-in fade-in duration-300">
             {/* Navigation back and edit buttons */}
-            <div className="flex justify-between items-center border-b border-tan-light/30 pb-4 md:pr-72">
+            <div className="flex justify-between items-center border-b border-tan-light/30 pb-4">
                 <Link
                     to="/library"
                     className="inline-flex items-center gap-2 text-charcoal/70 hover:text-charcoal font-bold transition-colors text-sm"

@@ -1091,7 +1091,7 @@ export default function EditItem() {
                     aspectRatio={itemType === 'Historic Figure' ? 0.75 : undefined}
                 />
             )}
-            <div className="mb-8 border-b border-tan-light/50 pb-6 flex items-center justify-between md:pr-72">
+            <div className="mb-8 border-b border-tan-light/50 pb-6 flex items-center justify-between">
                 <div>
                     <h1 className="text-4xl font-serif font-bold mb-3 text-charcoal tracking-tight flex items-center gap-3">
                         <Edit2 className="text-tan" size={32} />
