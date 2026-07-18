@@ -249,7 +249,7 @@ export function CollectionDetail() {
 
     return (
         <div className="max-w-full mx-auto h-full flex flex-col animate-in fade-in duration-500">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 md:pr-44">
                 <Link to="/collections" className="inline-flex items-center text-sm font-bold text-tan uppercase tracking-wider hover:text-charcoal transition-colors">
                     <ChevronLeft size={16} className="mr-1" /> Back to Collections
                 </Link>
