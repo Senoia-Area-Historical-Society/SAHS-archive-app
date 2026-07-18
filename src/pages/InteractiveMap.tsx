@@ -2510,11 +2510,19 @@ export function InteractiveMap() {
                                                                              handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                          }}
                                                                      >
+                                                                         {/* Invisible larger hit target circle (32px diameter) */}
+                                                                         <circle
+                                                                             cx={midX}
+                                                                             cy={midY}
+                                                                             r={16}
+                                                                             className="fill-transparent stroke-transparent"
+                                                                         />
+                                                                         {/* Visible styling circle */}
                                                                          <circle
                                                                              cx={midX}
                                                                              cy={midY}
                                                                              r={5}
-                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 hover:opacity-100 hover:scale-125 transition-all"
+                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 group-hover/mid:opacity-100 group-hover/mid:scale-125 transition-all"
                                                                          />
                                                                          <line x1={midX - 2.5} y1={midY} x2={midX + 2.5} y2={midY} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
                                                                          <line x1={midX} y1={midY - 2.5} x2={midX} y2={midY + 2.5} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
@@ -2524,12 +2532,9 @@ export function InteractiveMap() {
 
                                                              {/* Vertex corner dots */}
                                                              {points.map((pt, pIdx) => (
-                                                                 <circle
+                                                                 <g 
                                                                      key={pIdx}
-                                                                     cx={pt.x}
-                                                                     cy={pt.y}
-                                                                     r={6}
-                                                                     className="pointer-events-auto cursor-pointer fill-white stroke-blue-500 stroke-2 hover:scale-125 transition-transform"
+                                                                     className="pointer-events-auto cursor-pointer group/vertex"
                                                                      onMouseDown={(e) => {
                                                                          e.stopPropagation();
                                                                          setDraggingVertex({
@@ -2547,7 +2552,22 @@ export function InteractiveMap() {
                                                                          const updatedPoints = points.filter((_, idx) => idx !== pIdx);
                                                                          handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                      }}
-                                                                 />
+                                                                 >
+                                                                     {/* Invisible larger hit target circle (40px diameter) */}
+                                                                     <circle
+                                                                         cx={pt.x}
+                                                                         cy={pt.y}
+                                                                         r={20}
+                                                                         className="fill-transparent stroke-transparent"
+                                                                     />
+                                                                     {/* Visible styling circle */}
+                                                                     <circle
+                                                                         cx={pt.x}
+                                                                         cy={pt.y}
+                                                                         r={7}
+                                                                         className="fill-white stroke-blue-500 stroke-2 group-hover/vertex:scale-125 group-hover/vertex:fill-blue-50 transition-all duration-150"
+                                                                     />
+                                                                 </g>
                                                              ))}
                                                          </>
                                                      )}
