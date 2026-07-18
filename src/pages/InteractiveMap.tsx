@@ -2496,46 +2496,44 @@ export function InteractiveMap() {
                                                                  const midX = (pt.x + nextPt.x) / 2;
                                                                  const midY = (pt.y + nextPt.y) / 2;
                                                                  return (
-                                                                     <g 
-                                                                         key={`mid-${pIdx}`}
-                                                                         className="pointer-events-auto cursor-pointer group/mid"
-                                                                         onMouseDown={(e) => {
-                                                                             e.stopPropagation();
-                                                                             const newPt = { x: Math.round(midX), y: Math.round(midY) };
-                                                                             const updatedPoints = [
-                                                                                 ...points.slice(0, pIdx + 1),
-                                                                                 newPt,
-                                                                                 ...points.slice(pIdx + 1)
-                                                                             ];
-                                                                             handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
-                                                                         }}
-                                                                     >
-                                                                         {/* Invisible larger hit target circle (32px diameter) */}
+                                                                     <g key={`mid-${pIdx}`}>
                                                                          <circle
                                                                              cx={midX}
                                                                              cy={midY}
-                                                                             r={16}
-                                                                             className="fill-transparent stroke-transparent"
+                                                                             r={10}
+                                                                             fill="#3b82f6"
+                                                                             stroke="white"
+                                                                             strokeWidth={1}
+                                                                             opacity={0.5}
+                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 const newPt = { x: Math.round(midX), y: Math.round(midY) };
+                                                                                 const updatedPoints = [
+                                                                                     ...points.slice(0, pIdx + 1),
+                                                                                     newPt,
+                                                                                     ...points.slice(pIdx + 1)
+                                                                                 ];
+                                                                                 handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                             }}
                                                                          />
-                                                                         {/* Visible styling circle */}
-                                                                         <circle
-                                                                             cx={midX}
-                                                                             cy={midY}
-                                                                             r={5}
-                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 group-hover/mid:opacity-100 group-hover/mid:scale-125"
-                                                                             style={{ transition: 'opacity 0.15s ease-in-out, transform 0.15s ease-in-out' }}
-                                                                         />
-                                                                         <line x1={midX - 2.5} y1={midY} x2={midX + 2.5} y2={midY} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
-                                                                         <line x1={midX} y1={midY - 2.5} x2={midX} y2={midY + 2.5} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
+                                                                         <line x1={midX - 3} y1={midY} x2={midX + 3} y2={midY} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+                                                                         <line x1={midX} y1={midY - 3} x2={midX} y2={midY + 3} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
                                                                      </g>
                                                                  );
                                                              })}
 
                                                              {/* Vertex corner dots */}
                                                              {points.map((pt, pIdx) => (
-                                                                 <g 
+                                                                 <circle
                                                                      key={pIdx}
-                                                                     className="pointer-events-auto cursor-pointer group/vertex"
+                                                                     cx={pt.x}
+                                                                     cy={pt.y}
+                                                                     r={10}
+                                                                     fill="white"
+                                                                     stroke="#3b82f6"
+                                                                     strokeWidth={2.5}
+                                                                     className="pointer-events-auto cursor-pointer"
                                                                      onMouseDown={(e) => {
                                                                          e.stopPropagation();
                                                                          setDraggingVertex({
@@ -2549,27 +2547,11 @@ export function InteractiveMap() {
                                                                      }}
                                                                      onDoubleClick={(e) => {
                                                                          e.stopPropagation();
-                                                                         if (points.length <= 3) return; // Keep at least a triangle
+                                                                         if (points.length <= 3) return;
                                                                          const updatedPoints = points.filter((_, idx) => idx !== pIdx);
                                                                          handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                      }}
-                                                                 >
-                                                                     {/* Invisible larger hit target circle (40px diameter) */}
-                                                                     <circle
-                                                                         cx={pt.x}
-                                                                         cy={pt.y}
-                                                                         r={20}
-                                                                         className="fill-transparent stroke-transparent"
-                                                                     />
-                                                                     {/* Visible styling circle */}
-                                                                     <circle
-                                                                         cx={pt.x}
-                                                                         cy={pt.y}
-                                                                         r={7}
-                                                                         className="fill-white stroke-blue-500 stroke-2 group-hover/vertex:scale-125 group-hover/vertex:fill-blue-50"
-                                                                         style={{ transition: 'fill 0.15s ease-in-out, stroke 0.15s ease-in-out, transform 0.15s ease-in-out' }}
-                                                                     />
-                                                                 </g>
+                                                                 />
                                                              ))}
                                                          </>
                                                      )}
