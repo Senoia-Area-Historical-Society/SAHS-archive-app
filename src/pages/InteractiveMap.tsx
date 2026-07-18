@@ -2522,7 +2522,8 @@ export function InteractiveMap() {
                                                                              cx={midX}
                                                                              cy={midY}
                                                                              r={5}
-                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 group-hover/mid:opacity-100 group-hover/mid:scale-125 transition-all"
+                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 group-hover/mid:opacity-100 group-hover/mid:scale-125"
+                                                                             style={{ transition: 'opacity 0.15s ease-in-out, transform 0.15s ease-in-out' }}
                                                                          />
                                                                          <line x1={midX - 2.5} y1={midY} x2={midX + 2.5} y2={midY} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
                                                                          <line x1={midX} y1={midY - 2.5} x2={midX} y2={midY + 2.5} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
@@ -2565,7 +2566,8 @@ export function InteractiveMap() {
                                                                          cx={pt.x}
                                                                          cy={pt.y}
                                                                          r={7}
-                                                                         className="fill-white stroke-blue-500 stroke-2 group-hover/vertex:scale-125 group-hover/vertex:fill-blue-50 transition-all duration-150"
+                                                                         className="fill-white stroke-blue-500 stroke-2 group-hover/vertex:scale-125 group-hover/vertex:fill-blue-50"
+                                                                         style={{ transition: 'fill 0.15s ease-in-out, stroke 0.15s ease-in-out, transform 0.15s ease-in-out' }}
                                                                      />
                                                                  </g>
                                                              ))}
