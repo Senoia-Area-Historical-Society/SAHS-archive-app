@@ -50,4 +50,39 @@ We added a dedicated private map-annotation system that is strictly visible *onl
 
 To support lookup for books that are missing from both Open Library and Google Books (such as *Cowetta County Chronicles*, ISBN `0-89308-016-0`), we added:
 1. **Functions Backend (`functions/index.js`)**: A custom scraper function `lookupIsbnFallback` that fetches details directly from `isbnsearch.org` and parses the metadata (Title, Authors, Publisher, Publication Year, Cover Art) on the server, completely bypassing browser CORS constraints.
-2. **Frontend Pages (`AddBook.tsx` & `EditBook.tsx`)**: Integrates this Cloud Function as the final fallback in the ISBN search utility (`handleIsbnLookup`), so users can search for any book by its ISBN number and have details auto-populated immediately.
+2. Frontend Pages (`AddBook.tsx` & `EditBook.tsx`)**: Integrates this Cloud Function as the final fallback in the ISBN search utility (`handleIsbnLookup`), so users can search for any book by its ISBN number and have details auto-populated immediately.
+
+---
+
+## 🔍 Full-Screen Image Zoom Lightbox Fix
+
+We resolved a major usability bug where selecting an archive item's image to get a closer view failed to display full-screen and did not allow zooming.
+
+### The Problem
+1. **Stacking Context Confinement**:
+   - The archive details page (`ItemDetail.tsx`) is wrapped in an animated container (`animate-in fade-in`).
+   - In CSS, any animation/transform/filter on an element forces the browser to create a new stacking context for it.
+   - Because of this, the `fixed z-[2000]` lightbox overlay was trapped inside the `ItemDetail` container, confining it underneath the layout's sticky sidebar (`z-30`) and absolute header components. This cropped the lightbox and prevented it from displaying full-screen.
+2. **Invalid Tailwind Color Opacity**:
+   - The lightbox backdrop used `bg-charcoal/95`.
+   - The project's Tailwind config defines `charcoal` as a custom CSS variable fallback (`var(--color-charcoal, #3a2d1d)`).
+   - In Tailwind CSS, custom colors defined using hex values inside CSS variable wrappers do not support the alpha slash (`/opacity`) modifier natively. This compiles to invalid CSS (`rgba(#3a2d1d, 0.95)`), causing the browser to ignore the background color completely and leaving the backdrop transparent.
+
+### The Resolution
+1. **React Portal Escaping**:
+   - Imported `createPortal` from `react-dom`.
+   - Wrapped the entire `zoomedImage` lightbox overlay component block inside `createPortal(..., document.body)`.
+   - This moves the lightbox overlay elements out of the `ItemDetail` DOM hierarchy, appending them directly under `document.body` where they escape all parent stacking contexts and overflow clipping.
+2. **Standard Tailwind Opacity Backdrops**:
+   - Replaced custom opacity classes (`bg-charcoal/95`, `bg-charcoal/60`, and `bg-charcoal/80`) with standard, high-contrast Tailwind colors (`bg-neutral-950/95`, `bg-neutral-900/60`, and `bg-neutral-900/80`).
+   - This generates valid CSS, turning the backdrop into a beautiful semi-transparent dark mask that dims all background page components (including the sidebar and header) to highlight the zoomed image.
+
+### Verification Results
+1. **End-to-End Navigation Test**:
+   - Navigated to `/archive`, loaded the first item card details `/items/whzizfHOZJEPX03FlZzY`, and clicked the main image.
+   - **Status**: The zoom overlay renders on top of all page elements (including the sidebar and header) and covers the entire viewport.
+2. **DOM Alignment**:
+   - Verified that the overlay mounts directly under the `<body>` element with `z-index: 2000` and computed background color `rgba(10, 10, 10, 0.95)` (95% opacity dark backdrop).
+3. **Event Interception**:
+   - Verified that clicking the dimmed sidebar area successfully propagates to the lightbox background handler, closing the zoom view and returning the user to the item detail page without triggering unwanted navigation.
+
