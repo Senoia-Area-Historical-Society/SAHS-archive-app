@@ -22,7 +22,12 @@ jobs:
         with:
           node-version: '24'
           cache: 'npm'
-          
+
+      # Fails the deploy before it starts if firebase.json's firestore config lists a
+      # database this app doesn't own (see scripts/check-firestore-database-target.cjs).
+      - name: Check Firestore database target
+        run: node scripts/check-firestore-database-target.cjs
+
       - name: Install Dependencies
         run: npm ci
         
