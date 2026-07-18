@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 uid: 'mock_simulation_user_id',
                 email: 'curator@senoiahistory.com',
                 displayName: 'Mock Simulation Curator',
-            });
+            } as any);
             setIsAdmin(true);
             setIsCurator(false);
             setIsSetupComplete(true);
