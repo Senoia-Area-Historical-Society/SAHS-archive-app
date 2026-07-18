@@ -146,9 +146,10 @@ export function InteractiveMap() {
     const [draggingPolygon, setDraggingPolygon] = useState<{
         roomId: string;
         geomIndex: number;
-        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         startX: number;
         startY: number;
+        mouseStartX: number;
+        mouseStartY: number;
     } | null>(null);
 
     const [draggingCurveControl, setDraggingCurveControl] = useState<{
@@ -187,25 +188,13 @@ export function InteractiveMap() {
                 );
                 handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
             } else if (draggingPolygon) {
-                const dx = (e.clientX - draggingPolygon.startX) / scale;
-                const dy = (e.clientY - draggingPolygon.startY) / scale;
+                const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
+                const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
 
-                let snapX = dx;
-                let snapY = dy;
-                if (isSnapping) {
-                    const snappedX = Math.round(dx / 12) * 12;
-                    const snappedY = Math.round(dy / 12) * 12;
-                    snapX = snappedX;
-                    snapY = snappedY;
-                }
+                const targetX = draggingPolygon.startX + dx;
+                const targetY = draggingPolygon.startY + dy;
 
-                const updatedPoints = draggingPolygon.startPoints.map(pt => ({
-                    ...pt,
-                    x: Math.round(pt.x + snapX),
-                    y: Math.round(pt.y + snapY),
-                    ...(pt.curve ? { curve: { cx: Math.round(pt.curve.cx + snapX), cy: Math.round(pt.curve.cy + snapY) } } : {})
-                }));
-                handleUpdateRoomProperty(draggingPolygon.roomId, 'points', updatedPoints, draggingPolygon.geomIndex);
+                handleGroupDrag(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
             } else if (draggingCurveControl) {
                 const dx = (e.clientX - draggingCurveControl.startX) / scale;
                 const dy = (e.clientY - draggingCurveControl.startY) / scale;
@@ -224,10 +213,20 @@ export function InteractiveMap() {
             }
         };
 
-        const handlePointerUp = () => {
-            setDraggingVertex(null);
-            setDraggingPolygon(null);
-            setDraggingCurveControl(null);
+        const handlePointerUp = (e: PointerEvent) => {
+            if (draggingVertex) {
+                setDraggingVertex(null);
+            } else if (draggingPolygon) {
+                const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
+                const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
+                const targetX = draggingPolygon.startX + dx;
+                const targetY = draggingPolygon.startY + dy;
+
+                handleGroupDragStopStateSync(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
+                setDraggingPolygon(null);
+            } else if (draggingCurveControl) {
+                setDraggingCurveControl(null);
+            }
         };
 
         window.addEventListener('pointermove', handlePointerMove);
@@ -1294,7 +1293,8 @@ export function InteractiveMap() {
                         element: el,
                         startX: g.x,
                         startY: g.y,
-                        isPin: false
+                        isPin: false,
+                        isPolygon: g.shape === 'polygon'
                     };
                 });
                 if (geometries.length > 0) {
@@ -1328,7 +1328,8 @@ export function InteractiveMap() {
                     element: el,
                     startX: lCoords.x,
                     startY: lCoords.y,
-                    isPin: lCoords.display_type === 'pin'
+                    isPin: lCoords.display_type === 'pin',
+                    isPolygon: lCoords.shape === 'polygon'
                 };
             }
         });
@@ -1357,14 +1358,22 @@ export function InteractiveMap() {
             for (let gi = 0; gi < geometriesCount; gi++) {
                 const nodeKey = `${id}-geom-${gi}`;
                 
-                // Bypass manual transform for the element actively being dragged
-                if (id === draggedId && gi === activeIndex) continue;
+                const room = rooms.find(r => r.id === id || r.docId === id);
+                const geom = room?.geometries?.[gi] || room?.map_coordinates;
+                const isPoly = geom?.shape === 'polygon';
+
+                // Bypass manual transform for the element actively being dragged (unless it's a polygon, since it's not managed by react-rnd)
+                if (id === draggedId && gi === activeIndex && !isPoly) continue;
                 
                 const cached = dragCachedNodesRef.current[nodeKey];
                 if (cached && cached.element) {
-                    const targetX = absoluteSnap(cached.startX) + offsetX - (cached.isPin ? 30 : 0);
-                    const targetY = absoluteSnap(cached.startY) + offsetY - (cached.isPin ? 50 : 0);
-                    cached.element.style.transform = `translate(${targetX}px, ${targetY}px)`;
+                    if (cached.isPolygon) {
+                        cached.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                    } else {
+                        const targetX = absoluteSnap(cached.startX) + offsetX - (cached.isPin ? 30 : 0);
+                        const targetY = absoluteSnap(cached.startY) + offsetY - (cached.isPin ? 50 : 0);
+                        cached.element.style.transform = `translate(${targetX}px, ${targetY}px)`;
+                    }
                 }
             }
 
@@ -1408,7 +1417,7 @@ export function InteractiveMap() {
 
         saveSnapshot();
 
-        // Update Rooms (including all internal geometries for merged rooms)
+        // Update Rooms (including all internal geometries for merged rooms, updating both box bounds and polygon points/curves)
         setRooms(prev => prev.map(r => {
             const id = r.docId || r.id;
             if (selectedIdsRef.current.has(id)) {
@@ -1422,7 +1431,15 @@ export function InteractiveMap() {
                             return {
                                 ...gc,
                                 x: absoluteSnap(gStart.x) + offsetX,
-                                y: absoluteSnap(gStart.y) + offsetY
+                                y: absoluteSnap(gStart.y) + offsetY,
+                                ...(gc.shape === 'polygon' && gc.points ? {
+                                    points: gc.points.map((pt: any) => ({
+                                        ...pt,
+                                        x: pt.x + offsetX,
+                                        y: pt.y + offsetY,
+                                        ...(pt.curve ? { curve: { cx: pt.curve.cx + offsetX, cy: pt.curve.cy + offsetY } } : {})
+                                    }))
+                                } : {})
                             };
                         })
                     };
@@ -1435,7 +1452,15 @@ export function InteractiveMap() {
                         map_coordinates: {
                             ...r.map_coordinates,
                             x: absoluteSnap(sStart.x) + offsetX,
-                            y: absoluteSnap(sStart.y) + offsetY
+                            y: absoluteSnap(sStart.y) + offsetY,
+                            ...(r.map_coordinates.shape === 'polygon' && r.map_coordinates.points ? {
+                                points: r.map_coordinates.points.map((pt: any) => ({
+                                    ...pt,
+                                    x: pt.x + offsetX,
+                                    y: pt.y + offsetY,
+                                    ...(pt.curve ? { curve: { cx: pt.curve.cx + offsetX, cy: pt.curve.cy + offsetY } } : {})
+                                }))
+                            } : {})
                         }
                     };
                 }
@@ -1468,7 +1493,7 @@ export function InteractiveMap() {
             return hasChanges ? next : prev;
         });
         
-        // Clear manual transforms applied during drag for labels and ghost walls
+        // Clear manual transforms applied during drag for labels, ghost walls, and polygon SVG canvases
         selectedIdsRef.current.forEach(id => {
             const labelNode = document.getElementById(`room-label-${id}`);
             if (labelNode) {
@@ -1482,6 +1507,11 @@ export function InteractiveMap() {
                     const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
                     if (wallNode) {
                         wallNode.style.transform = '';
+                    }
+                    const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
+                    const el = document.getElementById(elementId);
+                    if (el) {
+                        el.style.transform = '';
                     }
                 }
             }
@@ -2520,12 +2550,16 @@ export function InteractiveMap() {
                                                             } else if (isEditMode && !e.shiftKey) {
                                                                 handleItemSelection(room.docId!, e);
                                                                 e.stopPropagation();
+                                                                
+                                                                handleGroupDragStart(room.docId!, index, e);
+                                                                
                                                                 setDraggingPolygon({
                                                                     roomId: room.docId!,
                                                                     geomIndex: index,
-                                                                    startPoints: [...points.map(p => ({ ...p }))],
-                                                                    startX: e.clientX,
-                                                                    startY: e.clientY
+                                                                    startX: c.x,
+                                                                    startY: c.y,
+                                                                    mouseStartX: e.clientX,
+                                                                    mouseStartY: e.clientY
                                                                 });
                                                             }
                                                         }}
