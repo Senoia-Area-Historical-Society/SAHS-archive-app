@@ -2063,44 +2063,9 @@ export function InteractiveMap() {
                                                                             <div className="space-y-2 mb-3">
                                                                                 <div className="flex justify-between items-center text-[10px] text-charcoal/50 font-bold bg-tan/5 p-2 rounded border border-tan/10">
                                                                                     <span>Corners: {geom.points?.length || 0}</span>
-                                                                                    <div className="flex gap-1">
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => {
-                                                                                                const currentPoints = geom.points || [];
-                                                                                                if (currentPoints.length === 0) return;
-                                                                                                // Add a point midway between point 0 and point 1
-                                                                                                const p0 = currentPoints[0];
-                                                                                                const p1 = currentPoints[1] || p0;
-                                                                                                const newPt = {
-                                                                                                    x: Math.round((p0.x + p1.x) / 2),
-                                                                                                    y: Math.round((p0.y + p1.y) / 2)
-                                                                                                };
-                                                                                                const updatedPoints = [p0, newPt, ...currentPoints.slice(1)];
-                                                                                                handleUpdateRoomProperty(id, 'points', updatedPoints, idx);
-                                                                                            }}
-                                                                                            className="px-2 py-0.5 bg-tan text-white rounded text-[8px] font-black hover:bg-tan-dark transition-colors"
-                                                                                        >
-                                                                                            + Corner
-                                                                                        </button>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={() => {
-                                                                                                const currentPoints = geom.points || [];
-                                                                                                if (currentPoints.length <= 3) return; // Keep at least a triangle
-                                                                                                // Remove the last point
-                                                                                                const updatedPoints = currentPoints.slice(0, -1);
-                                                                                                handleUpdateRoomProperty(id, 'points', updatedPoints, idx);
-                                                                                            }}
-                                                                                            className="px-2 py-0.5 bg-red-500 text-white rounded text-[8px] font-black hover:bg-red-600 transition-colors disabled:opacity-50"
-                                                                                            disabled={(geom.points?.length || 0) <= 3}
-                                                                                        >
-                                                                                            - Corner
-                                                                                        </button>
-                                                                                    </div>
                                                                                 </div>
                                                                                 <div className="text-[8px] font-mono font-bold text-tan-dark/80 bg-cream/30 p-2 rounded leading-relaxed border border-tan-light/10">
-                                                                                    💡 Drag vertices (corners) on the map to reshape the room.
+                                                                                    💡 Click any edge midpoint (+) to add a corner. Double-click a corner handle on the map to delete it.
                                                                                 </div>
                                                                             </div>
                                                                         ) : (
@@ -2523,26 +2488,69 @@ export function InteractiveMap() {
                                                             if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
                                                         }}
                                                     />
-                                                    {isEditMode && isSelected && points.map((pt, pIdx) => (
-                                                        <circle
-                                                            key={pIdx}
-                                                            cx={pt.x}
-                                                            cy={pt.y}
-                                                            r={6}
-                                                            className="pointer-events-auto cursor-pointer fill-white stroke-blue-500 stroke-2 hover:scale-125 transition-transform"
-                                                            onMouseDown={(e) => {
-                                                                e.stopPropagation();
-                                                                setDraggingVertex({
-                                                                    roomId: room.docId!,
-                                                                    geomIndex: index,
-                                                                    pointIndex: pIdx,
-                                                                    startPoints: [...points],
-                                                                    startX: e.clientX,
-                                                                    startY: e.clientY
-                                                                });
-                                                            }}
-                                                        />
-                                                    ))}
+                                                    {isEditMode && isSelected && (
+                                                         <>
+                                                             {/* Midpoint '+' handles to add corners */}
+                                                             {points.map((pt, pIdx) => {
+                                                                 const nextPt = points[(pIdx + 1) % points.length];
+                                                                 const midX = (pt.x + nextPt.x) / 2;
+                                                                 const midY = (pt.y + nextPt.y) / 2;
+                                                                 return (
+                                                                     <g 
+                                                                         key={`mid-${pIdx}`}
+                                                                         className="pointer-events-auto cursor-pointer group/mid"
+                                                                         onMouseDown={(e) => {
+                                                                             e.stopPropagation();
+                                                                             const newPt = { x: Math.round(midX), y: Math.round(midY) };
+                                                                             const updatedPoints = [
+                                                                                 ...points.slice(0, pIdx + 1),
+                                                                                 newPt,
+                                                                                 ...points.slice(pIdx + 1)
+                                                                             ];
+                                                                             handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                         }}
+                                                                     >
+                                                                         <circle
+                                                                             cx={midX}
+                                                                             cy={midY}
+                                                                             r={5}
+                                                                             className="fill-blue-500 stroke-white stroke-1 opacity-45 hover:opacity-100 hover:scale-125 transition-all"
+                                                                         />
+                                                                         <line x1={midX - 2.5} y1={midY} x2={midX + 2.5} y2={midY} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
+                                                                         <line x1={midX} y1={midY - 2.5} x2={midX} y2={midY + 2.5} className="stroke-white stroke-[1.5] pointer-events-none opacity-80" />
+                                                                     </g>
+                                                                 );
+                                                             })}
+
+                                                             {/* Vertex corner dots */}
+                                                             {points.map((pt, pIdx) => (
+                                                                 <circle
+                                                                     key={pIdx}
+                                                                     cx={pt.x}
+                                                                     cy={pt.y}
+                                                                     r={6}
+                                                                     className="pointer-events-auto cursor-pointer fill-white stroke-blue-500 stroke-2 hover:scale-125 transition-transform"
+                                                                     onMouseDown={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setDraggingVertex({
+                                                                             roomId: room.docId!,
+                                                                             geomIndex: index,
+                                                                             pointIndex: pIdx,
+                                                                             startPoints: [...points],
+                                                                             startX: e.clientX,
+                                                                             startY: e.clientY
+                                                                         });
+                                                                     }}
+                                                                     onDoubleClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         if (points.length <= 3) return; // Keep at least a triangle
+                                                                         const updatedPoints = points.filter((_, idx) => idx !== pIdx);
+                                                                         handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                     }}
+                                                                 />
+                                                             ))}
+                                                         </>
+                                                     )}
                                                 </svg>
 
                                                 {/* Local Controls Overlay positioned at the top-right corner of bounding box */}
