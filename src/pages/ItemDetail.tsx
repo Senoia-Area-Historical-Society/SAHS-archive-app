@@ -945,7 +945,7 @@ export function ItemDetail() {
                 document.body
             )}
 
-            <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 md:pr-44">
+            <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 md:pr-72">
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={() => {
