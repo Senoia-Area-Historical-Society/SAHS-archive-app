@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { Rnd } from 'react-rnd';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, writeBatch, setDoc } from 'firebase/firestore';
-import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass, Layers } from 'lucide-react';
+import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass, Layers, HelpCircle } from 'lucide-react';
 import type { MuseumLocation, Room, MapFloor } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -104,6 +104,22 @@ export function InteractiveMap() {
     const selectedIdsRef = useRef<Set<string>>(new Set());
     const dirtyIdsRef = useRef<Set<string>>(new Set());
     const dragStartPosRef = useRef<Record<string, {x: number, y: number}>>({});
+    const draggedIndexRef = useRef<number | null>(null);
+    const dragCachedNodesRef = useRef<Record<string, {
+        element: HTMLElement | null;
+        startX: number;
+        startY: number;
+        isPin: boolean;
+    }>>({});
+    const labelCachedNodesRef = useRef<Record<string, {
+        element: HTMLElement | null;
+    }>>({});
+    const wallCachedNodesRef = useRef<Record<string, {
+        element: HTMLElement | null;
+    }[]>>({});
+    const controlsCachedNodesRef = useRef<Record<string, {
+        element: HTMLElement | null;
+    }[]>>({});
     const [, setSelectionTick] = useState(0); // For triggering UI buttons reacting to ref changes
     const [sidebarPos, setSidebarPos] = useState({ x: 16, y: 16 });
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
@@ -115,6 +131,189 @@ export function InteractiveMap() {
     // Compass Rose State (Overlay)
     const [compassRose, setCompassRose] = useState<{ x: number, y: number, rotation: number, width?: number, height?: number }>({ x: 32, y: 32, rotation: 0 });
     const [resizingCompassSize, setResizingCompassSize] = useState<number | null>(null);
+
+    // Onboarding & Help modal state
+    const [showHelpModal, setShowHelpModal] = useState(false);
+    const [tourStep, setTourStep] = useState<number | null>(null);
+
+    // States for polygon dragging
+    const [draggingVertex, setDraggingVertex] = useState<{
+        roomId: string;
+        geomIndex: number;
+        pointIndex: number;
+        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
+        startX: number;
+        startY: number;
+    } | null>(null);
+
+    const [draggingPolygon, setDraggingPolygon] = useState<{
+        roomId: string;
+        geomIndex: number;
+        startX: number;
+        startY: number;
+        mouseStartX: number;
+        mouseStartY: number;
+    } | null>(null);
+
+    const [draggingCurveControl, setDraggingCurveControl] = useState<{
+        roomId: string;
+        geomIndex: number;
+        pointIndex: number;
+        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
+        startX: number;
+        startY: number;
+    } | null>(null);
+
+    useEffect(() => {
+        if (!draggingVertex && !draggingPolygon && !draggingCurveControl) return;
+
+        const handlePointerMove = (e: PointerEvent) => {
+            if (draggingVertex) {
+                const dx = (e.clientX - draggingVertex.startX) / scale;
+                const dy = (e.clientY - draggingVertex.startY) / scale;
+                
+                let snapX = dx;
+                let snapY = dy;
+                if (isSnapping) {
+                    const initialPt = draggingVertex.startPoints[draggingVertex.pointIndex];
+                    const targetX = initialPt.x + dx;
+                    const targetY = initialPt.y + dy;
+                    const snappedX = Math.round(targetX / 12) * 12;
+                    const snappedY = Math.round(targetY / 12) * 12;
+                    snapX = snappedX - initialPt.x;
+                    snapY = snappedY - initialPt.y;
+                }
+
+                const updatedPoints = draggingVertex.startPoints.map((pt, idx) => 
+                    idx === draggingVertex.pointIndex 
+                        ? { ...pt, x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
+                        : pt
+                );
+                handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
+            } else if (draggingPolygon) {
+                const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
+                const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
+
+                const targetX = draggingPolygon.startX + dx;
+                const targetY = draggingPolygon.startY + dy;
+
+                handleGroupDrag(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
+            } else if (draggingCurveControl) {
+                const dx = (e.clientX - draggingCurveControl.startX) / scale;
+                const dy = (e.clientY - draggingCurveControl.startY) / scale;
+
+                const initialPt = draggingCurveControl.startPoints[draggingCurveControl.pointIndex];
+                const initialCurve = initialPt.curve!;
+                const newCx = Math.round(initialCurve.cx + dx);
+                const newCy = Math.round(initialCurve.cy + dy);
+
+                const updatedPoints = draggingCurveControl.startPoints.map((pt, idx) =>
+                    idx === draggingCurveControl.pointIndex
+                        ? { ...pt, curve: { cx: newCx, cy: newCy } }
+                        : pt
+                );
+                handleUpdateRoomProperty(draggingCurveControl.roomId, 'points', updatedPoints, draggingCurveControl.geomIndex);
+            }
+        };
+
+        const handlePointerUp = (e: PointerEvent) => {
+            if (draggingVertex) {
+                setDraggingVertex(null);
+            } else if (draggingPolygon) {
+                const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
+                const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
+                const targetX = draggingPolygon.startX + dx;
+                const targetY = draggingPolygon.startY + dy;
+
+                handleGroupDragStopStateSync(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
+                setDraggingPolygon(null);
+            } else if (draggingCurveControl) {
+                setDraggingCurveControl(null);
+            }
+        };
+
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+        };
+    }, [draggingVertex, draggingPolygon, draggingCurveControl, scale, isSnapping]);
+
+    const TOUR_STEPS = [
+        {
+            title: "Welcome to the Map Editor! 👋",
+            description: "This quick tour will guide you through the layout tools and navigation features so you can start organizing the museum blueprint confidently.",
+            target: null,
+        },
+        {
+            title: "Floor Switcher 🏢",
+            description: "Switch between the Basement, Main Floor, and Second Floor. Use the adjacent layer button to toggle a semi-transparent 'ghost' underlay of the floor beneath to align rooms between levels.",
+            target: "#tour-floor-selector",
+        },
+        {
+            title: "Layout Tools Panel 🛠️",
+            description: "Drag this floating panel anywhere you want. In Edit Mode, use it to add structural rooms, shelf blocks, and pins, or combine multiple selected rooms into a single space.",
+            target: "#tour-sidebar",
+        },
+        {
+            title: "Editing & Selection 🖱️",
+            description: "Click items to select them. Hold Shift + Click to select multiple items, or hold Shift + Drag on the grid canvas to draw a selection rectangle. Rotate and delete buttons appear directly on selected items.",
+            target: ".blueprint-grid",
+        },
+        {
+            title: "Grid Snapping & Saving 💾",
+            description: "All elements snap to the half-foot grid (12px) automatically. Click 'Save Changes' to publish your layout updates, or 'Cancel' to discard all edits since your last save.",
+            target: "#tour-save-container",
+        }
+    ];
+
+    const [targetRect, setTargetRect] = useState<{ top: number, left: number, width: number, height: number } | null>(null);
+
+    useEffect(() => {
+        if (tourStep === null) {
+            setTargetRect(null);
+            return;
+        }
+
+        // Force sidebar to expand so the user sees the entire toolbar
+        if (tourStep === 2) {
+            setIsSidebarMinimized(false);
+        }
+
+        const step = TOUR_STEPS[tourStep];
+        if (!step || !step.target) {
+            setTargetRect(null);
+            return;
+        }
+
+        const updatePosition = () => {
+            const el = document.querySelector(step.target!);
+            if (el) {
+                const rect = el.getBoundingClientRect();
+                setTargetRect({
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height
+                });
+            } else {
+                setTargetRect(null);
+            }
+        };
+
+        const timer = setTimeout(updatePosition, 150);
+
+        window.addEventListener('resize', updatePosition);
+        window.addEventListener('scroll', updatePosition, { capture: true, passive: true });
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('resize', updatePosition);
+            window.removeEventListener('scroll', updatePosition, { capture: true });
+        };
+    }, [tourStep, isEditMode]);
 
     const [activeHighlightId, setActiveHighlightId] = useState<string | null>(null);
     const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
@@ -578,13 +777,65 @@ export function InteractiveMap() {
         }
     };
 
-    // Updated addRoom to talk to the collection
+    // Calculates the grid-snapped center of the currently visible viewport, with collision-cascading offsets
+    const calculateSpawnPosition = (widthFt: number, heightFt: number) => {
+        const widthPx = Math.round((widthFt * PIXELS_PER_FOOT) / 12) * 12;
+        const heightPx = Math.round((heightFt * PIXELS_PER_FOOT) / 12) * 12;
+
+        let startX = Math.round((CANVAS_WIDTH / 2 - widthPx / 2) / 12) * 12;
+        let startY = Math.round((CANVAS_HEIGHT / 2 - heightPx / 2) / 12) * 12;
+
+        const wrapper = wrapperRef.current;
+        if (wrapper) {
+            const scrollLeft = wrapper.scrollLeft;
+            const scrollTop = wrapper.scrollTop;
+            const clientWidth = wrapper.clientWidth;
+            const clientHeight = wrapper.clientHeight;
+            
+            // Calculate viewport center on the canvas scale
+            const canvasX = (scrollLeft + clientWidth / 2) / scale;
+            const canvasY = (scrollTop + clientHeight / 2) / scale;
+            
+            startX = Math.round((canvasX - widthPx / 2) / 12) * 12;
+            startY = Math.round((canvasY - heightPx / 2) / 12) * 12;
+        }
+
+        // Clamp to canvas boundaries with padding
+        startX = Math.max(120, Math.min(startX, CANVAS_WIDTH - widthPx - 120));
+        startY = Math.max(120, Math.min(startY, CANVAS_HEIGHT - heightPx - 120));
+
+        // Cascade/Collision check against existing rooms on the current floor
+        let attempts = 0;
+        const threshold = 12;
+        let isOverlapping = true;
+        
+        while (isOverlapping && attempts < 15) {
+            isOverlapping = false;
+            const floorRooms = rooms.filter(r => (r.floor_id || 'default') === currentFloorId && r.map_coordinates);
+            for (const room of floorRooms) {
+                const coords = room.map_coordinates!;
+                const xOverlap = Math.max(0, Math.min(startX + widthPx, coords.x + coords.width) - Math.max(startX, coords.x));
+                const yOverlap = Math.max(0, Math.min(startY + heightPx, coords.y + coords.height) - Math.max(startY, coords.y));
+                
+                if (xOverlap > threshold && yOverlap > threshold) {
+                    isOverlapping = true;
+                    startX += 48; // shift 2 feet right on collision
+                    startY += 48; // shift 2 feet down on collision
+                    attempts++;
+                    break;
+                }
+            }
+        }
+
+        return { x: startX, y: startY, width: widthPx, height: heightPx };
+    };
+
+    // Updated addRoom to talk to the collection and spawn at viewport center
     const addRoom = async () => {
         const roomName = window.prompt("Enter Room Name: \n\n(Note: Creating a new structural room is committed immediately to the database)");
         if (!roomName) return;
 
-        const startX = Math.round((CANVAS_WIDTH / 2 - 150) / 12) * 12;
-        const startY = Math.round((CANVAS_HEIGHT / 2 - 150) / 12) * 12;
+        const { x, y, width, height } = calculateSpawnPosition(15, 15); // Default 15x15 ft room
 
         try {
             const newRoomData = {
@@ -593,21 +844,24 @@ export function InteractiveMap() {
                 created_at: new Date().toISOString(),
                 floor_id: currentFloorId,
                 map_coordinates: {
-                    x: startX,
-                    y: startY,
-                    width: 360, // 15ft
-                    height: 360
+                    x,
+                    y,
+                    width,
+                    height
                 }
             };
             const docRef = await addDoc(collection(db, 'rooms'), newRoomData);
             saveSnapshot();
             setRooms(prev => [...prev, { ...newRoomData, docId: docRef.id }]);
+            
+            // Automatically select the new room so the user can adjust it immediately
+            selectedIdsRef.current.clear();
+            selectedIdsRef.current.add(docRef.id);
+            setSelectionTick(t => t + 1);
         } catch (error) {
             console.error("Error creating room:", error);
         }
     };
-
-
 
     const removeFromMap = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -622,24 +876,21 @@ export function InteractiveMap() {
         const room = rooms.find(r => r.docId === roomDocId);
         if (!room) return;
 
-        const startX = Math.round((CANVAS_WIDTH / 2 - 100) / 12) * 12;
-        const startY = Math.round((CANVAS_HEIGHT / 2 - 100) / 12) * 12;
+        // Default dimensions are 8.33x8.33 ft (200x200 px) to match legacy sizes
+        const { x, y, width, height } = calculateSpawnPosition(200 / PIXELS_PER_FOOT, 200 / PIXELS_PER_FOOT);
 
         saveSnapshot();
         markDirty(roomDocId);
         setRooms(prev => prev.map(r => r.docId === roomDocId ? {
             ...r,
             floor_id: currentFloorId,
-            map_coordinates: { x: startX, y: startY, width: 200, height: 200 }
+            map_coordinates: { x, y, width, height }
         } : r));
 
-        // Smart Panning: Center the map on the new room
-        if (wrapperRef.current) {
-            const wrapper = wrapperRef.current;
-            const targetX = (startX * scale) - (wrapper.clientWidth / 2) + (100 * scale);
-            const targetY = (startY * scale) - (wrapper.clientHeight / 2) + (100 * scale);
-            wrapper.scrollTo({ left: targetX, top: targetY, behavior: 'smooth' });
-        }
+        // Automatically select the placed room
+        selectedIdsRef.current.clear();
+        selectedIdsRef.current.add(roomDocId);
+        setSelectionTick(t => t + 1);
     };
 
     const placeAllUnplacedRooms = () => {
@@ -1012,7 +1263,7 @@ export function InteractiveMap() {
         setSelectionBox(null);
     };
 
-    const handleGroupDragStart = (draggedId: string, _draggedIndex?: number, e?: any) => {
+    const handleGroupDragStart = (draggedId: string, draggedIndex?: number, e?: any) => {
         if (!isEditMode) return;
 
         // Safety: If dragging an unselected item without shift, force it to be the sole selection
@@ -1021,92 +1272,142 @@ export function InteractiveMap() {
             selectedIdsRef.current.clear();
             selectedIdsRef.current.add(draggedId);
             setSelectionDOM(draggedId, true);
-            // We consciously avoid setSelectionTick(t + 1) here to avoid resetting Rnd's internal drag state
         }
 
         setDraggingId(draggedId);
-        dragStartPosRef.current = {};
+        draggedIndexRef.current = draggedIndex !== undefined ? draggedIndex : 0;
         
-        // Track start position for EVERY selected item (and internal room geometries)
+        dragStartPosRef.current = {};
+        dragCachedNodesRef.current = {};
+        labelCachedNodesRef.current = {};
+        wallCachedNodesRef.current = {};
+        controlsCachedNodesRef.current = {};
+
         selectedIdsRef.current.forEach(id => {
-            // Priority 1: Check if it's a structural room
             const room = rooms.find(r => r.docId === id || r.id === id);
             if (room) {
-                if (room.geometries && room.geometries.length > 0) {
-                    room.geometries.forEach((g, gi) => {
-                        dragStartPosRef.current[`${id}-geom-${gi}`] = { x: g.x, y: g.y };
-                    });
-                    dragStartPosRef.current[id] = { x: room.geometries[0].x, y: room.geometries[0].y };
-                } else if (room.map_coordinates) {
-                    dragStartPosRef.current[`${id}-geom-0`] = { x: room.map_coordinates.x, y: room.map_coordinates.y };
-                    dragStartPosRef.current[id] = { x: room.map_coordinates.x, y: room.map_coordinates.y };
+                const geometries = room.geometries || (room.map_coordinates ? [room.map_coordinates] : []);
+                geometries.forEach((g, gi) => {
+                    const nodeKey = `${id}-geom-${gi}`;
+                    dragStartPosRef.current[nodeKey] = { x: g.x, y: g.y };
+                    
+                    const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
+                    const el = document.getElementById(elementId);
+                    dragCachedNodesRef.current[nodeKey] = {
+                        element: el,
+                        startX: g.x,
+                        startY: g.y,
+                        isPin: false,
+                        isPolygon: g.shape === 'polygon'
+                    };
+                });
+                if (geometries.length > 0) {
+                    dragStartPosRef.current[id] = { x: geometries[0].x, y: geometries[0].y };
                 }
+                
+                // Cache label node
+                const labelEl = document.getElementById(`room-label-${id}`);
+                if (labelEl) {
+                    labelCachedNodesRef.current[id] = { element: labelEl };
+                }
+                
+                // Cache wall nodes
+                if (room.geometries) {
+                    wallCachedNodesRef.current[id] = room.geometries.map((_, gi) => ({
+                        element: document.getElementById(`ghost-wall-${id}-${gi}`)
+                    }));
+                }
+                
+                // Cache controls nodes
+                controlsCachedNodesRef.current[id] = geometries.map((_, gi) => ({
+                    element: document.getElementById(`poly-controls-${id}-geom-${gi}`)
+                }));
                 return;
             }
 
-            // Priority 2: Check if it's a location pin/block
             const lCoords = localCoords[id];
             if (lCoords) {
                 dragStartPosRef.current[id] = { x: lCoords.x, y: lCoords.y };
-                dragStartPosRef.current[`${id}-geom-0`] = { x: lCoords.x, y: lCoords.y };
+                
+                const nodeKey = `${id}-geom-0`;
+                dragStartPosRef.current[nodeKey] = { x: lCoords.x, y: lCoords.y };
+                
+                const el = document.getElementById(`rnd-node-${id}`);
+                dragCachedNodesRef.current[nodeKey] = {
+                    element: el,
+                    startX: lCoords.x,
+                    startY: lCoords.y,
+                    isPin: lCoords.display_type === 'pin',
+                    isPolygon: lCoords.shape === 'polygon'
+                };
             }
         });
     };
 
     const handleGroupDrag = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
-        const start = draggedIndex !== undefined 
-            ? dragStartPosRef.current[`${draggedId}-geom-${draggedIndex}`] 
-            : dragStartPosRef.current[draggedId];
+        const activeIndex = draggedIndex !== undefined ? draggedIndex : 0;
+        const activeKey = `${draggedId}-geom-${activeIndex}`;
+        const start = dragStartPosRef.current[activeKey];
         
         // Safety: Prevent jumping to (0,0) or NaN
         if (!start || isNaN(d.x) || isNaN(d.y)) return;
         
-        const offsetX = d.x - start.x;
-        const offsetY = d.y - start.y;
+        const snappedActiveX = absoluteSnap(d.x);
+        const snappedActiveY = absoluteSnap(d.y);
+        const snappedStartX = absoluteSnap(start.x);
+        const snappedStartY = absoluteSnap(start.y);
+        
+        const offsetX = snappedActiveX - snappedStartX;
+        const offsetY = snappedActiveY - snappedStartY;
 
         selectedIdsRef.current.forEach(id => {
-
-            // Handle Node following (Rooms and Pins) using inner data attribute selection and closest('.react-draggable') wrapper
-            const innerEl = document.querySelector(`[data-selection-id="${id}"]`);
-            const node = innerEl?.closest('.react-draggable') as HTMLElement | null;
-            const nodeStart = dragStartPosRef.current[id];
+            const room = rooms.find(r => r.id === id || r.docId === id);
+            const geometriesCount = room?.geometries?.length || 1;
             
-            if (node && nodeStart) {
-                const lCoords = localCoords[id];
-                const isPin = lCoords?.display_type === 'pin';
-                const visualX = nodeStart.x + offsetX - (isPin ? 30 : 0);
-                const visualY = nodeStart.y + offsetY - (isPin ? 50 : 0);
-                node.style.transform = `translate(${visualX}px, ${visualY}px)`;
+            for (let gi = 0; gi < geometriesCount; gi++) {
+                const nodeKey = `${id}-geom-${gi}`;
+                
+                const room = rooms.find(r => r.id === id || r.docId === id);
+                const geom = room?.geometries?.[gi] || room?.map_coordinates;
+                const isPoly = geom?.shape === 'polygon';
+
+                // Bypass manual transform for the element actively being dragged (unless it's a polygon, since it's not managed by react-rnd)
+                if (id === draggedId && gi === activeIndex && !isPoly) continue;
+                
+                const cached = dragCachedNodesRef.current[nodeKey];
+                if (cached && cached.element) {
+                    if (cached.isPolygon) {
+                        cached.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                    } else {
+                        const targetX = absoluteSnap(cached.startX) + offsetX - (cached.isPin ? 30 : 0);
+                        const targetY = absoluteSnap(cached.startY) + offsetY - (cached.isPin ? 50 : 0);
+                        cached.element.style.transform = `translate(${targetX}px, ${targetY}px)`;
+                    }
+                }
             }
 
-            // Handle Merged Room Sub-Geometries (Internal Boxes)
-            const room = rooms.find(r => r.id === id || r.docId === id);
-            if (room && room.geometries && room.geometries.length > 1) {
-                room.geometries.forEach((_, gi) => {
-                    if (gi === 0) return; // Handled by main node logic above
+            // Translate labels in real time
+            const labelCached = labelCachedNodesRef.current[id];
+            if (labelCached && labelCached.element) {
+                labelCached.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            }
 
-                    const innerGeom = document.querySelector(`[data-geom-id="${id}-geom-${gi}"]`);
-                    const geomNode = innerGeom?.closest('.react-draggable') as HTMLElement | null;
-                    const gStart = dragStartPosRef.current[`${id}-geom-${gi}`];
-                    if (geomNode && gStart) {
-                        // Interior room boxes never use pin offsets
-                        geomNode.style.transform = `translate(${gStart.x + offsetX}px, ${gStart.y + offsetY}px)`;
+            // Translate ghost walls
+            const walls = wallCachedNodesRef.current[id];
+            if (walls) {
+                walls.forEach(wall => {
+                    if (wall.element) {
+                        wall.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
                     }
                 });
             }
 
-            // Handle Room Label following
-            const labelNode = document.getElementById(`room-label-${id}`);
-            if (labelNode && nodeStart) {
-                labelNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-            }
-
-            // Handle Ghost Walls
-            if (room && room.geometries) {
-                room.geometries.forEach((_, gi) => {
-                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
-                    if (wallNode) {
-                        wallNode.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            // Translate polygon controls in real time
+            const controls = controlsCachedNodesRef.current[id];
+            if (controls) {
+                controls.forEach(ctrl => {
+                    if (ctrl.element) {
+                        ctrl.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
                     }
                 });
             }
@@ -1115,22 +1416,27 @@ export function InteractiveMap() {
 
     const handleGroupDragStopStateSync = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
         setDraggingId(null);
+        draggedIndexRef.current = null;
 
-        const start = draggedIndex !== undefined 
-            ? dragStartPosRef.current[`${draggedId}-geom-${draggedIndex}`] 
-            : dragStartPosRef.current[draggedId];
+        const activeIndex = draggedIndex !== undefined ? draggedIndex : 0;
+        const activeKey = `${draggedId}-geom-${activeIndex}`;
+        const start = dragStartPosRef.current[activeKey];
         
         if (!start) return;
         
-        const offsetX = d.x - start.x;
-        const offsetY = d.y - start.y;
+        const snappedActiveX = absoluteSnap(d.x);
+        const snappedActiveY = absoluteSnap(d.y);
+        const snappedStartX = absoluteSnap(start.x);
+        const snappedStartY = absoluteSnap(start.y);
+        
+        const offsetX = snappedActiveX - snappedStartX;
+        const offsetY = snappedActiveY - snappedStartY;
 
-        // Capture snapshot of starting positions BEFORE state updates to avoid race conditions
         const snapshotPositions = { ...dragStartPosRef.current };
 
         saveSnapshot();
 
-        // Update Rooms (including all internal geometries for merged rooms)
+        // Update Rooms (including all internal geometries for merged rooms, updating both box bounds and polygon points/curves)
         setRooms(prev => prev.map(r => {
             const id = r.docId || r.id;
             if (selectedIdsRef.current.has(id)) {
@@ -1143,8 +1449,16 @@ export function InteractiveMap() {
                             const gStart = snapshotPositions[`${id}-geom-${gi}`] || gc;
                             return {
                                 ...gc,
-                                x: absoluteSnap(gStart.x + offsetX),
-                                y: absoluteSnap(gStart.y + offsetY)
+                                x: absoluteSnap(gStart.x) + offsetX,
+                                y: absoluteSnap(gStart.y) + offsetY,
+                                ...(gc.shape === 'polygon' && gc.points ? {
+                                    points: gc.points.map((pt: any) => ({
+                                        ...pt,
+                                        x: pt.x + offsetX,
+                                        y: pt.y + offsetY,
+                                        ...(pt.curve ? { curve: { cx: pt.curve.cx + offsetX, cy: pt.curve.cy + offsetY } } : {})
+                                    }))
+                                } : {})
                             };
                         })
                     };
@@ -1156,8 +1470,16 @@ export function InteractiveMap() {
                         ...r,
                         map_coordinates: {
                             ...r.map_coordinates,
-                            x: absoluteSnap(sStart.x + offsetX),
-                            y: absoluteSnap(sStart.y + offsetY)
+                            x: absoluteSnap(sStart.x) + offsetX,
+                            y: absoluteSnap(sStart.y) + offsetY,
+                            ...(r.map_coordinates.shape === 'polygon' && r.map_coordinates.points ? {
+                                points: r.map_coordinates.points.map((pt: any) => ({
+                                    ...pt,
+                                    x: pt.x + offsetX,
+                                    y: pt.y + offsetY,
+                                    ...(pt.curve ? { curve: { cx: pt.curve.cx + offsetX, cy: pt.curve.cy + offsetY } } : {})
+                                }))
+                            } : {})
                         }
                     };
                 }
@@ -1173,8 +1495,8 @@ export function InteractiveMap() {
             Object.keys(next).forEach(id => {
                 const sStart = snapshotPositions[id];
                 if (selectedIdsRef.current.has(id) && sStart) {
-                    const finalX = absoluteSnap(sStart.x + offsetX);
-                    const finalY = absoluteSnap(sStart.y + offsetY);
+                    const finalX = absoluteSnap(sStart.x) + offsetX;
+                    const finalY = absoluteSnap(sStart.y) + offsetY;
                     
                     if (!isNaN(finalX) && !isNaN(finalY)) {
                         markDirty(id);
@@ -1190,32 +1512,85 @@ export function InteractiveMap() {
             return hasChanges ? next : prev;
         });
         
-        // Clear manual transforms applied during drag
+        // Clear manual transforms applied during drag for labels, ghost walls, polygon SVG canvases, and controls
         selectedIdsRef.current.forEach(id => {
             const labelNode = document.getElementById(`room-label-${id}`);
             if (labelNode) {
                 labelNode.style.transform = '';
             }
+            
+            const room = rooms.find(r => r.id === id || r.docId === id);
+            if (room) {
+                const geometriesCount = room.geometries?.length || 1;
+                for (let gi = 0; gi < geometriesCount; gi++) {
+                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
+                    if (wallNode) {
+                        wallNode.style.transform = '';
+                    }
+                    const ctrlNode = document.getElementById(`poly-controls-${id}-geom-${gi}`);
+                    if (ctrlNode) {
+                        ctrlNode.style.transform = '';
+                    }
+                    const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
+                    const el = document.getElementById(elementId);
+                    if (el) {
+                        el.style.transform = '';
+                    }
+                }
+            }
         });
         
-        setDraggingId(null);
+        dragCachedNodesRef.current = {};
+        labelCachedNodesRef.current = {};
+        wallCachedNodesRef.current = {};
+        controlsCachedNodesRef.current = {};
         setSelectionTick(t => t + 1); // Finally sync selection UI
     };
 
-    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale', value: string | number) => {
+    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale' | 'skewX' | 'shape' | 'points', value: any) => {
         saveSnapshot();
         markDirty(id);
         
-        const val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
-        if (isNaN(val)) return;
+        let val = 0;
+        if (property !== 'shape' && property !== 'points') {
+            val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+            if (isNaN(val)) return;
+        }
 
         // Units conversion: feet to pixels for spatial properties
-        // NEW: 'scale' is a raw multiplier, rotation is raw degrees
-        const pixels = (property === 'rotation' || property === 'scale') ? val : absoluteSnap(val * PIXELS_PER_FOOT);
+        // NEW: 'scale' is a raw multiplier, rotation/skewX/shape/points are raw values
+        const pixels = (property === 'rotation' || property === 'scale' || property === 'skewX' || property === 'shape' || property === 'points') ? value : absoluteSnap(val * PIXELS_PER_FOOT);
 
         setLocalCoords(prev => {
             const c = prev[id];
             if (!c) return prev;
+
+            let updatedFields: any = { [property]: pixels };
+            
+            // Enforce circle properties
+            if (property === 'shape' && pixels === 'circle') {
+                const diameter = Math.max(c.width, c.height);
+                updatedFields.width = diameter;
+                updatedFields.height = diameter;
+            }
+
+            // Recalculate bounding box for polygon points
+            if (property === 'points') {
+                const pts = pixels;
+                if (pts && pts.length > 0) {
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    pts.forEach(pt => {
+                        minX = Math.min(minX, pt.x);
+                        minY = Math.min(minY, pt.y);
+                        maxX = Math.max(maxX, pt.x);
+                        maxY = Math.max(maxY, pt.y);
+                    });
+                    updatedFields.x = minX;
+                    updatedFields.y = minY;
+                    updatedFields.width = maxX - minX;
+                    updatedFields.height = maxY - minY;
+                }
+            }
 
             // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
             if (property === 'rotation' && val % 180 !== (c.rotation || 0) % 180 && val % 90 === 0) {
@@ -1236,12 +1611,12 @@ export function InteractiveMap() {
 
             return {
                 ...prev,
-                [id]: { ...c, [property]: pixels }
+                [id]: { ...c, ...updatedFields }
             };
         });
     };
 
-    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation', value: string | number, index?: number) => {
+    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation' | 'skewX' | 'shape' | 'points', value: any, index?: number) => {
         // If it's a name update, don't snapshot every keystroke to avoid spam
         if (property !== 'name') saveSnapshot();
         
@@ -1251,15 +1626,75 @@ export function InteractiveMap() {
             if (rid === id) {
                 if (property === 'name') return { ...r, name: value as string };
                 
-                const val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
-                if (isNaN(val)) return r;
+                let val = 0;
+                if (property !== 'shape' && property !== 'points') {
+                    val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+                    if (isNaN(val)) return r;
+                }
 
                 // Units conversion: feet to pixels for spatial properties
-                const pixels = (property === 'rotation') ? val : absoluteSnap(val * PIXELS_PER_FOOT);
+                const pixels = (property === 'rotation' || property === 'skewX' || property === 'shape' || property === 'points') ? value : absoluteSnap(val * PIXELS_PER_FOOT);
+
+                const updateCoords = (c: any, i: number) => {
+                    if (index !== undefined && i !== index) return c;
+                    
+                    let updatedFields: any = { [property]: pixels };
+                    
+                    // Enforce circle properties
+                    if (property === 'shape' && pixels === 'circle') {
+                        const diameter = Math.max(c.width, c.height);
+                        updatedFields.width = diameter;
+                        updatedFields.height = diameter;
+                    }
+                    
+                    // Enforce polygon coordinates initialization
+                    if (property === 'shape' && pixels === 'polygon' && !c.points) {
+                        updatedFields.points = [
+                            { x: c.x, y: c.y },
+                            { x: c.x + c.width, y: c.y },
+                            { x: c.x + c.width, y: c.y + c.height },
+                            { x: c.x, y: c.y + c.height }
+                        ];
+                    }
+
+                    // Recalculate bounding box for polygon points (including curve control points)
+                    if (property === 'points') {
+                        const pts = pixels;
+                        if (pts && pts.length > 0) {
+                            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                            pts.forEach((pt: { x: number; y: number; curve?: { cx: number; cy: number } }) => {
+                                minX = Math.min(minX, pt.x);
+                                minY = Math.min(minY, pt.y);
+                                maxX = Math.max(maxX, pt.x);
+                                maxY = Math.max(maxY, pt.y);
+                                if (pt.curve) {
+                                    minX = Math.min(minX, pt.curve.cx);
+                                    minY = Math.min(minY, pt.curve.cy);
+                                    maxX = Math.max(maxX, pt.curve.cx);
+                                    maxY = Math.max(maxY, pt.curve.cy);
+                                }
+                            });
+                            updatedFields.x = minX;
+                            updatedFields.y = minY;
+                            updatedFields.width = maxX - minX;
+                            updatedFields.height = maxY - minY;
+                        }
+                    }
+                    
+                    // Clear points if shape is reset to rectangle or circle
+                    if (property === 'shape' && pixels !== 'polygon') {
+                        updatedFields.points = null;
+                    }
+
+                    return { ...c, ...updatedFields };
+                };
+
+                const currentGeom = r.geometries?.[index || 0] || r.map_coordinates;
+                const isPolygon = currentGeom?.shape === 'polygon';
 
                 // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
-                if (property === 'rotation' && val % 180 !== (r.geometries?.[index || 0]?.rotation || r.map_coordinates?.rotation || 0) % 180 && val % 90 === 0) {
-                    const updateCoords = (c: any, i: number) => {
+                if (!isPolygon && property === 'rotation' && val % 180 !== (currentGeom?.rotation || 0) % 180 && val % 90 === 0) {
+                    const swapCoords = (c: any, i: number) => {
                         if (index !== undefined && i !== index) return c;
                         const centerX = c.x + c.width / 2;
                         const centerY = c.y + c.height / 2;
@@ -1274,24 +1709,76 @@ export function InteractiveMap() {
                     };
                     return {
                         ...r,
-                        map_coordinates: r.map_coordinates ? updateCoords(r.map_coordinates, 0) : null,
-                        geometries: r.geometries ? r.geometries.map(updateCoords) : undefined
+                        map_coordinates: r.map_coordinates ? swapCoords(r.map_coordinates, 0) : null,
+                        geometries: r.geometries ? r.geometries.map(swapCoords) : undefined
                     };
                 }
 
                 if (r.geometries && r.geometries.length > 0) {
-                    const targetIndex = index ?? 0;
                     return {
                         ...r,
-                        geometries: r.geometries.map((g, i) => i === targetIndex ? { ...g, [property]: pixels } : g)
+                        geometries: r.geometries.map(updateCoords)
                     };
                 }
                 if (r.map_coordinates) {
                     return {
                         ...r,
-                        map_coordinates: { ...r.map_coordinates, [property]: pixels }
+                        map_coordinates: updateCoords(r.map_coordinates, 0)
                     };
                 }
+            }
+            return r;
+        }));
+    };
+
+    const handleAddSpatialBlock = (roomId: string) => {
+        saveSnapshot();
+        markDirty(roomId);
+        setRooms(prev => prev.map(r => {
+            const rid = r.docId || r.id;
+            if (rid === roomId) {
+                const baseGeom = r.map_coordinates || { x: 120, y: 120, width: 360, height: 360, rotation: 0 };
+                const currentGeoms = r.geometries && r.geometries.length > 0
+                    ? [...r.geometries]
+                    : [baseGeom];
+                
+                const lastGeom = currentGeoms[currentGeoms.length - 1];
+                const newBlock = {
+                    x: Math.min(CANVAS_WIDTH - 240, lastGeom.x + 48),
+                    y: Math.min(CANVAS_HEIGHT - 240, lastGeom.y + 48),
+                    width: 240, // default 10 ft
+                    height: 240,
+                    rotation: 0
+                };
+                
+                return {
+                    ...r,
+                    map_coordinates: null,
+                    geometries: [...currentGeoms, newBlock]
+                };
+            }
+            return r;
+        }));
+    };
+
+    const handleRemoveSpatialBlock = (roomId: string, index: number) => {
+        saveSnapshot();
+        markDirty(roomId);
+        setRooms(prev => prev.map(r => {
+            const rid = r.docId || r.id;
+            if (rid === roomId && r.geometries) {
+                const filtered = r.geometries.filter((_, i) => i !== index);
+                if (filtered.length === 1) {
+                    return {
+                        ...r,
+                        map_coordinates: filtered[0],
+                        geometries: undefined
+                    };
+                }
+                return {
+                    ...r,
+                    geometries: filtered
+                };
             }
             return r;
         }));
@@ -1345,6 +1832,49 @@ export function InteractiveMap() {
     const currentFloorObj = floors.find(f => f.id === currentFloorId);
     const floorBeneath = currentFloorObj ? floors.filter(f => f.level < currentFloorObj.level).sort((a,b) => b.level - a.level)[0] : null;
 
+    const getTooltipPosition = () => {
+        if (!targetRect) {
+            return {
+                position: 'fixed' as const,
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 310,
+                width: '340px'
+            };
+        }
+
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        const tooltipWidth = 340;
+        
+        let left = targetRect.left;
+        let top = targetRect.top + targetRect.height + 12;
+        
+        if (targetRect.left + targetRect.width > screenWidth / 2) {
+            if (targetRect.left > tooltipWidth + 24) {
+                left = targetRect.left - tooltipWidth - 12;
+                top = Math.max(20, targetRect.top + (targetRect.height / 2) - 100);
+            }
+        } else {
+            if (screenWidth - (targetRect.left + targetRect.width) > tooltipWidth + 24) {
+                left = targetRect.left + targetRect.width + 12;
+                top = Math.max(20, targetRect.top + (targetRect.height / 2) - 100);
+            }
+        }
+
+        left = Math.max(20, Math.min(left, screenWidth - tooltipWidth - 20));
+        top = Math.max(20, Math.min(top, screenHeight - 250));
+
+        return {
+            position: 'fixed' as const,
+            top: `${top}px`,
+            left: `${left}px`,
+            zIndex: 310,
+            width: `${tooltipWidth}px`
+        };
+    };
+
     return (
         <div className="relative flex flex-col h-full animate-in fade-in duration-500 overflow-hidden bg-cream" onClick={handleCanvasClick}>
             <div className="bg-white border-b border-tan-light/50 p-4 md:px-8 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 z-20 shrink-0">
@@ -1356,7 +1886,7 @@ export function InteractiveMap() {
                         <p className="text-[10px] text-charcoal/40 font-bold uppercase tracking-widest mt-0.5 ml-8">Interactive digital floor plan</p>
                     </div>
 
-                    <div className="flex items-center gap-2 border-l border-tan-light/50 pl-6">
+                    <div id="tour-floor-selector" className="flex items-center gap-2 border-l border-tan-light/50 pl-6">
                         <select 
                             className="bg-cream p-2 rounded-lg border border-tan/20 text-sm font-serif font-bold text-charcoal outline-none focus:ring-1 focus:ring-tan cursor-pointer hover:bg-tan/5 transition-colors"
                             value={currentFloorId}
@@ -1404,8 +1934,16 @@ export function InteractiveMap() {
                         <button onClick={handleFitToScreen} className="p-2 hover:bg-white rounded hover:text-tan ml-1"><Maximize size={16}/></button>
                     </div>
 
+                    <button 
+                        onClick={() => setShowHelpModal(true)} 
+                        className="p-2 bg-cream text-charcoal hover:text-tan rounded-lg border border-tan-light/30 hover:bg-white transition-colors"
+                        title="Help Center & Legend"
+                    >
+                        <HelpCircle size={18} />
+                    </button>
+                    
                     {isSAHSUser && (
-                        <div className="flex items-center gap-3 ml-4 border-l border-tan-light/50 pl-4">
+                        <div id="tour-save-container" className="flex items-center gap-3 ml-4 border-l border-tan-light/50 pl-4">
                             {isEditMode ? (
                                 <>
                                     <button onClick={handleSaveLayout} disabled={isSaving} className="bg-tan text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">{isSaving?"Saving...":"Save Changes"}</button>
@@ -1421,7 +1959,7 @@ export function InteractiveMap() {
                 </div>
             </div>
 
-            {isEditMode && (
+            {isEditMode && (tourStep === null || tourStep === 2) && (
                 <Rnd
                     size={isSidebarMinimized ? { width: 220, height: 48 } : { width: 320, height: 480 }}
                     position={sidebarPos}
@@ -1431,7 +1969,7 @@ export function InteractiveMap() {
                     bounds="parent"
                     className="z-[300]"
                 >
-                    <div className={`bg-white rounded-xl shadow-2xl border-2 border-tan overflow-hidden flex flex-col h-full ${isSidebarMinimized ? 'opacity-90' : ''}`}>
+                    <div id="tour-sidebar" className={`bg-white rounded-xl shadow-2xl border-2 border-tan overflow-hidden flex flex-col h-full ${isSidebarMinimized ? 'opacity-90' : ''}`}>
                         <div className="bg-tan/5 border-b border-tan-light/30 px-4 py-3 flex justify-between items-center cursor-move shrink-0">
                             <h3 className="font-serif font-bold text-charcoal flex items-center gap-2">
                                 <LayoutGrid size={16} className="text-tan"/> Layout Tools
@@ -1551,7 +2089,16 @@ export function InteractiveMap() {
                                                             </div>
 
                                                             <div className="space-y-3 pb-4">
-                                                                <label className="text-[10px] font-bold text-charcoal/40 uppercase block">Spatial Blocks</label>
+                                                                <div className="flex justify-between items-center">
+                                                                    <label className="text-[10px] font-bold text-charcoal/40 uppercase block">Spatial Blocks</label>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => handleAddSpatialBlock(id)}
+                                                                        className="px-2 py-1 bg-tan/10 hover:bg-tan/20 border border-dashed border-tan/30 rounded text-[9px] font-bold text-tan flex items-center gap-1 transition-colors"
+                                                                    >
+                                                                        <Plus size={10} /> Add Block
+                                                                    </button>
+                                                                </div>
                                                                 {geometries.map((geom, idx) => (
                                                                     <div 
                                                                         key={idx} 
@@ -1561,62 +2108,132 @@ export function InteractiveMap() {
                                                                     >
                                                                         <div className="flex justify-between items-center mb-2">
                                                                             <span className="text-[10px] font-black text-tan/60 uppercase">Section {idx + 1}</span>
-                                                                            {geometries.length > 1 && <span className="text-[9px] font-mono text-tan/40">{(geom.width * geom.height / (PIXELS_PER_FOOT**2)).toFixed(1)} sq.ft.</span>}
-                                                                        </div>
-                                                                        <div className="grid grid-cols-2 gap-3 mb-3">
-                                                                            <div>
-                                                                                <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Width (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.width / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'width', e.target.value, idx)}
-                                                                                    className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.height / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'height', e.target.value, idx)}
-                                                                                    className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
+                                                                            <div className="flex items-center gap-2">
+                                                                                {geometries.length > 1 && (
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => handleRemoveSpatialBlock(id, idx)}
+                                                                                        className="text-red-800/60 hover:text-red-800 transition-colors p-1"
+                                                                                        title="Remove block section"
+                                                                                    >
+                                                                                        <X size={10} />
+                                                                                    </button>
+                                                                                )}
+                                                                                <span className="text-[9px] font-mono text-tan/40">{(geom.width * geom.height / (PIXELS_PER_FOOT**2)).toFixed(1)} sq.ft.</span>
                                                                             </div>
                                                                         </div>
-                                                                        <div className="grid grid-cols-3 gap-2">
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X Pos (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.x / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'x', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y Pos (ft)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="0.5"
-                                                                                    value={geom.y / PIXELS_PER_FOOT} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'y', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
-                                                                            <div>
-                                                                                <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot (deg)</label>
-                                                                                <input 
-                                                                                    type="number" 
-                                                                                    step="90"
-                                                                                    value={geom.rotation || 0} 
-                                                                                    onChange={(e) => handleUpdateRoomProperty(id, 'rotation', e.target.value, idx)}
-                                                                                    className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                                />
-                                                                            </div>
+                                                                        <div className="flex gap-2 mb-3">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'rectangle', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(!geom.shape || geom.shape === 'rectangle') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ▭ Rect
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'circle', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(geom.shape === 'circle') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ◯ Circle
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleUpdateRoomProperty(id, 'shape', 'polygon', idx)}
+                                                                                className={`flex-1 py-1 rounded text-[10px] font-bold border transition-all ${(geom.shape === 'polygon') ? 'bg-tan text-white border-tan' : 'bg-white border-tan/20 text-charcoal/60 hover:bg-tan/5'}`}
+                                                                            >
+                                                                                ⬡ Polygon
+                                                                            </button>
                                                                         </div>
+
+                                                                        {geom.shape === 'polygon' ? (
+                                                                            <div className="space-y-2 mb-3">
+                                                                                <div className="flex justify-between items-center text-[10px] text-charcoal/50 font-bold bg-tan/5 p-2 rounded border border-tan/10">
+                                                                                    <span>Corners: {geom.points?.length || 0}</span>
+                                                                                </div>
+                                                                                <div className="text-[8px] font-mono font-bold text-tan-dark/80 bg-cream/30 p-2 rounded leading-relaxed border border-tan-light/10">
+                                                                                    💡 Click <span className="text-blue-500">(+)</span> to add a corner. Click <span className="text-orange-500">(⌒)</span> to curve an edge. Double-click a corner to delete it.
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                                                                    <div>
+                                                                                        <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">
+                                                                                            {geom.shape === 'circle' ? 'Diameter (ft)' : 'Width (ft)'}
+                                                                                        </label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.width / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => {
+                                                                                                handleUpdateRoomProperty(id, 'width', e.target.value, idx);
+                                                                                                if (geom.shape === 'circle') {
+                                                                                                    handleUpdateRoomProperty(id, 'height', e.target.value, idx);
+                                                                                                }
+                                                                                            }}
+                                                                                            className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    {geom.shape !== 'circle' && (
+                                                                                        <div>
+                                                                                            <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
+                                                                                            <input 
+                                                                                                type="number" 
+                                                                                                step="0.5"
+                                                                                                value={geom.height / PIXELS_PER_FOOT} 
+                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'height', e.target.value, idx)}
+                                                                                                className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="grid grid-cols-4 gap-1.5">
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.x / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'x', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="0.5"
+                                                                                            value={geom.y / PIXELS_PER_FOOT} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'y', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
+                                                                                        <input 
+                                                                                            type="number" 
+                                                                                            step="45"
+                                                                                            value={geom.rotation || 0} 
+                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'rotation', e.target.value, idx)}
+                                                                                            className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                        />
+                                                                                    </div>
+                                                                                    {geom.shape !== 'circle' && (
+                                                                                        <div>
+                                                                                            <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
+                                                                                            <input 
+                                                                                                type="number" 
+                                                                                                step="15"
+                                                                                                value={geom.skewX || 0} 
+                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'skewX', e.target.value, idx)}
+                                                                                                className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                                            />
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -1664,53 +2281,68 @@ export function InteractiveMap() {
                                                                     />
                                                                 </div>
                                                             </div>
-                                                            <div className="grid grid-cols-3 gap-2">
-                                                                <div>
-                                                                    <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X Pos (ft)</label>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        value={locCoords.x / PIXELS_PER_FOOT} 
-                                                                        onChange={(e) => handleUpdateLocationProperty(id, 'x', e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                (e.target as HTMLInputElement).blur();
-                                                                            }
-                                                                        }}
-                                                                        className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                    />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y Pos (ft)</label>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="0.5"
-                                                                        value={locCoords.y / PIXELS_PER_FOOT} 
-                                                                        onChange={(e) => handleUpdateLocationProperty(id, 'y', e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                (e.target as HTMLInputElement).blur();
-                                                                            }
-                                                                        }}
-                                                                        className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                    />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot (deg)</label>
-                                                                    <input 
-                                                                        type="number" 
-                                                                        step="90"
-                                                                        value={locCoords.rotation || 0} 
-                                                                        onChange={(e) => handleUpdateLocationProperty(id, 'rotation', e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                (e.target as HTMLInputElement).blur();
-                                                                            }
-                                                                        }}
-                                                                        className="w-full bg-tan/5 border border-tan/10 rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-charcoal outline-none focus:border-tan"
-                                                                    />
-                                                                </div>
-                                                            </div>
+                                                            <div className="grid grid-cols-4 gap-1.5">
+                                                                 <div>
+                                                                     <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
+                                                                     <input 
+                                                                         type="number" 
+                                                                         step="0.5"
+                                                                         value={locCoords.x / PIXELS_PER_FOOT} 
+                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'x', e.target.value)}
+                                                                         onKeyDown={(e) => {
+                                                                             if (e.key === 'Enter') {
+                                                                                 (e.target as HTMLInputElement).blur();
+                                                                             }
+                                                                         }}
+                                                                         className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                     />
+                                                                 </div>
+                                                                 <div>
+                                                                     <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
+                                                                     <input 
+                                                                         type="number" 
+                                                                         step="0.5"
+                                                                         value={locCoords.y / PIXELS_PER_FOOT} 
+                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'y', e.target.value)}
+                                                                         onKeyDown={(e) => {
+                                                                             if (e.key === 'Enter') {
+                                                                                 (e.target as HTMLInputElement).blur();
+                                                                             }
+                                                                         }}
+                                                                         className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                     />
+                                                                 </div>
+                                                                 <div>
+                                                                     <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
+                                                                     <input 
+                                                                         type="number" 
+                                                                         step="45"
+                                                                         value={locCoords.rotation || 0} 
+                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'rotation', e.target.value)}
+                                                                         onKeyDown={(e) => {
+                                                                             if (e.key === 'Enter') {
+                                                                                 (e.target as HTMLInputElement).blur();
+                                                                             }
+                                                                         }}
+                                                                         className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                     />
+                                                                 </div>
+                                                                 <div>
+                                                                     <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
+                                                                     <input 
+                                                                         type="number" 
+                                                                         step="15"
+                                                                         value={locCoords.skewX || 0} 
+                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'skewX', e.target.value)}
+                                                                         onKeyDown={(e) => {
+                                                                             if (e.key === 'Enter') {
+                                                                                 (e.target as HTMLInputElement).blur();
+                                                                             }
+                                                                         }}
+                                                                         className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
+                                                                     />
+                                                                 </div>
+                                                             </div>
 
                                                             {locCoords.display_type === 'pin' && (
                                                                 <div className="pt-2">
@@ -1796,7 +2428,7 @@ export function InteractiveMap() {
 
                 {!loading && (
                     <div className="relative flex-shrink-0 m-auto shadow-2xl bg-white border border-tan-light/30" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
-                                <div className="absolute top-0 left-0 blueprint-grid" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                <div className="absolute top-0 left-0 blueprint-grid select-none" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} onDragStart={(e) => e.preventDefault()} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left', userSelect: 'none', WebkitUserSelect: 'none' }}>
                                     {/* Render Marquee Selection Box */}
                                     {selectionBox && (
                                         <div 
@@ -1883,95 +2515,384 @@ export function InteractiveMap() {
                                 anchorY = totalArea > 0 ? weightedY / totalArea : geometries[0].y + geometries[0].height / 2;
 
                                 // Still need bounding box for large-text breakout
-                                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                                geometries.forEach(g => {
-                                    minX = Math.min(minX, g.x);
-                                    minY = Math.min(minY, g.y);
-                                    maxX = Math.max(maxX, g.x + g.width);
-                                    maxY = Math.max(maxY, g.y + g.height);
-                                });
+                                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                                 geometries.forEach(g => {
+                                     minX = Math.min(minX, g.x);
+                                     minY = Math.min(minY, g.y);
+                                     maxX = Math.max(maxX, g.x + g.width);
+                                     maxY = Math.max(maxY, g.y + g.height);
+                                 });
                                 const isSelected = selectedIdsRef.current.has(room.docId!);
 
-                                const renderBox = (c: any, index: number) => (
-                                    <Rnd
-                                        key={`${room.docId}-box-${index}`}
-                                        id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
-                                        className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
-                                        onMouseDownCapture={(e: any) => {
-                                            if (isEditMode && e.shiftKey) handleItemSelection(room.docId!, e);
-                                        }}
-                                        onClickCapture={(e: any) => {
-                                            if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
-                                        }}
-                                        style={{ 
-                                            backgroundColor: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index) 
-                                                ? 'rgba(59, 130, 246, 0.4)' 
-                                                : isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)',
-                                            zIndex: isSelected ? 40 : 5,
-                                            boxShadow: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index) 
-                                                ? '0 0 15px rgba(59, 130, 246, 0.5)' 
-                                                : 'none',
-                                            border: isSelected ? '2px solid #3b82f6' : '1px solid #d2b48c',
-                                            ...getSmartBorders(c, geometries, isSelected)
-                                        }}
-                                        scale={scale}
-                                        disableDragging={!isEditMode}
-                                        enableResizing={isEditMode}
-                                        position={draggingId === room.docId ? undefined : { x: c.x, y: c.y }}
-                                        size={{ width: c.width, height: c.height }}
-                                        onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
-                                        onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
-                                        onDragStop={(_e: any, d: any) => handleGroupDragStopStateSync(room.docId!, index, d)}
-                                        onResizeStart={() => {
-                                            setResizingRoomId(`${room.docId}-${index}`);
-                                            setActiveDimensions({ width: c.width, height: c.height });
-                                        }}
-                                        onResize={(_e: any, _dir: any, ref: any) => {
-                                            setActiveDimensions({ 
-                                                width: parseInt(ref.style.width, 10), 
-                                                height: parseInt(ref.style.height, 10) 
-                                            });
-                                        }}
-                                        onResizeStop={(_e: any, _dir: any, ref: any, _delta: any, pos: any) => {
-                                            saveSnapshot();
-                                            markDirty(room.docId!);
-                                            setResizingRoomId(null);
-                                            setActiveDimensions(null);
-                                            setRooms(prev => prev.map(r => r.docId === room.docId ? {
-                                                ...r,
-                                                geometries: (r.geometries || (r.map_coordinates ? [r.map_coordinates] : [])).map((gc, gi) => gi === index ? { ...gc, x: pos.x, y: pos.y, width: parseInt(ref.style.width, 10), height: parseInt(ref.style.height, 10) } : gc)
-                                            } : r));
-                                        }}
-                                    >
-                                        <div 
-                                            data-selection-id={room.docId}
-                                            data-geom-id={`${room.docId}-geom-${index}`}
-                                            data-selected={isSelected ? "true" : "false"}
-                                            className="w-full h-full relative"
+                                const renderBox = (c: any, index: number) => {
+                                    const isCircle = c.shape === 'circle';
+                                    const isPolygon = c.shape === 'polygon';
+                                    const hasTransform = (c.rotation && c.rotation % 360 !== 0) || (c.skewX && c.skewX % 360 !== 0);
+
+                                    if (isPolygon) {
+                                        const points = c.points || [
+                                            { x: c.x, y: c.y },
+                                            { x: c.x + c.width, y: c.y },
+                                            { x: c.x + c.width, y: c.y + c.height },
+                                            { x: c.x, y: c.y + c.height }
+                                        ];
+                                        return (
+                                            <Fragment key={`${room.docId}-poly-${index}-${isEditMode}`}>
+                                                {/* SVG Canvas overlay for the polygon room */}
+                                                <svg 
+                                                    id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
+                                                    className="absolute inset-0 pointer-events-none w-full h-full react-draggable"
+                                                    style={{ zIndex: isSelected ? 40 : 5 }}
+                                                >
+                                                    <path
+                                                        d={(() => {
+                                                            let d = `M ${points[0].x},${points[0].y}`;
+                                                            for (let i = 0; i < points.length; i++) {
+                                                                const next = points[(i + 1) % points.length];
+                                                                if (points[i].curve) {
+                                                                    d += ` Q ${points[i].curve!.cx},${points[i].curve!.cy} ${next.x},${next.y}`;
+                                                                } else {
+                                                                    d += ` L ${next.x},${next.y}`;
+                                                                }
+                                                            }
+                                                            d += ' Z';
+                                                            return d;
+                                                        })()}
+                                                        className={`pointer-events-auto ${isEditMode ? 'cursor-move' : ''}`}
+                                                        style={{
+                                                            fill: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index)
+                                                                ? 'rgba(59, 130, 246, 0.4)'
+                                                                : isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)',
+                                                            stroke: isSelected ? '#3b82f6' : '#d2b48c',
+                                                            strokeWidth: isSelected ? 2 : 1,
+                                                            transition: 'fill 0.15s ease-in-out'
+                                                        }}
+                                                        onMouseEnter={() => setHoveredBlock({ roomId: room.docId!, index })}
+                                                        onMouseLeave={() => setHoveredBlock(null)}
+                                                        onMouseDown={(e) => {
+                                                            if (isEditMode && e.shiftKey) {
+                                                                handleItemSelection(room.docId!, e);
+                                                            } else if (isEditMode && !e.shiftKey) {
+                                                                handleItemSelection(room.docId!, e);
+                                                                e.stopPropagation();
+                                                                
+                                                                handleGroupDragStart(room.docId!, index, e);
+                                                                
+                                                                setDraggingPolygon({
+                                                                    roomId: room.docId!,
+                                                                    geomIndex: index,
+                                                                    startX: c.x,
+                                                                    startY: c.y,
+                                                                    mouseStartX: e.clientX,
+                                                                    mouseStartY: e.clientY
+                                                                });
+                                                            }
+                                                        }}
+                                                        onClickCapture={(e) => {
+                                                            if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
+                                                        }}
+                                                    />
+                                                    {isEditMode && isSelected && (
+                                                         <>
+                                                             {/* Curve control point handles and guide lines */}
+                                                             {points.map((pt, pIdx) => {
+                                                                 if (!pt.curve) return null;
+                                                                 const nextPt = points[(pIdx + 1) % points.length];
+                                                                 return (
+                                                                     <g key={`curve-ctrl-${pIdx}`}>
+                                                                         {/* Dashed guide lines from control point to both vertices */}
+                                                                         <line
+                                                                             x1={pt.x} y1={pt.y}
+                                                                             x2={pt.curve.cx} y2={pt.curve.cy}
+                                                                             stroke="#f97316" strokeWidth={1} strokeDasharray="4 3"
+                                                                             className="pointer-events-none" opacity={0.6}
+                                                                         />
+                                                                         <line
+                                                                             x1={nextPt.x} y1={nextPt.y}
+                                                                             x2={pt.curve.cx} y2={pt.curve.cy}
+                                                                             stroke="#f97316" strokeWidth={1} strokeDasharray="4 3"
+                                                                             className="pointer-events-none" opacity={0.6}
+                                                                         />
+                                                                         {/* Draggable orange control point diamond */}
+                                                                         <rect
+                                                                             x={pt.curve.cx - 7}
+                                                                             y={pt.curve.cy - 7}
+                                                                             width={14}
+                                                                             height={14}
+                                                                             rx={2}
+                                                                             fill="#f97316"
+                                                                             stroke="white"
+                                                                             strokeWidth={2}
+                                                                             className="pointer-events-auto cursor-grab"
+                                                                             style={{ transform: `rotate(45deg)`, transformOrigin: `${pt.curve.cx}px ${pt.curve.cy}px` }}
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 setDraggingCurveControl({
+                                                                                     roomId: room.docId!,
+                                                                                     geomIndex: index,
+                                                                                     pointIndex: pIdx,
+                                                                                     startPoints: [...points.map(p => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                                     startX: e.clientX,
+                                                                                     startY: e.clientY
+                                                                                 });
+                                                                             }}
+                                                                         />
+                                                                     </g>
+                                                                 );
+                                                             })}
+
+                                                             {/* Midpoint '+' handles and '⌒' curve toggle buttons */}
+                                                             {points.map((pt, pIdx) => {
+                                                                 const nextPt = points[(pIdx + 1) % points.length];
+                                                                 const midX = (pt.x + nextPt.x) / 2;
+                                                                 const midY = (pt.y + nextPt.y) / 2;
+                                                                 // Compute perpendicular offset direction for curve toggle placement
+                                                                 const edgeDx = nextPt.x - pt.x;
+                                                                 const edgeDy = nextPt.y - pt.y;
+                                                                 const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+                                                                 // Perpendicular unit vector (pointing "outward")
+                                                                 const perpX = -edgeDy / edgeLen;
+                                                                 const perpY = edgeDx / edgeLen;
+                                                                 const toggleOffset = 18; // px offset from edge
+                                                                 const toggleX = midX + perpX * toggleOffset;
+                                                                 const toggleY = midY + perpY * toggleOffset;
+                                                                 const isCurved = !!pt.curve;
+                                                                 return (
+                                                                     <g key={`mid-${pIdx}`}>
+                                                                         {/* Add corner '+' handle on the edge */}
+                                                                         <circle
+                                                                             cx={midX}
+                                                                             cy={midY}
+                                                                             r={10}
+                                                                             fill="#3b82f6"
+                                                                             stroke="white"
+                                                                             strokeWidth={1}
+                                                                             opacity={0.5}
+                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 const newPt = { x: Math.round(midX), y: Math.round(midY) };
+                                                                                 const updatedPoints = [
+                                                                                     ...points.slice(0, pIdx + 1),
+                                                                                     newPt,
+                                                                                     ...points.slice(pIdx + 1)
+                                                                                 ];
+                                                                                 handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                             }}
+                                                                         />
+                                                                         <line x1={midX - 3} y1={midY} x2={midX + 3} y2={midY} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+                                                                         <line x1={midX} y1={midY - 3} x2={midX} y2={midY + 3} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+
+                                                                         {/* Curve toggle button offset perpendicular to edge */}
+                                                                         <circle
+                                                                             cx={toggleX}
+                                                                             cy={toggleY}
+                                                                             r={9}
+                                                                             fill={isCurved ? '#22c55e' : '#f97316'}
+                                                                             stroke="white"
+                                                                             strokeWidth={1.5}
+                                                                             opacity={0.7}
+                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 if (isCurved) {
+                                                                                     // Remove curve — set edge back to straight
+                                                                                     const updatedPoints = points.map((p, idx) =>
+                                                                                         idx === pIdx ? { x: p.x, y: p.y } : p
+                                                                                     );
+                                                                                     handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                                 } else {
+                                                                                     // Add curve — place control point 40px perpendicular from midpoint
+                                                                                     const curveOffset = 40;
+                                                                                     const cx = Math.round(midX + perpX * curveOffset);
+                                                                                     const cy = Math.round(midY + perpY * curveOffset);
+                                                                                     const updatedPoints = points.map((p, idx) =>
+                                                                                         idx === pIdx ? { ...p, curve: { cx, cy } } : p
+                                                                                     );
+                                                                                     handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                                 }
+                                                                             }}
+                                                                         />
+                                                                         {/* Icon inside toggle: ⌒ arc for straight, — dash for curved */}
+                                                                         {isCurved ? (
+                                                                             <line
+                                                                                 x1={toggleX - 4} y1={toggleY}
+                                                                                 x2={toggleX + 4} y2={toggleY}
+                                                                                 stroke="white" strokeWidth={2} strokeLinecap="round"
+                                                                                 className="pointer-events-none"
+                                                                             />
+                                                                         ) : (
+                                                                             <path
+                                                                                 d={`M ${toggleX - 4},${toggleY + 2} Q ${toggleX},${toggleY - 4} ${toggleX + 4},${toggleY + 2}`}
+                                                                                 fill="none" stroke="white" strokeWidth={1.5} strokeLinecap="round"
+                                                                                 className="pointer-events-none"
+                                                                             />
+                                                                         )}
+                                                                     </g>
+                                                                 );
+                                                             })}
+
+                                                             {/* Vertex corner dots */}
+                                                             {points.map((pt, pIdx) => (
+                                                                 <circle
+                                                                     key={pIdx}
+                                                                     cx={pt.x}
+                                                                     cy={pt.y}
+                                                                     r={10}
+                                                                     fill="white"
+                                                                     stroke="#3b82f6"
+                                                                     strokeWidth={2.5}
+                                                                     className="pointer-events-auto cursor-pointer"
+                                                                     onMouseDown={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setDraggingVertex({
+                                                                             roomId: room.docId!,
+                                                                             geomIndex: index,
+                                                                             pointIndex: pIdx,
+                                                                             startPoints: [...points.map(p => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                             startX: e.clientX,
+                                                                             startY: e.clientY
+                                                                         });
+                                                                     }}
+                                                                     onDoubleClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         if (points.length <= 3) return;
+                                                                         const updatedPoints = points.filter((_, idx) => idx !== pIdx);
+                                                                         handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                     }}
+                                                                 />
+                                                             ))}
+                                                         </>
+                                                     )}
+                                                </svg>
+
+                                                {/* Local Controls Overlay positioned at the top-right corner of bounding box */}
+                                                {isEditMode && (isSelected || index === 0) && (
+                                                    <div 
+                                                        id={`poly-controls-${room.docId}-geom-${index}`}
+                                                        className="absolute pointer-events-auto z-[60] flex gap-1"
+                                                        style={{ left: c.x + c.width - 24, top: c.y - 12 }}
+                                                    >
+                                                        <button onClick={(e) => removeFromMap(room.docId!, e)} className="bg-red-500 text-white p-1.5 rounded-md hover:bg-red-600 shadow-md transition-all hover:scale-110 active:scale-90"><X size={14}/></button>
+                                                    </div>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    }
+
+                                    return (
+                                        <Rnd
+                                            key={`${room.docId}-box-${index}-${isEditMode}`}
+                                            id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
+                                            className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
+                                            onMouseDownCapture={(e: any) => {
+                                                if (isEditMode && e.shiftKey) handleItemSelection(room.docId!, e);
+                                            }}
+                                            onClickCapture={(e: any) => {
+                                                if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
+                                            }}
                                             style={{ 
-                                                transform: `rotate(${c.rotation || 0}deg)`,
-                                                transition: 'outline 0.1s ease-in-out',
-                                                border: isSelected ? '1px solid #3b82f6' : '1px solid rgba(139, 115, 85, 0.4)'
+                                                backgroundColor: hasTransform
+                                                    ? 'transparent'
+                                                    : (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index) 
+                                                        ? 'rgba(59, 130, 246, 0.4)' 
+                                                        : isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)',
+                                                zIndex: isSelected ? 40 : 5,
+                                                boxShadow: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index) 
+                                                    ? '0 0 15px rgba(59, 130, 246, 0.5)' 
+                                                    : 'none',
+                                                border: hasTransform
+                                                    ? (isSelected ? '1px dashed rgba(59, 130, 246, 0.4)' : 'none')
+                                                    : (isSelected ? '2px solid #3b82f6' : '1px solid #d2b48c'),
+                                                borderRadius: isCircle ? '50%' : '0',
+                                                ...(hasTransform ? {} : getSmartBorders(c, geometries, isSelected))
+                                            }}
+                                            scale={scale}
+                                            disableDragging={!isEditMode}
+                                            enableResizing={isEditMode}
+                                            lockAspectRatio={isCircle}
+                                            resizeHandleClasses={isSelected && isEditMode ? {
+                                                topLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
+                                                topRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
+                                                bottomLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
+                                                bottomRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
+                                                top: isCircle ? "hidden" : "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                                bottom: isCircle ? "hidden" : "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute bottom-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                                left: isCircle ? "hidden" : "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 left-0 z-[90] transition-colors cursor-ew-resize rounded-full",
+                                                right: isCircle ? "hidden" : "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 right-0 z-[90] transition-colors cursor-ew-resize rounded-full"
+                                            } : {}}
+                                            dragGrid={isSnapping && isEditMode ? [12, 12] : undefined}
+                                            resizeGrid={isSnapping && isEditMode ? [12, 12] : undefined}
+                                            position={{ x: c.x, y: c.y }}
+                                            size={{ width: c.width, height: c.height }}
+                                            onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
+                                            onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
+                                            onDragStop={(_e: any, d: any) => handleGroupDragStopStateSync(room.docId!, index, d)}
+                                            onResizeStart={() => {
+                                                setResizingRoomId(`${room.docId}-${index}`);
+                                                setActiveDimensions({ width: c.width, height: c.height });
+                                            }}
+                                            onResize={(_e: any, _dir: any, ref: any) => {
+                                                setActiveDimensions({ 
+                                                    width: parseInt(ref.style.width, 10), 
+                                                    height: parseInt(ref.style.height, 10) 
+                                                });
+                                            }}
+                                            onResizeStop={(_e: any, _dir: any, ref: any, _delta: any, pos: any) => {
+                                                saveSnapshot();
+                                                markDirty(room.docId!);
+                                                setResizingRoomId(null);
+                                                setActiveDimensions(null);
+                                                
+                                                const newW = parseInt(ref.style.width, 10);
+                                                const newH = isCircle ? newW : parseInt(ref.style.height, 10);
+                                                
+                                                setRooms(prev => prev.map(r => r.docId === room.docId ? {
+                                                    ...r,
+                                                    geometries: (r.geometries || (r.map_coordinates ? [r.map_coordinates] : [])).map((gc, gi) => gi === index ? { ...gc, x: pos.x, y: pos.y, width: newW, height: newH } : gc)
+                                                } : r));
                                             }}
                                         >
-                                            {/* Dimensional Feedback (Center on box being resized) */}
-                                            {resizingRoomId === `${room.docId}-${index}` && activeDimensions && (
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
-                                                    <div className="bg-charcoal text-white text-[10px] font-mono px-2 py-1 rounded shadow-lg border border-white/20 whitespace-nowrap">
-                                                        {(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}' x {(activeDimensions.height / PIXELS_PER_FOOT).toFixed(1)}'
+                                            <div 
+                                                data-selection-id={room.docId}
+                                                data-geom-id={`${room.docId}-geom-${index}`}
+                                                data-selected={isSelected ? "true" : "false"}
+                                                className="w-full h-full relative"
+                                                style={{ 
+                                                    transform: `rotate(${c.rotation || 0}deg) skewX(${c.skewX || 0}deg)`,
+                                                    transition: 'all 0.15s ease-in-out',
+                                                    border: hasTransform
+                                                        ? (isSelected ? '2px solid #3b82f6' : '2px solid rgba(139, 115, 85, 0.6)')
+                                                        : 'none',
+                                                    backgroundColor: hasTransform
+                                                        ? (isSelected ? 'rgba(59, 130, 246, 0.1)' : 'rgba(210, 180, 140, 0.25)')
+                                                        : 'transparent',
+                                                    borderRadius: isCircle ? '50%' : '0'
+                                                }}
+                                            >
+                                                {/* Dimensional Feedback (Center on box being resized) */}
+                                                {resizingRoomId === `${room.docId}-${index}` && activeDimensions && (
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+                                                        <div className="bg-charcoal text-white text-[10px] font-mono px-2 py-1 rounded shadow-lg border border-white/20 whitespace-nowrap">
+                                                            {isCircle ? (
+                                                                <>Dia: {(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}'</>
+                                                            ) : (
+                                                                <>{(activeDimensions.width / PIXELS_PER_FOOT).toFixed(1)}' x {(activeDimensions.height / PIXELS_PER_FOOT).toFixed(1)}'</>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                            {/* Local Controls (Only on first box or selected) */}
-                                            {isEditMode && (isSelected || index === 0) && (
-                                                <div className="absolute top-1 right-1 flex gap-1 pointer-events-auto z-[60]">
-                                                    <button onClick={(e) => rotateItem(room.docId!, 'room', c.rotation || 0, e)} className="bg-white/90 p-1.5 rounded-md hover:bg-white shadow-md border border-tan/20 text-tan transition-all hover:scale-110 active:scale-90"><RotateCw size={14}/></button>
-                                                    <button onClick={(e) => removeFromMap(room.docId!, e)} className="bg-red-500 text-white p-1.5 rounded-md hover:bg-red-600 shadow-md transition-all hover:scale-110 active:scale-90"><X size={14}/></button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </Rnd>
-                                );
+                                                )}
+                                                {/* Local Controls (Only on first box or selected) */}
+                                                {isEditMode && (isSelected || index === 0) && (
+                                                    <div className="absolute top-1 right-1 flex gap-1 pointer-events-auto z-[60]">
+                                                        <button onClick={(e) => rotateItem(room.docId!, 'room', c.rotation || 0, e)} className="bg-white/90 p-1.5 rounded-md hover:bg-white shadow-md border border-tan/20 text-tan transition-all hover:scale-110 active:scale-90"><RotateCw size={14}/></button>
+                                                        <button onClick={(e) => removeFromMap(room.docId!, e)} className="bg-red-500 text-white p-1.5 rounded-md hover:bg-red-600 shadow-md transition-all hover:scale-110 active:scale-90"><X size={14}/></button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Rnd>
+                                    );
+                                };
 
                                 return (
                                     <Fragment key={room.docId}>
@@ -2007,7 +2928,7 @@ export function InteractiveMap() {
                                         {/* Master Room Label (Centered over Anchor) */}
                                         <div 
                                             id={`room-label-${room.docId}`}
-                                            className="absolute pointer-events-none flex items-center justify-center text-center z-[70]"
+                                            className={`absolute flex items-center justify-center text-center z-[70] ${isEditMode ? 'pointer-events-none' : 'pointer-events-auto'}`}
                                             style={{ 
                                                 left: anchorX - 60, 
                                                 top: anchorY - 40, 
@@ -2015,17 +2936,32 @@ export function InteractiveMap() {
                                                 height: 80 
                                             }}
                                         >
-                                            <span 
-                                                className={`relative w-full px-2 text-center break-words font-serif font-bold text-charcoal flex flex-col items-center pointer-events-none transform transition-opacity ${isSelected ? 'opacity-100' : 'opacity-85'}`}
-                                                style={{ 
-                                                    textShadow: '0 0 10px white, 0 0 10px white, 0 0 5px white',
-                                                    fontSize: 'min(20px, max(14px, 3vw))',
-                                                    lineHeight: '1.1'
-                                                }}
-                                            >
-                                                {room.name}
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 h-[3px] w-12 bg-tan/60 shrink-0"></div>
-                                            </span>
+                                            {!isEditMode ? (
+                                                <Link 
+                                                    to={`/manage-locations/rooms/${room.docId || room.id}`}
+                                                    className={`relative w-full px-2 text-center break-words font-serif font-bold text-charcoal flex flex-col items-center transform transition-all ${isSelected ? 'opacity-100' : 'opacity-85'} hover:text-tan hover:scale-105`}
+                                                    style={{ 
+                                                        textShadow: '0 0 10px white, 0 0 10px white, 0 0 5px white',
+                                                        fontSize: 'min(20px, max(14px, 3vw))',
+                                                        lineHeight: '1.1'
+                                                    }}
+                                                >
+                                                    {room.name}
+                                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 h-[3px] w-12 bg-tan/60 shrink-0"></div>
+                                                </Link>
+                                            ) : (
+                                                <span 
+                                                    className={`relative w-full px-2 text-center break-words font-serif font-bold text-charcoal flex flex-col items-center pointer-events-none transform transition-opacity ${isSelected ? 'opacity-100' : 'opacity-85'}`}
+                                                    style={{ 
+                                                        textShadow: '0 0 10px white, 0 0 10px white, 0 0 5px white',
+                                                        fontSize: 'min(20px, max(14px, 3vw))',
+                                                        lineHeight: '1.1'
+                                                    }}
+                                                >
+                                                    {room.name}
+                                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 h-[3px] w-12 bg-tan/60 shrink-0"></div>
+                                                </span>
+                                            )}
                                         </div>
                                     </Fragment>
                                 );
@@ -2036,10 +2972,11 @@ export function InteractiveMap() {
                                 const c = { ...loc, ...(localCoords[loc.id] || {}) };
                                 if (!localCoords[loc.id]) return null;
                                 const isSelected = selectedIdsRef.current.has(loc.id);
-                                
+                                const hasTransform = (c.rotation && c.rotation % 360 !== 0) || (c.skewX && c.skewX % 360 !== 0);
+
                                 return (
                                     <Rnd
-                                        key={loc.id}
+                                        key={`${loc.id}-${isEditMode}`}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
@@ -2049,16 +2986,32 @@ export function InteractiveMap() {
                                             if (isEditMode && !e.shiftKey) handleItemSelection(loc.id, e);
                                         }}
                                         style={{ 
-                                            backgroundColor: (isSelected && c.display_type !== 'pin') ? 'rgba(59, 130, 246, 0.1)' : (c.display_type === 'box' ? 'rgba(255, 255, 255, 0.9)' : 'transparent'),
+                                            backgroundColor: hasTransform
+                                                ? 'transparent'
+                                                : (isSelected && c.display_type !== 'pin') ? 'rgba(59, 130, 246, 0.1)' : (c.display_type === 'box' ? 'rgba(255, 255, 255, 0.9)' : 'transparent'),
                                             zIndex: isSelected ? 150 : (c.z_index || 100),
-                                            border: (isSelected && c.display_type !== 'pin') ? '2px solid #3b82f6' : (c.display_type === 'box' ? '2px solid #d2b48c' : 'none'),
+                                            border: hasTransform
+                                                ? (isSelected ? '1.5px dashed rgba(59, 130, 246, 0.4)' : 'none')
+                                                : (isSelected && c.display_type !== 'pin') ? '2px solid #3b82f6' : (c.display_type === 'box' ? '2px solid #d2b48c' : 'none'),
                                             borderRadius: c.display_type === 'box' ? '4px' : '0',
                                             pointerEvents: c.display_type === 'pin' ? 'none' : 'auto'
                                         }}
                                         scale={scale}
                                         disableDragging={!isEditMode}
                                         enableResizing={isEditMode && c.display_type !== 'pin'}
-                                        position={draggingId === loc.id ? undefined : { 
+                                        resizeHandleClasses={isSelected && isEditMode && c.display_type !== 'pin' ? {
+                                            topLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
+                                            topRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -top-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
+                                            bottomLeft: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -left-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nesw-resize",
+                                            bottomRight: "w-3 h-3 bg-white border-2 border-blue-500 rounded-full absolute -bottom-1.5 -right-1.5 z-[100] shadow-sm hover:scale-125 transition-transform cursor-nwse-resize",
+                                            top: "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                            bottom: "h-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute bottom-0 left-2 right-2 z-[90] transition-colors cursor-ns-resize rounded-full",
+                                            left: "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 left-0 z-[90] transition-colors cursor-ew-resize rounded-full",
+                                            right: "w-1.5 bg-blue-500/20 hover:bg-blue-500/80 absolute top-2 bottom-2 right-0 z-[90] transition-colors cursor-ew-resize rounded-full"
+                                        } : {}}
+                                        dragGrid={isSnapping && isEditMode ? [12, 12] : undefined}
+                                        resizeGrid={isSnapping && isEditMode ? [12, 12] : undefined}
+                                        position={{ 
                                             x: c.display_type === 'pin' ? (c.x - 30) : c.x, 
                                             y: c.display_type === 'pin' ? (c.y - 50) : c.y 
                                         }}
@@ -2102,7 +3055,22 @@ export function InteractiveMap() {
                                             data-selected={isSelected ? "true" : "false"}
                                             data-highlighted={activeHighlightId === loc.id ? "true" : "false"}
                                             className="w-full h-full relative" 
-                                            style={{ transform: `rotate(${c.rotation || 0}deg)` }}
+                                            style={{ 
+                                                transform: `rotate(${c.rotation || 0}deg) skewX(${c.skewX || 0}deg)`,
+                                                width: '100%',
+                                                height: '100%',
+                                                backgroundColor: hasTransform
+                                                    ? ((isSelected && c.display_type !== 'pin')
+                                                        ? 'rgba(59, 130, 246, 0.1)'
+                                                        : (c.display_type === 'box' ? 'rgba(255, 255, 255, 0.9)' : 'transparent'))
+                                                    : 'transparent',
+                                                border: hasTransform
+                                                    ? ((isSelected && c.display_type !== 'pin')
+                                                        ? '2px solid #3b82f6'
+                                                        : (c.display_type === 'box' ? '2px solid #d2b48c' : 'none'))
+                                                    : 'none',
+                                                borderRadius: c.display_type === 'box' ? '4px' : '0'
+                                            }}
                                         >
                                             {c.display_type === 'pin' ? (
                                                 <div 
@@ -2279,6 +3247,190 @@ export function InteractiveMap() {
                     </div>
                 )}
             </div>
+
+            {/* Onboarding Tour Overlay */}
+            {tourStep !== null && (
+                <div className="fixed inset-0 z-[350] pointer-events-none">
+                    {/* Spotlight Overlay */}
+                    {targetRect && (
+                        <div 
+                            className="fixed rounded-lg border-2 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
+                            style={{
+                                top: `${targetRect.top - 4}px`,
+                                left: `${targetRect.left - 4}px`,
+                                width: `${targetRect.width + 8}px`,
+                                height: `${targetRect.height + 8}px`,
+                                outline: '9999px solid rgba(15, 23, 42, 0.45)',
+                                zIndex: 300,
+                                pointerEvents: 'none'
+                            }}
+                        />
+                    )}
+                    
+                    {/* Viewport Overlay (when there is no target rect, block background interaction) */}
+                    {!targetRect && (
+                        <div className="fixed inset-0 bg-charcoal/45 pointer-events-auto z-[290]" />
+                    )}
+
+                    {/* Tour Tooltip Card */}
+                    <div 
+                        className="bg-white rounded-xl border border-tan/30 shadow-2xl p-5 pointer-events-auto flex flex-col gap-4 animate-in zoom-in-95 duration-200"
+                        style={getTooltipPosition()}
+                    >
+                        <div className="flex justify-between items-start">
+                            <span className="text-[9px] font-black bg-tan/15 text-tan uppercase tracking-widest px-2 py-0.5 rounded-full">
+                                Step {tourStep + 1} of {TOUR_STEPS.length}
+                            </span>
+                            <button 
+                                onClick={() => setTourStep(null)} 
+                                className="text-charcoal/40 hover:text-charcoal transition-colors p-0.5 rounded hover:bg-tan/5"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        
+                        <div>
+                            <h4 className="font-serif font-black text-charcoal text-base mb-1">{TOUR_STEPS[tourStep].title}</h4>
+                            <p className="text-xs text-charcoal/70 leading-relaxed font-medium">{TOUR_STEPS[tourStep].description}</p>
+                        </div>
+
+                        <div className="flex justify-between items-center mt-2 border-t border-tan-light/20 pt-3">
+                            <button 
+                                onClick={() => setTourStep(null)}
+                                className="text-xs font-bold text-charcoal/40 hover:text-charcoal transition-colors"
+                            >
+                                Skip Tour
+                            </button>
+                            <div className="flex gap-2">
+                                {tourStep > 0 && (
+                                    <button 
+                                        onClick={() => setTourStep(tourStep - 1)}
+                                        className="bg-cream hover:bg-tan/10 text-charcoal border border-tan/20 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                    >
+                                        Back
+                                    </button>
+                                )}
+                                <button 
+                                    onClick={() => {
+                                        if (tourStep < TOUR_STEPS.length - 1) {
+                                            setTourStep(tourStep + 1);
+                                        } else {
+                                            setTourStep(null);
+                                        }
+                                    }}
+                                    className="bg-tan hover:bg-tan-dark text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-colors"
+                                >
+                                    {tourStep === TOUR_STEPS.length - 1 ? 'Finish' : 'Next'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Help Center & Legend Modal */}
+            {showHelpModal && (
+                <div className="fixed inset-0 bg-charcoal/40 backdrop-blur-sm z-[400] flex items-center justify-center animate-in fade-in duration-200" onClick={() => setShowHelpModal(false)}>
+                    <div className="bg-cream rounded-2xl border-2 border-tan max-w-lg w-full shadow-2xl p-6 relative animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => setShowHelpModal(false)} className="absolute top-4 right-4 text-charcoal hover:text-tan transition-colors p-1 hover:bg-tan/10 rounded-md">
+                            <X size={20} />
+                        </button>
+                        <div className="flex items-center gap-3 border-b border-tan-light/30 pb-3 mb-4">
+                            <HelpCircle className="text-tan" size={28} />
+                            <div>
+                                <h2 className="text-xl font-serif font-black text-charcoal">Map Help Center</h2>
+                                <p className="text-[10px] text-charcoal/50 font-bold uppercase tracking-wider">Legend, shortcuts, and guided tour</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-5">
+                            {/* Visual Legend */}
+                            <div>
+                                <h3 className="text-xs font-serif font-black text-tan uppercase tracking-wider mb-2">Map Visual Legend</h3>
+                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-tan/20">
+                                        <div className="w-8 h-6 bg-tan/25 border border-tan rounded" style={{ borderStyle: 'dashed' }} />
+                                        <div>
+                                            <p className="font-bold text-charcoal">Structural Room</p>
+                                            <p className="text-[9px] text-charcoal/50">Dashed structural border</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-tan/20">
+                                        <div className="w-8 h-6 bg-white border-2 border-tan rounded" />
+                                        <div>
+                                            <p className="font-bold text-charcoal">Shelf / Block</p>
+                                            <p className="text-[9px] text-charcoal/50">Solid storage partition</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-tan/20 font-serif">
+                                        <MapPin size={24} className="text-red-500 fill-white" />
+                                        <div>
+                                            <p className="font-bold text-charcoal">Archive Pin</p>
+                                            <p className="text-[9px] text-charcoal/50">Precise location marker</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-tan/20">
+                                        <div className="w-8 h-6 bg-blue-500/10 border-2 border-blue-500 rounded shadow-[0_0_8px_rgba(59,130,246,0.3)]" />
+                                        <div>
+                                            <p className="font-bold text-charcoal">Active Selection</p>
+                                            <p className="text-[9px] text-charcoal/50">Highlighted item(s)</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Shortcuts & Gestures */}
+                            <div>
+                                <h3 className="text-xs font-serif font-black text-tan uppercase tracking-wider mb-2">Shortcuts & Map Gestures</h3>
+                                <div className="bg-white p-3 rounded-lg border border-tan/20 space-y-2 text-xs text-charcoal font-medium">
+                                    <div className="flex justify-between items-center border-b border-tan-light/10 pb-1.5">
+                                        <span>Move Item(s)</span>
+                                        <span className="bg-cream px-2 py-0.5 rounded text-[10px] font-mono text-tan-dark border border-tan-light/20">Click & Drag</span>
+                                    </div>
+                                    <div className="flex justify-between items-center border-b border-tan-light/10 pb-1.5">
+                                        <span>Select Multiple</span>
+                                        <span className="bg-cream px-2 py-0.5 rounded text-[10px] font-mono text-tan-dark border border-tan-light/20">Shift + Click</span>
+                                    </div>
+                                    <div className="flex justify-between items-center border-b border-tan-light/10 pb-1.5">
+                                        <span>Marquee Box Select</span>
+                                        <span className="bg-cream px-2 py-0.5 rounded text-[10px] font-mono text-tan-dark border border-tan-light/20">Shift + Drag Grid</span>
+                                    </div>
+                                    <div className="flex justify-between items-center border-b border-tan-light/10 pb-1.5">
+                                        <span>Undo / Redo</span>
+                                        <span className="bg-cream px-2 py-0.5 rounded text-[10px] font-mono text-tan-dark border border-tan-light/20">Ctrl + Z / Ctrl + Y</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span>Delete Selected</span>
+                                        <span className="bg-cream px-2 py-0.5 rounded text-[10px] font-mono text-tan-dark border border-tan-light/20">Delete / Backspace</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Start Tour Button */}
+                            <div className="pt-2 flex gap-3">
+                                <button 
+                                    onClick={() => {
+                                        setShowHelpModal(false);
+                                        if (isSAHSUser && !isEditMode) {
+                                            handleEnterEditMode();
+                                        }
+                                        setTourStep(0);
+                                    }}
+                                    className="flex-1 bg-tan hover:bg-tan-dark text-white py-2.5 rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2"
+                                >
+                                    🚀 Take Interactive Tour
+                                </button>
+                                <button 
+                                    onClick={() => setShowHelpModal(false)}
+                                    className="bg-cream hover:bg-tan/10 text-charcoal border border-tan/30 px-6 py-2.5 rounded-lg text-sm font-bold transition-colors"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -41,3 +41,8 @@ migration/*.xlsx
 migration/*.xls
 migration/*.csv
 migration/members.json
+
+# Node version manager
+versions/
+.cache/
+alias/
