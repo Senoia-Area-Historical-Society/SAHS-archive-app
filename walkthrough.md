@@ -86,3 +86,23 @@ We resolved a major usability bug where selecting an archive item's image to get
 3. **Event Interception**:
    - Verified that clicking the dimmed sidebar area successfully propagates to the lightbox background handler, closing the zoom view and returning the user to the item detail page without triggering unwanted navigation.
 
+---
+
+## 🔍 Scroll-Aware Unified Headroom Header
+
+We successfully implemented a unified, scroll-direction-aware navigation header at the top of the main page content, keeping page headers and action buttons perfectly aligned and clear.
+
+### The Resolution
+1. **Scroll-Aware Hook**:
+   - Integrated scroll detection into [Layout.tsx](src/components/Layout.tsx) using a standard window scroll listener.
+   - When scrolling down, the header slides up cleanly (`-translate-y-full`) to expand the readable content area.
+   - When scrolling up or remaining at the top of the page (`scrollY <= 10`), the header slides down smoothly (`translate-y-0`).
+2. **Header Integration**:
+   - Replaced both the mobile-only header and the desktop-only absolute floating log-in box with a single responsive header.
+   - Styled the header to connect flush with the sidebar: `fixed top-0 left-0 md:left-72 right-0 h-16 bg-white/90 backdrop-blur-md border-b border-tan-light/30 z-[990]`.
+   - Desktop layout features the wide user email and profile avatar widget.
+   - Mobile layout scales down to a clean menu toggle icon, search scanner icon, and compact log-in icon button.
+3. **Layout Clean-up**:
+   - Restored standard container widths across all detail/edit pages by removing the temporary `md:pr-72` padding workarounds, as content now scrolls safely beneath the header.
+
+
