@@ -117,6 +117,9 @@ export function InteractiveMap() {
     const wallCachedNodesRef = useRef<Record<string, {
         element: HTMLElement | null;
     }[]>>({});
+    const controlsCachedNodesRef = useRef<Record<string, {
+        element: HTMLElement | null;
+    }[]>>({});
     const [, setSelectionTick] = useState(0); // For triggering UI buttons reacting to ref changes
     const [sidebarPos, setSidebarPos] = useState({ x: 16, y: 16 });
     const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
@@ -1278,6 +1281,7 @@ export function InteractiveMap() {
         dragCachedNodesRef.current = {};
         labelCachedNodesRef.current = {};
         wallCachedNodesRef.current = {};
+        controlsCachedNodesRef.current = {};
 
         selectedIdsRef.current.forEach(id => {
             const room = rooms.find(r => r.docId === id || r.id === id);
@@ -1313,6 +1317,11 @@ export function InteractiveMap() {
                         element: document.getElementById(`ghost-wall-${id}-${gi}`)
                     }));
                 }
+                
+                // Cache controls nodes
+                controlsCachedNodesRef.current[id] = geometries.map((_, gi) => ({
+                    element: document.getElementById(`poly-controls-${id}-geom-${gi}`)
+                }));
                 return;
             }
 
@@ -1389,6 +1398,16 @@ export function InteractiveMap() {
                 walls.forEach(wall => {
                     if (wall.element) {
                         wall.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                    }
+                });
+            }
+
+            // Translate polygon controls in real time
+            const controls = controlsCachedNodesRef.current[id];
+            if (controls) {
+                controls.forEach(ctrl => {
+                    if (ctrl.element) {
+                        ctrl.element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
                     }
                 });
             }
@@ -1493,7 +1512,7 @@ export function InteractiveMap() {
             return hasChanges ? next : prev;
         });
         
-        // Clear manual transforms applied during drag for labels, ghost walls, and polygon SVG canvases
+        // Clear manual transforms applied during drag for labels, ghost walls, polygon SVG canvases, and controls
         selectedIdsRef.current.forEach(id => {
             const labelNode = document.getElementById(`room-label-${id}`);
             if (labelNode) {
@@ -1508,6 +1527,10 @@ export function InteractiveMap() {
                     if (wallNode) {
                         wallNode.style.transform = '';
                     }
+                    const ctrlNode = document.getElementById(`poly-controls-${id}-geom-${gi}`);
+                    if (ctrlNode) {
+                        ctrlNode.style.transform = '';
+                    }
                     const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
                     const el = document.getElementById(elementId);
                     if (el) {
@@ -1520,6 +1543,7 @@ export function InteractiveMap() {
         dragCachedNodesRef.current = {};
         labelCachedNodesRef.current = {};
         wallCachedNodesRef.current = {};
+        controlsCachedNodesRef.current = {};
         setSelectionTick(t => t + 1); // Finally sync selection UI
     };
 
@@ -2745,6 +2769,7 @@ export function InteractiveMap() {
                                                 {/* Local Controls Overlay positioned at the top-right corner of bounding box */}
                                                 {isEditMode && (isSelected || index === 0) && (
                                                     <div 
+                                                        id={`poly-controls-${room.docId}-geom-${index}`}
                                                         className="absolute pointer-events-auto z-[60] flex gap-1"
                                                         style={{ left: c.x + c.width - 24, top: c.y - 12 }}
                                                     >
