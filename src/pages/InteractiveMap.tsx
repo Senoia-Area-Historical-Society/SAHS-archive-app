@@ -138,7 +138,7 @@ export function InteractiveMap() {
         roomId: string;
         geomIndex: number;
         pointIndex: number;
-        startPoints: Array<{ x: number; y: number }>;
+        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         startX: number;
         startY: number;
     } | null>(null);
@@ -146,13 +146,22 @@ export function InteractiveMap() {
     const [draggingPolygon, setDraggingPolygon] = useState<{
         roomId: string;
         geomIndex: number;
-        startPoints: Array<{ x: number; y: number }>;
+        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
+        startX: number;
+        startY: number;
+    } | null>(null);
+
+    const [draggingCurveControl, setDraggingCurveControl] = useState<{
+        roomId: string;
+        geomIndex: number;
+        pointIndex: number;
+        startPoints: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         startX: number;
         startY: number;
     } | null>(null);
 
     useEffect(() => {
-        if (!draggingVertex && !draggingPolygon) return;
+        if (!draggingVertex && !draggingPolygon && !draggingCurveControl) return;
 
         const handlePointerMove = (e: PointerEvent) => {
             if (draggingVertex) {
@@ -173,7 +182,7 @@ export function InteractiveMap() {
 
                 const updatedPoints = draggingVertex.startPoints.map((pt, idx) => 
                     idx === draggingVertex.pointIndex 
-                        ? { x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
+                        ? { ...pt, x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
                         : pt
                 );
                 handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
@@ -191,16 +200,34 @@ export function InteractiveMap() {
                 }
 
                 const updatedPoints = draggingPolygon.startPoints.map(pt => ({
+                    ...pt,
                     x: Math.round(pt.x + snapX),
-                    y: Math.round(pt.y + snapY)
+                    y: Math.round(pt.y + snapY),
+                    ...(pt.curve ? { curve: { cx: Math.round(pt.curve.cx + snapX), cy: Math.round(pt.curve.cy + snapY) } } : {})
                 }));
                 handleUpdateRoomProperty(draggingPolygon.roomId, 'points', updatedPoints, draggingPolygon.geomIndex);
+            } else if (draggingCurveControl) {
+                const dx = (e.clientX - draggingCurveControl.startX) / scale;
+                const dy = (e.clientY - draggingCurveControl.startY) / scale;
+
+                const initialPt = draggingCurveControl.startPoints[draggingCurveControl.pointIndex];
+                const initialCurve = initialPt.curve!;
+                const newCx = Math.round(initialCurve.cx + dx);
+                const newCy = Math.round(initialCurve.cy + dy);
+
+                const updatedPoints = draggingCurveControl.startPoints.map((pt, idx) =>
+                    idx === draggingCurveControl.pointIndex
+                        ? { ...pt, curve: { cx: newCx, cy: newCy } }
+                        : pt
+                );
+                handleUpdateRoomProperty(draggingCurveControl.roomId, 'points', updatedPoints, draggingCurveControl.geomIndex);
             }
         };
 
         const handlePointerUp = () => {
             setDraggingVertex(null);
             setDraggingPolygon(null);
+            setDraggingCurveControl(null);
         };
 
         window.addEventListener('pointermove', handlePointerMove);
@@ -210,7 +237,7 @@ export function InteractiveMap() {
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
         };
-    }, [draggingVertex, draggingPolygon, scale, isSnapping]);
+    }, [draggingVertex, draggingPolygon, draggingCurveControl, scale, isSnapping]);
 
     const TOUR_STEPS = [
         {
@@ -1576,16 +1603,22 @@ export function InteractiveMap() {
                         ];
                     }
 
-                    // Recalculate bounding box for polygon points
+                    // Recalculate bounding box for polygon points (including curve control points)
                     if (property === 'points') {
                         const pts = pixels;
                         if (pts && pts.length > 0) {
                             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                            pts.forEach(pt => {
+                            pts.forEach((pt: { x: number; y: number; curve?: { cx: number; cy: number } }) => {
                                 minX = Math.min(minX, pt.x);
                                 minY = Math.min(minY, pt.y);
                                 maxX = Math.max(maxX, pt.x);
                                 maxY = Math.max(maxY, pt.y);
+                                if (pt.curve) {
+                                    minX = Math.min(minX, pt.curve.cx);
+                                    minY = Math.min(minY, pt.curve.cy);
+                                    maxX = Math.max(maxX, pt.curve.cx);
+                                    maxY = Math.max(maxY, pt.curve.cy);
+                                }
                             });
                             updatedFields.x = minX;
                             updatedFields.y = minY;
@@ -2065,7 +2098,7 @@ export function InteractiveMap() {
                                                                                     <span>Corners: {geom.points?.length || 0}</span>
                                                                                 </div>
                                                                                 <div className="text-[8px] font-mono font-bold text-tan-dark/80 bg-cream/30 p-2 rounded leading-relaxed border border-tan-light/10">
-                                                                                    💡 Click any edge midpoint (+) to add a corner. Double-click a corner handle on the map to delete it.
+                                                                                    💡 Click <span className="text-blue-500">(+)</span> to add a corner. Click <span className="text-orange-500">(⌒)</span> to curve an edge. Double-click a corner to delete it.
                                                                                 </div>
                                                                             </div>
                                                                         ) : (
@@ -2456,8 +2489,20 @@ export function InteractiveMap() {
                                                     className="absolute inset-0 pointer-events-none w-full h-full react-draggable"
                                                     style={{ zIndex: isSelected ? 40 : 5 }}
                                                 >
-                                                    <polygon
-                                                        points={points.map(p => `${p.x},${p.y}`).join(' ')}
+                                                    <path
+                                                        d={(() => {
+                                                            let d = `M ${points[0].x},${points[0].y}`;
+                                                            for (let i = 0; i < points.length; i++) {
+                                                                const next = points[(i + 1) % points.length];
+                                                                if (points[i].curve) {
+                                                                    d += ` Q ${points[i].curve!.cx},${points[i].curve!.cy} ${next.x},${next.y}`;
+                                                                } else {
+                                                                    d += ` L ${next.x},${next.y}`;
+                                                                }
+                                                            }
+                                                            d += ' Z';
+                                                            return d;
+                                                        })()}
                                                         className={`pointer-events-auto ${isEditMode ? 'cursor-move' : ''}`}
                                                         style={{
                                                             fill: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index)
@@ -2478,7 +2523,7 @@ export function InteractiveMap() {
                                                                 setDraggingPolygon({
                                                                     roomId: room.docId!,
                                                                     geomIndex: index,
-                                                                    startPoints: [...points],
+                                                                    startPoints: [...points.map(p => ({ ...p }))],
                                                                     startX: e.clientX,
                                                                     startY: e.clientY
                                                                 });
@@ -2490,13 +2535,72 @@ export function InteractiveMap() {
                                                     />
                                                     {isEditMode && isSelected && (
                                                          <>
-                                                             {/* Midpoint '+' handles to add corners */}
+                                                             {/* Curve control point handles and guide lines */}
+                                                             {points.map((pt, pIdx) => {
+                                                                 if (!pt.curve) return null;
+                                                                 const nextPt = points[(pIdx + 1) % points.length];
+                                                                 return (
+                                                                     <g key={`curve-ctrl-${pIdx}`}>
+                                                                         {/* Dashed guide lines from control point to both vertices */}
+                                                                         <line
+                                                                             x1={pt.x} y1={pt.y}
+                                                                             x2={pt.curve.cx} y2={pt.curve.cy}
+                                                                             stroke="#f97316" strokeWidth={1} strokeDasharray="4 3"
+                                                                             className="pointer-events-none" opacity={0.6}
+                                                                         />
+                                                                         <line
+                                                                             x1={nextPt.x} y1={nextPt.y}
+                                                                             x2={pt.curve.cx} y2={pt.curve.cy}
+                                                                             stroke="#f97316" strokeWidth={1} strokeDasharray="4 3"
+                                                                             className="pointer-events-none" opacity={0.6}
+                                                                         />
+                                                                         {/* Draggable orange control point diamond */}
+                                                                         <rect
+                                                                             x={pt.curve.cx - 7}
+                                                                             y={pt.curve.cy - 7}
+                                                                             width={14}
+                                                                             height={14}
+                                                                             rx={2}
+                                                                             fill="#f97316"
+                                                                             stroke="white"
+                                                                             strokeWidth={2}
+                                                                             className="pointer-events-auto cursor-grab"
+                                                                             style={{ transform: `rotate(45deg)`, transformOrigin: `${pt.curve.cx}px ${pt.curve.cy}px` }}
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 setDraggingCurveControl({
+                                                                                     roomId: room.docId!,
+                                                                                     geomIndex: index,
+                                                                                     pointIndex: pIdx,
+                                                                                     startPoints: [...points.map(p => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                                     startX: e.clientX,
+                                                                                     startY: e.clientY
+                                                                                 });
+                                                                             }}
+                                                                         />
+                                                                     </g>
+                                                                 );
+                                                             })}
+
+                                                             {/* Midpoint '+' handles and '⌒' curve toggle buttons */}
                                                              {points.map((pt, pIdx) => {
                                                                  const nextPt = points[(pIdx + 1) % points.length];
                                                                  const midX = (pt.x + nextPt.x) / 2;
                                                                  const midY = (pt.y + nextPt.y) / 2;
+                                                                 // Compute perpendicular offset direction for curve toggle placement
+                                                                 const edgeDx = nextPt.x - pt.x;
+                                                                 const edgeDy = nextPt.y - pt.y;
+                                                                 const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+                                                                 // Perpendicular unit vector (pointing "outward")
+                                                                 const perpX = -edgeDy / edgeLen;
+                                                                 const perpY = edgeDx / edgeLen;
+                                                                 const toggleOffset = 18; // px offset from edge
+                                                                 const toggleX = midX + perpX * toggleOffset;
+                                                                 const toggleY = midY + perpY * toggleOffset;
+                                                                 const isCurved = !!pt.curve;
                                                                  return (
                                                                      <g key={`mid-${pIdx}`}>
+                                                                         {/* Add corner '+' handle on the edge */}
                                                                          <circle
                                                                              cx={midX}
                                                                              cy={midY}
@@ -2519,6 +2623,52 @@ export function InteractiveMap() {
                                                                          />
                                                                          <line x1={midX - 3} y1={midY} x2={midX + 3} y2={midY} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
                                                                          <line x1={midX} y1={midY - 3} x2={midX} y2={midY + 3} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+
+                                                                         {/* Curve toggle button offset perpendicular to edge */}
+                                                                         <circle
+                                                                             cx={toggleX}
+                                                                             cy={toggleY}
+                                                                             r={9}
+                                                                             fill={isCurved ? '#22c55e' : '#f97316'}
+                                                                             stroke="white"
+                                                                             strokeWidth={1.5}
+                                                                             opacity={0.7}
+                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             onMouseDown={(e) => {
+                                                                                 e.stopPropagation();
+                                                                                 if (isCurved) {
+                                                                                     // Remove curve — set edge back to straight
+                                                                                     const updatedPoints = points.map((p, idx) =>
+                                                                                         idx === pIdx ? { x: p.x, y: p.y } : p
+                                                                                     );
+                                                                                     handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                                 } else {
+                                                                                     // Add curve — place control point 40px perpendicular from midpoint
+                                                                                     const curveOffset = 40;
+                                                                                     const cx = Math.round(midX + perpX * curveOffset);
+                                                                                     const cy = Math.round(midY + perpY * curveOffset);
+                                                                                     const updatedPoints = points.map((p, idx) =>
+                                                                                         idx === pIdx ? { ...p, curve: { cx, cy } } : p
+                                                                                     );
+                                                                                     handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
+                                                                                 }
+                                                                             }}
+                                                                         />
+                                                                         {/* Icon inside toggle: ⌒ arc for straight, — dash for curved */}
+                                                                         {isCurved ? (
+                                                                             <line
+                                                                                 x1={toggleX - 4} y1={toggleY}
+                                                                                 x2={toggleX + 4} y2={toggleY}
+                                                                                 stroke="white" strokeWidth={2} strokeLinecap="round"
+                                                                                 className="pointer-events-none"
+                                                                             />
+                                                                         ) : (
+                                                                             <path
+                                                                                 d={`M ${toggleX - 4},${toggleY + 2} Q ${toggleX},${toggleY - 4} ${toggleX + 4},${toggleY + 2}`}
+                                                                                 fill="none" stroke="white" strokeWidth={1.5} strokeLinecap="round"
+                                                                                 className="pointer-events-none"
+                                                                             />
+                                                                         )}
                                                                      </g>
                                                                  );
                                                              })}
@@ -2540,7 +2690,7 @@ export function InteractiveMap() {
                                                                              roomId: room.docId!,
                                                                              geomIndex: index,
                                                                              pointIndex: pIdx,
-                                                                             startPoints: [...points],
+                                                                             startPoints: [...points.map(p => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
                                                                              startX: e.clientX,
                                                                              startY: e.clientY
                                                                          });

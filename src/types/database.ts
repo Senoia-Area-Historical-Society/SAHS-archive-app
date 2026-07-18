@@ -12,7 +12,7 @@ export interface Room {
         rotation?: number;
         skewX?: number;
         shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number }>;
+        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         z_index?: number;
         display_type?: 'pin' | 'block';
     } | null;
@@ -24,7 +24,7 @@ export interface Room {
         rotation?: number;
         skewX?: number;
         shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number }>;
+        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         z_index?: number;
         display_type?: 'pin' | 'block';
     }>;
@@ -66,7 +66,7 @@ export interface MuseumLocation {
         rotation?: number;
         skewX?: number;
         shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number }>;
+        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
         z_index?: number;
         display_type?: 'pin' | 'block';
     } | null;
