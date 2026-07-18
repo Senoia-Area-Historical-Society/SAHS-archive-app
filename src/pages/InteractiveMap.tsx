@@ -2537,7 +2537,7 @@ export function InteractiveMap() {
                                             { x: c.x, y: c.y + c.height }
                                         ];
                                         return (
-                                            <Fragment key={`${room.docId}-poly-${index}`}>
+                                            <Fragment key={`${room.docId}-poly-${index}-${isEditMode}`}>
                                                 {/* SVG Canvas overlay for the polygon room */}
                                                 <svg 
                                                     id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
@@ -2782,7 +2782,7 @@ export function InteractiveMap() {
 
                                     return (
                                         <Rnd
-                                            key={`${room.docId}-box-${index}`}
+                                            key={`${room.docId}-box-${index}-${isEditMode}`}
                                             id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                             className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
                                             onMouseDownCapture={(e: any) => {
@@ -2976,7 +2976,7 @@ export function InteractiveMap() {
 
                                 return (
                                     <Rnd
-                                        key={loc.id}
+                                        key={`${loc.id}-${isEditMode}`}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
                                         onMouseDownCapture={(e: any) => {
