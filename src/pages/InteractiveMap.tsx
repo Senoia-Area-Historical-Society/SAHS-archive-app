@@ -216,56 +216,69 @@ export function InteractiveMap() {
     useEffect(() => {
         if (!draggingVertex && !draggingPolygon && !draggingCurveControl) return;
 
+        let rafId: number | null = null;
+
         const handlePointerMove = (e: PointerEvent) => {
-            if (draggingVertex) {
-                const dx = (e.clientX - draggingVertex.startX) / scale;
-                const dy = (e.clientY - draggingVertex.startY) / scale;
-                
-                let snapX = dx;
-                let snapY = dy;
-                if (isSnapping) {
-                    const initialPt = draggingVertex.startPoints[draggingVertex.pointIndex];
-                    const targetX = initialPt.x + dx;
-                    const targetY = initialPt.y + dy;
-                    const snappedX = Math.round(targetX / 12) * 12;
-                    const snappedY = Math.round(targetY / 12) * 12;
-                    snapX = snappedX - initialPt.x;
-                    snapY = snappedY - initialPt.y;
+            if (rafId) cancelAnimationFrame(rafId);
+
+            rafId = requestAnimationFrame(() => {
+                if (draggingVertex) {
+                    const dx = (e.clientX - draggingVertex.startX) / scale;
+                    const dy = (e.clientY - draggingVertex.startY) / scale;
+                    
+                    let snapX = dx;
+                    let snapY = dy;
+                    if (isSnapping) {
+                        const initialPt = draggingVertex.startPoints[draggingVertex.pointIndex];
+                        const targetX = initialPt.x + dx;
+                        const targetY = initialPt.y + dy;
+                        const snappedX = Math.round(targetX / 12) * 12;
+                        const snappedY = Math.round(targetY / 12) * 12;
+                        snapX = snappedX - initialPt.x;
+                        snapY = snappedY - initialPt.y;
+                    }
+
+                    const updatedPoints = draggingVertex.startPoints.map((pt, idx) => 
+                        idx === draggingVertex.pointIndex 
+                            ? { ...pt, x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
+                            : pt
+                    );
+                    handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
+                } else if (draggingPolygon) {
+                    const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
+                    const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
+
+                    const targetX = draggingPolygon.startX + dx;
+                    const targetY = draggingPolygon.startY + dy;
+
+                    handleGroupDrag(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
+                } else if (draggingCurveControl) {
+                    const dx = (e.clientX - draggingCurveControl.startX) / scale;
+                    const dy = (e.clientY - draggingCurveControl.startY) / scale;
+
+                    const initialPt = draggingCurveControl.startPoints[draggingCurveControl.pointIndex];
+                    const initialCurve = initialPt.curve!;
+                    
+                    let newCx = Math.round(initialCurve.cx + dx);
+                    let newCy = Math.round(initialCurve.cy + dy);
+
+                    if (isSnapping) {
+                        newCx = Math.round(newCx / 6) * 6;
+                        newCy = Math.round(newCy / 6) * 6;
+                    }
+
+                    const updatedPoints = draggingCurveControl.startPoints.map((pt, idx) =>
+                        idx === draggingCurveControl.pointIndex
+                            ? { ...pt, curve: { cx: newCx, cy: newCy } }
+                            : pt
+                    );
+                    handleUpdateRoomProperty(draggingCurveControl.roomId, 'points', updatedPoints, draggingCurveControl.geomIndex);
                 }
-
-                const updatedPoints = draggingVertex.startPoints.map((pt, idx) => 
-                    idx === draggingVertex.pointIndex 
-                        ? { ...pt, x: Math.round(pt.x + snapX), y: Math.round(pt.y + snapY) } 
-                        : pt
-                );
-                handleUpdateRoomProperty(draggingVertex.roomId, 'points', updatedPoints, draggingVertex.geomIndex);
-            } else if (draggingPolygon) {
-                const dx = (e.clientX - draggingPolygon.mouseStartX) / scale;
-                const dy = (e.clientY - draggingPolygon.mouseStartY) / scale;
-
-                const targetX = draggingPolygon.startX + dx;
-                const targetY = draggingPolygon.startY + dy;
-
-                handleGroupDrag(draggingPolygon.roomId, draggingPolygon.geomIndex, { x: targetX, y: targetY });
-            } else if (draggingCurveControl) {
-                const dx = (e.clientX - draggingCurveControl.startX) / scale;
-                const dy = (e.clientY - draggingCurveControl.startY) / scale;
-
-                const initialPt = draggingCurveControl.startPoints[draggingCurveControl.pointIndex];
-                const initialCurve = initialPt.curve!;
-                const newCx = Math.round(initialCurve.cx + dx);
-                const newCy = Math.round(initialCurve.cy + dy);
-
-                const updatedPoints = draggingCurveControl.startPoints.map((pt, idx) =>
-                    idx === draggingCurveControl.pointIndex
-                        ? { ...pt, curve: { cx: newCx, cy: newCy } }
-                        : pt
-                );
-                handleUpdateRoomProperty(draggingCurveControl.roomId, 'points', updatedPoints, draggingCurveControl.geomIndex);
-            }
+            });
         };
 
         const handlePointerUp = (e: PointerEvent) => {
+            if (rafId) cancelAnimationFrame(rafId);
             if (draggingVertex) {
                 setDraggingVertex(null);
             } else if (draggingPolygon) {
@@ -285,6 +298,7 @@ export function InteractiveMap() {
         window.addEventListener('pointerup', handlePointerUp);
 
         return () => {
+            if (rafId) cancelAnimationFrame(rafId);
             window.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('pointerup', handlePointerUp);
         };
@@ -2682,29 +2696,33 @@ export function InteractiveMap() {
                                                                              className="pointer-events-none" opacity={0.6}
                                                                          />
                                                                          {/* Draggable orange control point diamond */}
-                                                                         <rect
-                                                                             x={pt.curve.cx - 10}
-                                                                             y={pt.curve.cy - 10}
-                                                                             width={20}
-                                                                             height={20}
-                                                                             rx={4}
-                                                                             fill="#f97316"
-                                                                             stroke="white"
-                                                                             strokeWidth={2.5}
-                                                                             className="pointer-events-auto cursor-grab hover:scale-125 transition-all"
-                                                                             style={{ transform: `rotate(45deg)`, transformOrigin: `${pt.curve.cx}px ${pt.curve.cy}px` }}
-                                                                             onMouseDown={(e) => {
-                                                                                 e.stopPropagation();
-                                                                                 setDraggingCurveControl({
-                                                                                     roomId: room.docId!,
-                                                                                     geomIndex: index,
-                                                                                     pointIndex: pIdx,
-                                                                                     startPoints: [...points.map((p: any) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
-                                                                                     startX: e.clientX,
-                                                                                     startY: e.clientY
-                                                                                 });
-                                                                             }}
-                                                                         />
+                                                                         <g 
+                                                                              transform={`translate(${pt.curve.cx}, ${pt.curve.cy}) rotate(45)`}
+                                                                              className="pointer-events-auto cursor-grab active:cursor-grabbing"
+                                                                              onMouseDown={(e) => {
+                                                                                  e.stopPropagation();
+                                                                                  setDraggingCurveControl({
+                                                                                      roomId: room.docId!,
+                                                                                      geomIndex: index,
+                                                                                      pointIndex: pIdx,
+                                                                                      startPoints: [...points.map((p: any) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                                      startX: e.clientX,
+                                                                                      startY: e.clientY
+                                                                                  });
+                                                                              }}
+                                                                          >
+                                                                              <rect
+                                                                                  x={-10}
+                                                                                  y={-10}
+                                                                                  width={20}
+                                                                                  height={20}
+                                                                                  rx={4}
+                                                                                  fill="#f97316"
+                                                                                  stroke="white"
+                                                                                  strokeWidth={2.5}
+                                                                                  className="hover:scale-125 transition-transform"
+                                                                              />
+                                                                          </g>
                                                                      </g>
                                                                  );
                                                              })}
