@@ -2756,12 +2756,12 @@ export function InteractiveMap() {
                                                                      ? 0.25 * pt.y + 0.5 * pt.curve.cy + 0.25 * nextPt.y 
                                                                      : chordMidY;
 
-                                                                 // Toggle button: on straight edge, offset outward; on curved edge, offset inward from chord to avoid diamond overlap
+                                                                 // Toggle button: on straight edge, offset outward; on curved edge, offset inward from curve apex to follow curve without diamond overlap
                                                                  const toggleX = isCurved
-                                                                     ? chordMidX - outwardX * 24
+                                                                     ? midX - outwardX * 24
                                                                      : chordMidX + outwardX * 22;
                                                                  const toggleY = isCurved
-                                                                     ? chordMidY - outwardY * 24
+                                                                     ? midY - outwardY * 24
                                                                      : chordMidY + outwardY * 22;
 
                                                                  return (
