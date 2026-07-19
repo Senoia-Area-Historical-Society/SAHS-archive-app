@@ -2711,16 +2711,18 @@ export function InteractiveMap() {
                                                                                   });
                                                                               }}
                                                                           >
+                                                                              {/* Expanded transparent touch target for easy grabbing */}
+                                                                              <circle r={24} fill="transparent" />
                                                                               <rect
-                                                                                  x={-10}
-                                                                                  y={-10}
-                                                                                  width={20}
-                                                                                  height={20}
-                                                                                  rx={4}
+                                                                                  x={-15}
+                                                                                  y={-15}
+                                                                                  width={30}
+                                                                                  height={30}
+                                                                                  rx={6}
                                                                                   fill="#f97316"
                                                                                   stroke="white"
-                                                                                  strokeWidth={2.5}
-                                                                                  className="hover:scale-125 transition-transform"
+                                                                                  strokeWidth={3.5}
+                                                                                  className="hover:fill-orange-600 transition-colors"
                                                                               />
                                                                           </g>
                                                                      </g>
