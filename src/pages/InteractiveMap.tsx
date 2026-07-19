@@ -2728,43 +2728,41 @@ export function InteractiveMap() {
                                                                      </g>
                                                                  );
                                                              })}
-
                                                              {/* Midpoint '+' handles and '⌒' curve toggle buttons */}
                                                              {points.map((pt: any, pIdx: number) => {
                                                                  const nextPt = points[(pIdx + 1) % points.length];
                                                                  const isCurved = !!pt.curve;
+                                                                 const chordMidX = (pt.x + nextPt.x) / 2;
+                                                                 const chordMidY = (pt.y + nextPt.y) / 2;
+
+                                                                 // Compute outward (convex) normal vector for the room edge
+                                                                 let area = 0;
+                                                                 for (let i = 0; i < points.length; i++) {
+                                                                     const j = (i + 1) % points.length;
+                                                                     area += points[i].x * points[j].y - points[j].x * points[i].y;
+                                                                 }
+                                                                 const isClockwise = area < 0;
+                                                                 const edgeDx = nextPt.x - pt.x;
+                                                                 const edgeDy = nextPt.y - pt.y;
+                                                                 const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
+                                                                 const outwardX = isClockwise ? (edgeDy / edgeLen) : (-edgeDy / edgeLen);
+                                                                 const outwardY = isClockwise ? (-edgeDx / edgeLen) : (edgeDx / edgeLen);
 
                                                                  // Calculate midpoint position (on curved arc if curved, otherwise on straight edge)
                                                                  const midX = isCurved 
                                                                      ? 0.25 * pt.x + 0.5 * pt.curve.cx + 0.25 * nextPt.x 
-                                                                     : (pt.x + nextPt.x) / 2;
+                                                                     : chordMidX;
                                                                  const midY = isCurved 
                                                                      ? 0.25 * pt.y + 0.5 * pt.curve.cy + 0.25 * nextPt.y 
-                                                                     : (pt.y + nextPt.y) / 2;
+                                                                     : chordMidY;
 
-                                                                 // Compute perpendicular offset direction for curve toggle placement
-                                                                 const edgeDx = nextPt.x - pt.x;
-                                                                 const edgeDy = nextPt.y - pt.y;
-                                                                 const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
-                                                                 let perpX = -edgeDy / edgeLen;
-                                                                 let perpY = edgeDx / edgeLen;
-
-                                                                 // If curved, orient toggle button perpendicular outward from curve bulge
-                                                                 if (isCurved) {
-                                                                     const chordMidX = (pt.x + nextPt.x) / 2;
-                                                                     const chordMidY = (pt.y + nextPt.y) / 2;
-                                                                     const bulgeX = pt.curve.cx - chordMidX;
-                                                                     const bulgeY = pt.curve.cy - chordMidY;
-                                                                     const dot = bulgeX * perpX + bulgeY * perpY;
-                                                                     if (dot < 0) {
-                                                                         perpX = -perpX;
-                                                                         perpY = -perpY;
-                                                                     }
-                                                                 }
-
-                                                                 const toggleOffset = 24; // px offset from curve midpoint
-                                                                 const toggleX = midX + perpX * toggleOffset;
-                                                                 const toggleY = midY + perpY * toggleOffset;
+                                                                 // Toggle button: on straight edge, offset outward; on curved edge, offset inward from chord to avoid diamond overlap
+                                                                 const toggleX = isCurved
+                                                                     ? chordMidX - outwardX * 24
+                                                                     : chordMidX + outwardX * 22;
+                                                                 const toggleY = isCurved
+                                                                     ? chordMidY - outwardY * 24
+                                                                     : chordMidY + outwardY * 22;
 
                                                                  return (
                                                                      <g key={`mid-${pIdx}`}>
@@ -2811,10 +2809,10 @@ export function InteractiveMap() {
                                                                                      );
                                                                                      handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                                  } else {
-                                                                                     // Add curve — place control point 40px perpendicular from midpoint
-                                                                                     const curveOffset = 40;
-                                                                                     const cx = Math.round(midX + perpX * curveOffset);
-                                                                                     const cy = Math.round(midY + perpY * curveOffset);
+                                                                                     // Add curve — place control point 55px OUTWARD (convex) from midpoint
+                                                                                     const curveOffset = 55;
+                                                                                     const cx = Math.round(chordMidX + outwardX * curveOffset);
+                                                                                     const cy = Math.round(chordMidY + outwardY * curveOffset);
                                                                                      const updatedPoints = points.map((p: any, idx: number) =>
                                                                                          idx === pIdx ? { ...p, curve: { cx, cy } } : p
                                                                                      );
