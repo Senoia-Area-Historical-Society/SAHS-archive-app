@@ -2683,15 +2683,15 @@ export function InteractiveMap() {
                                                                          />
                                                                          {/* Draggable orange control point diamond */}
                                                                          <rect
-                                                                             x={pt.curve.cx - 7}
-                                                                             y={pt.curve.cy - 7}
-                                                                             width={14}
-                                                                             height={14}
-                                                                             rx={2}
+                                                                             x={pt.curve.cx - 10}
+                                                                             y={pt.curve.cy - 10}
+                                                                             width={20}
+                                                                             height={20}
+                                                                             rx={4}
                                                                              fill="#f97316"
                                                                              stroke="white"
-                                                                             strokeWidth={2}
-                                                                             className="pointer-events-auto cursor-grab"
+                                                                             strokeWidth={2.5}
+                                                                             className="pointer-events-auto cursor-grab hover:scale-125 transition-all"
                                                                              style={{ transform: `rotate(45deg)`, transformOrigin: `${pt.curve.cx}px ${pt.curve.cy}px` }}
                                                                              onMouseDown={(e) => {
                                                                                  e.stopPropagation();
@@ -2721,7 +2721,7 @@ export function InteractiveMap() {
                                                                  // Perpendicular unit vector (pointing "outward")
                                                                  const perpX = -edgeDy / edgeLen;
                                                                  const perpY = edgeDx / edgeLen;
-                                                                 const toggleOffset = 18; // px offset from edge
+                                                                 const toggleOffset = 22; // px offset from edge
                                                                  const toggleX = midX + perpX * toggleOffset;
                                                                  const toggleY = midY + perpY * toggleOffset;
                                                                  const isCurved = !!pt.curve;
@@ -2731,12 +2731,12 @@ export function InteractiveMap() {
                                                                          <circle
                                                                              cx={midX}
                                                                              cy={midY}
-                                                                             r={10}
+                                                                             r={13}
                                                                              fill="#3b82f6"
                                                                              stroke="white"
-                                                                             strokeWidth={1}
-                                                                             opacity={0.5}
-                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             strokeWidth={1.5}
+                                                                             opacity={0.65}
+                                                                             className="pointer-events-auto cursor-pointer hover:opacity-100 transition-all"
                                                                              onMouseDown={(e) => {
                                                                                  e.stopPropagation();
                                                                                  const newPt = { x: Math.round(midX), y: Math.round(midY) };
@@ -2748,19 +2748,19 @@ export function InteractiveMap() {
                                                                                  handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                              }}
                                                                          />
-                                                                         <line x1={midX - 3} y1={midY} x2={midX + 3} y2={midY} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
-                                                                         <line x1={midX} y1={midY - 3} x2={midX} y2={midY + 3} stroke="white" strokeWidth={1.5} className="pointer-events-none" />
+                                                                         <line x1={midX - 4} y1={midY} x2={midX + 4} y2={midY} stroke="white" strokeWidth={2} className="pointer-events-none" />
+                                                                         <line x1={midX} y1={midY - 4} x2={midX} y2={midY + 4} stroke="white" strokeWidth={2} className="pointer-events-none" />
 
                                                                          {/* Curve toggle button offset perpendicular to edge */}
                                                                          <circle
                                                                              cx={toggleX}
                                                                              cy={toggleY}
-                                                                             r={9}
+                                                                             r={12}
                                                                              fill={isCurved ? '#22c55e' : '#f97316'}
                                                                              stroke="white"
-                                                                             strokeWidth={1.5}
-                                                                             opacity={0.7}
-                                                                             className="pointer-events-auto cursor-pointer"
+                                                                             strokeWidth={2}
+                                                                             opacity={0.8}
+                                                                             className="pointer-events-auto cursor-pointer hover:opacity-100 transition-all"
                                                                              onMouseDown={(e) => {
                                                                                  e.stopPropagation();
                                                                                  if (isCurved) {
@@ -2784,15 +2784,15 @@ export function InteractiveMap() {
                                                                          {/* Icon inside toggle: ⌒ arc for straight, — dash for curved */}
                                                                          {isCurved ? (
                                                                              <line
-                                                                                 x1={toggleX - 4} y1={toggleY}
-                                                                                 x2={toggleX + 4} y2={toggleY}
-                                                                                 stroke="white" strokeWidth={2} strokeLinecap="round"
+                                                                                 x1={toggleX - 5} y1={toggleY}
+                                                                                 x2={toggleX + 5} y2={toggleY}
+                                                                                 stroke="white" strokeWidth={2.5} strokeLinecap="round"
                                                                                  className="pointer-events-none"
                                                                              />
                                                                          ) : (
                                                                              <path
-                                                                                 d={`M ${toggleX - 4},${toggleY + 2} Q ${toggleX},${toggleY - 4} ${toggleX + 4},${toggleY + 2}`}
-                                                                                 fill="none" stroke="white" strokeWidth={1.5} strokeLinecap="round"
+                                                                                 d={`M ${toggleX - 5},${toggleY + 2.5} Q ${toggleX},${toggleY - 5} ${toggleX + 5},${toggleY + 2.5}`}
+                                                                                 fill="none" stroke="white" strokeWidth={2} strokeLinecap="round"
                                                                                  className="pointer-events-none"
                                                                              />
                                                                          )}
@@ -2806,11 +2806,11 @@ export function InteractiveMap() {
                                                                      key={pIdx}
                                                                      cx={pt.x}
                                                                      cy={pt.y}
-                                                                     r={10}
+                                                                     r={16}
                                                                      fill="white"
                                                                      stroke="#3b82f6"
-                                                                     strokeWidth={2.5}
-                                                                     className="pointer-events-auto cursor-pointer"
+                                                                     strokeWidth={3.5}
+                                                                     className="pointer-events-auto cursor-grab active:cursor-grabbing hover:scale-110 transition-transform shadow-lg"
                                                                      onMouseDown={(e) => {
                                                                          e.stopPropagation();
                                                                          setDraggingVertex({
