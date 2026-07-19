@@ -828,7 +828,10 @@ export function InteractiveMap() {
             }
         }
 
-        return { x: startX, y: startY, width: widthPx, height: heightPx };
+        startX = isNaN(startX) ? 120 : Math.max(120, startX);
+        startY = isNaN(startY) ? 120 : Math.max(120, startY);
+
+        return { x: startX, y: startY, width: widthPx || 360, height: heightPx || 360 };
     };
 
     // Updated addRoom to talk to the collection and spawn at viewport center
@@ -1287,42 +1290,54 @@ export function InteractiveMap() {
         selectedIdsRef.current.forEach(id => {
             const room = rooms.find(r => r.docId === id || r.id === id);
             if (room) {
+                const rDocId = room.docId || room.id;
+                const rId = room.id || room.docId;
                 const geometries = room.geometries || (room.map_coordinates ? [room.map_coordinates] : []);
                 geometries.forEach((g, gi) => {
-                    const nodeKey = `${id}-geom-${gi}`;
-                    dragStartPosRef.current[nodeKey] = { x: g.x, y: g.y };
+                    const nodeKey1 = `${rDocId}-geom-${gi}`;
+                    const nodeKey2 = `${rId}-geom-${gi}`;
+                    dragStartPosRef.current[nodeKey1] = { x: g.x, y: g.y };
+                    dragStartPosRef.current[nodeKey2] = { x: g.x, y: g.y };
                     
-                    const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
-                    const el = document.getElementById(elementId);
-                    dragCachedNodesRef.current[nodeKey] = {
+                    const elementId = gi === 0 ? `rnd-node-${rDocId}` : `inner-rnd-${rDocId}-geom-${gi}`;
+                    const el = document.getElementById(elementId) || document.getElementById(gi === 0 ? `rnd-node-${rId}` : `inner-rnd-${rId}-geom-${gi}`);
+                    const cachedObj = {
                         element: el,
                         startX: g.x,
                         startY: g.y,
                         isPin: false,
                         isPolygon: g.shape === 'polygon'
                     };
+                    dragCachedNodesRef.current[nodeKey1] = cachedObj;
+                    dragCachedNodesRef.current[nodeKey2] = cachedObj;
                 });
                 if (geometries.length > 0) {
-                    dragStartPosRef.current[id] = { x: geometries[0].x, y: geometries[0].y };
+                    dragStartPosRef.current[rDocId] = { x: geometries[0].x, y: geometries[0].y };
+                    if (rId) dragStartPosRef.current[rId] = { x: geometries[0].x, y: geometries[0].y };
                 }
                 
                 // Cache label node
-                const labelEl = document.getElementById(`room-label-${id}`);
+                const labelEl = document.getElementById(`room-label-${rDocId}`) || (rId ? document.getElementById(`room-label-${rId}`) : null);
                 if (labelEl) {
-                    labelCachedNodesRef.current[id] = { element: labelEl };
+                    labelCachedNodesRef.current[rDocId] = { element: labelEl };
+                    if (rId) labelCachedNodesRef.current[rId] = { element: labelEl };
                 }
                 
                 // Cache wall nodes
                 if (room.geometries) {
-                    wallCachedNodesRef.current[id] = room.geometries.map((_, gi) => ({
-                        element: document.getElementById(`ghost-wall-${id}-${gi}`)
+                    const walls = room.geometries.map((_, gi) => ({
+                        element: document.getElementById(`ghost-wall-${rDocId}-${gi}`) || (rId ? document.getElementById(`ghost-wall-${rId}-${gi}`) : null)
                     }));
+                    wallCachedNodesRef.current[rDocId] = walls;
+                    if (rId) wallCachedNodesRef.current[rId] = walls;
                 }
                 
                 // Cache controls nodes
-                controlsCachedNodesRef.current[id] = geometries.map((_, gi) => ({
-                    element: document.getElementById(`poly-controls-${id}-geom-${gi}`)
+                const ctrls = geometries.map((_, gi) => ({
+                    element: document.getElementById(`poly-controls-${rDocId}-geom-${gi}`) || (rId ? document.getElementById(`poly-controls-${rId}-geom-${gi}`) : null)
                 }));
+                controlsCachedNodesRef.current[rDocId] = ctrls;
+                if (rId) controlsCachedNodesRef.current[rId] = ctrls;
                 return;
             }
 
@@ -1348,10 +1363,23 @@ export function InteractiveMap() {
     const handleGroupDrag = (draggedId: string, draggedIndex: number | undefined, d: { x: number, y: number }) => {
         const activeIndex = draggedIndex !== undefined ? draggedIndex : 0;
         const activeKey = `${draggedId}-geom-${activeIndex}`;
-        const start = dragStartPosRef.current[activeKey];
+        let start = dragStartPosRef.current[activeKey];
+        if (!start) {
+            const altRoom = rooms.find(r => r.docId === draggedId || r.id === draggedId);
+            if (altRoom) {
+                const altId = altRoom.docId || altRoom.id;
+                start = dragStartPosRef.current[`${altId}-geom-${activeIndex}`] || dragStartPosRef.current[altId];
+            }
+        }
         
         // Safety: Prevent jumping to (0,0) or NaN
         if (!start || isNaN(d.x) || isNaN(d.y)) return;
+
+        // Safety Guard: Ignore invalid zero positions from react-rnd when start position is not near origin
+        if (d.x === 0 && d.y === 0 && (start.x > 60 || start.y > 60)) {
+            console.warn(`[DRAG GUARD] Ignored invalid 0,0 drag event for ${draggedId}`);
+            return;
+        }
         
         const snappedActiveX = absoluteSnap(d.x);
         const snappedActiveY = absoluteSnap(d.y);
@@ -1360,6 +1388,12 @@ export function InteractiveMap() {
         
         const offsetX = snappedActiveX - snappedStartX;
         const offsetY = snappedActiveY - snappedStartY;
+
+        // Safety Guard: Ignore single-frame coordinate jumps
+        if (Math.abs(offsetX) > 2000 || Math.abs(offsetY) > 2000) {
+            console.warn(`[DRAG GUARD] Ignored abnormal offset jump (${offsetX}, ${offsetY}) for ${draggedId}`);
+            return;
+        }
 
         selectedIdsRef.current.forEach(id => {
             const room = rooms.find(r => r.id === id || r.docId === id);
@@ -1373,7 +1407,7 @@ export function InteractiveMap() {
                 const isPoly = geom?.shape === 'polygon';
 
                 // Bypass manual transform for the element actively being dragged (unless it's a polygon, since it's not managed by react-rnd)
-                if (id === draggedId && gi === activeIndex && !isPoly) continue;
+                if ((id === draggedId || room?.docId === draggedId || room?.id === draggedId) && gi === activeIndex && !isPoly) continue;
                 
                 const cached = dragCachedNodesRef.current[nodeKey];
                 if (cached && cached.element) {
@@ -1421,10 +1455,53 @@ export function InteractiveMap() {
 
         const activeIndex = draggedIndex !== undefined ? draggedIndex : 0;
         const activeKey = `${draggedId}-geom-${activeIndex}`;
-        const start = dragStartPosRef.current[activeKey];
+        let start = dragStartPosRef.current[activeKey];
+        if (!start) {
+            const altRoom = rooms.find(r => r.docId === draggedId || r.id === draggedId);
+            if (altRoom) {
+                const altId = altRoom.docId || altRoom.id;
+                start = dragStartPosRef.current[`${altId}-geom-${activeIndex}`] || dragStartPosRef.current[altId];
+            }
+        }
         
-        if (!start) return;
-        
+        const clearTransforms = () => {
+            selectedIdsRef.current.forEach(id => {
+                const labelNode = document.getElementById(`room-label-${id}`);
+                if (labelNode) labelNode.style.transform = '';
+                
+                const room = rooms.find(r => r.id === id || r.docId === id);
+                if (room) {
+                    const rDocId = room.docId || room.id;
+                    const geometriesCount = room.geometries?.length || 1;
+                    for (let gi = 0; gi < geometriesCount; gi++) {
+                        const wallNode = document.getElementById(`ghost-wall-${rDocId}-${gi}`) || document.getElementById(`ghost-wall-${room.id}-${gi}`);
+                        if (wallNode) wallNode.style.transform = '';
+                        const ctrlNode = document.getElementById(`poly-controls-${rDocId}-geom-${gi}`) || document.getElementById(`poly-controls-${room.id}-geom-${gi}`);
+                        if (ctrlNode) ctrlNode.style.transform = '';
+                        const elementId = gi === 0 ? `rnd-node-${rDocId}` : `inner-rnd-${rDocId}-geom-${gi}`;
+                        const el = document.getElementById(elementId) || document.getElementById(gi === 0 ? `rnd-node-${room.id}` : `inner-rnd-${room.id}-geom-${gi}`);
+                        if (el) el.style.transform = '';
+                    }
+                }
+            });
+            dragCachedNodesRef.current = {};
+            labelCachedNodesRef.current = {};
+            wallCachedNodesRef.current = {};
+            controlsCachedNodesRef.current = {};
+        };
+
+        if (!start || isNaN(d.x) || isNaN(d.y)) {
+            clearTransforms();
+            return;
+        }
+
+        // Safety Guard: Ignore invalid 0,0 drag stop if start position was far from origin
+        if (d.x === 0 && d.y === 0 && (start.x > 60 || start.y > 60)) {
+            console.warn(`[DRAG GUARD] Ignored invalid 0,0 drag-stop for ${draggedId}`);
+            clearTransforms();
+            return;
+        }
+
         const snappedActiveX = absoluteSnap(d.x);
         const snappedActiveY = absoluteSnap(d.y);
         const snappedStartX = absoluteSnap(start.x);
@@ -1433,6 +1510,13 @@ export function InteractiveMap() {
         const offsetX = snappedActiveX - snappedStartX;
         const offsetY = snappedActiveY - snappedStartY;
 
+        // Safety Guard: Ignore single-frame coordinate jumps
+        if (Math.abs(offsetX) > 2000 || Math.abs(offsetY) > 2000) {
+            console.warn(`[DRAG GUARD] Ignored abnormal drag-stop offset jump (${offsetX}, ${offsetY}) for ${draggedId}`);
+            clearTransforms();
+            return;
+        }
+
         const snapshotPositions = { ...dragStartPosRef.current };
 
         saveSnapshot();
@@ -1440,14 +1524,14 @@ export function InteractiveMap() {
         // Update Rooms (including all internal geometries for merged rooms, updating both box bounds and polygon points/curves)
         setRooms(prev => prev.map(r => {
             const id = r.docId || r.id;
-            if (selectedIdsRef.current.has(id)) {
+            if (selectedIdsRef.current.has(id) || selectedIdsRef.current.has(r.id) || selectedIdsRef.current.has(r.docId!)) {
                 markDirty(id);
                 // If it has geometries, update all of them by the offset
                 if (r.geometries && r.geometries.length > 0) {
                     return {
                         ...r,
                         geometries: r.geometries.map((gc: any, gi: number) => {
-                            const gStart = snapshotPositions[`${id}-geom-${gi}`] || gc;
+                            const gStart = snapshotPositions[`${id}-geom-${gi}`] || snapshotPositions[`${r.id}-geom-${gi}`] || gc;
                             return {
                                 ...gc,
                                 x: absoluteSnap(gStart.x) + offsetX,
@@ -1465,7 +1549,7 @@ export function InteractiveMap() {
                     };
                 }
                 // Legacy single-coords room
-                const sStart = snapshotPositions[id];
+                const sStart = snapshotPositions[id] || snapshotPositions[r.id];
                 if (r.map_coordinates && sStart) {
                     return {
                         ...r,
@@ -1513,38 +1597,7 @@ export function InteractiveMap() {
             return hasChanges ? next : prev;
         });
         
-        // Clear manual transforms applied during drag for labels, ghost walls, polygon SVG canvases, and controls
-        selectedIdsRef.current.forEach(id => {
-            const labelNode = document.getElementById(`room-label-${id}`);
-            if (labelNode) {
-                labelNode.style.transform = '';
-            }
-            
-            const room = rooms.find(r => r.id === id || r.docId === id);
-            if (room) {
-                const geometriesCount = room.geometries?.length || 1;
-                for (let gi = 0; gi < geometriesCount; gi++) {
-                    const wallNode = document.getElementById(`ghost-wall-${id}-${gi}`);
-                    if (wallNode) {
-                        wallNode.style.transform = '';
-                    }
-                    const ctrlNode = document.getElementById(`poly-controls-${id}-geom-${gi}`);
-                    if (ctrlNode) {
-                        ctrlNode.style.transform = '';
-                    }
-                    const elementId = gi === 0 ? `rnd-node-${id}` : `inner-rnd-${id}-geom-${gi}`;
-                    const el = document.getElementById(elementId);
-                    if (el) {
-                        el.style.transform = '';
-                    }
-                }
-            }
-        });
-        
-        dragCachedNodesRef.current = {};
-        labelCachedNodesRef.current = {};
-        wallCachedNodesRef.current = {};
-        controlsCachedNodesRef.current = {};
+        clearTransforms();
         setSelectionTick(t => t + 1); // Finally sync selection UI
     };
 
@@ -1554,7 +1607,8 @@ export function InteractiveMap() {
         
         let val = 0;
         if (property !== 'shape' && property !== 'points') {
-            val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+            if (typeof value === 'string' && (value.trim() === "" || isNaN(parseFloat(value)))) return;
+            val = typeof value === 'string' ? parseFloat(value) : (typeof value === 'number' ? value : 0);
             if (isNaN(val)) return;
         }
 
@@ -1624,12 +1678,13 @@ export function InteractiveMap() {
         markDirty(id);
         setRooms(prev => prev.map(r => {
             const rid = r.docId || r.id;
-            if (rid === id) {
+            if (rid === id || r.id === id || r.docId === id) {
                 if (property === 'name') return { ...r, name: value as string };
                 
                 let val = 0;
                 if (property !== 'shape' && property !== 'points') {
-                    val = typeof value === 'string' && value !== "" ? parseFloat(value) : (typeof value === 'number' ? value : 0);
+                    if (typeof value === 'string' && (value.trim() === "" || isNaN(parseFloat(value)))) return r;
+                    val = typeof value === 'string' ? parseFloat(value) : (typeof value === 'number' ? value : 0);
                     if (isNaN(val)) return r;
                 }
 
