@@ -2070,14 +2070,6 @@ export function InteractiveMap() {
                                 <Plus size={18} />
                             </button>
                         )}
-                        <button
-                            onClick={() => setShowCanvasSizeModal(true)}
-                            className="p-2 rounded-lg bg-tan/10 text-tan hover:bg-tan hover:text-white transition-colors flex items-center gap-1.5 text-xs font-serif font-bold ml-1"
-                            title="Expand or resize museum grid dimensions"
-                        >
-                            <Maximize2 size={16} />
-                            <span className="hidden sm:inline">{(canvasDimensions.width / PIXELS_PER_FOOT).toFixed(0)}′ × {(canvasDimensions.height / PIXELS_PER_FOOT).toFixed(0)}′ Grid</span>
-                        </button>
                     </div>
                 </div>
                 
