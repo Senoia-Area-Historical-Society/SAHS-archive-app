@@ -15,8 +15,8 @@ type LayoutHistoryState = {
     floors?: MapFloor[];
 };
 
-const CANVAS_WIDTH = 2400;
-const CANVAS_HEIGHT = 1600;
+const DEFAULT_CANVAS_WIDTH = 2400;
+const DEFAULT_CANVAS_HEIGHT = 1600;
 const PIXELS_PER_FOOT = 24; // 1 foot = 24 pixels (1 inch = 2 pixels)
 
 const getSmartBorders = (current: any, all: any[], isSelected: boolean) => {
@@ -176,6 +176,26 @@ export function InteractiveMap() {
     const [activeDimensions, setActiveDimensions] = useState<{ width: number, height: number } | null>(null);
     // @ts-ignore
     const [draggingId, setDraggingId] = useState<string | null>(null);
+
+    // Canvas Grid Dimensions State (Expandable Canvas)
+    const [canvasDimensions, setCanvasDimensions] = useState<{ width: number; height: number }>({
+        width: DEFAULT_CANVAS_WIDTH,
+        height: DEFAULT_CANVAS_HEIGHT
+    });
+    const [showCanvasSizeModal, setShowCanvasSizeModal] = useState(false);
+
+    const handleSaveCanvasDimensions = async (newW: number, newH: number) => {
+        const w = Math.max(1200, Math.min(12000, newW));
+        const h = Math.max(800, Math.min(8000, newH));
+        setCanvasDimensions({ width: w, height: h });
+        try {
+            await setDoc(doc(db, 'settings', 'interactive_map'), {
+                canvas_dimensions: { width: w, height: h }
+            }, { merge: true });
+        } catch (err) {
+            console.error("Failed to save canvas dimensions:", err);
+        }
+    };
 
     // Compass Rose State (Overlay)
     const [compassRose, setCompassRose] = useState<{ x: number, y: number, rotation: number, width?: number, height?: number }>({ x: 32, y: 32, rotation: 0 });
@@ -477,8 +497,8 @@ export function InteractiveMap() {
         const padding = 80;
         const availableW = wrapperRef.current.clientWidth - padding;
         const availableH = wrapperRef.current.clientHeight - padding;
-        const scaleW = availableW / CANVAS_WIDTH;
-        const scaleH = availableH / CANVAS_HEIGHT;
+        const scaleW = availableW / canvasDimensions.width;
+        const scaleH = availableH / canvasDimensions.height;
         const fitScale = Math.min(scaleW, scaleH);
         const finalScale = Math.max(0.2, Math.min(1, fitScale));
         setScale(parseFloat(finalScale.toFixed(2)));
@@ -579,6 +599,9 @@ export function InteractiveMap() {
                 if (settingsDoc.exists()) {
                     const data = settingsDoc.data();
                     if (data.compass_rose) setCompassRose(data.compass_rose);
+                    if (data.canvas_dimensions && data.canvas_dimensions.width && data.canvas_dimensions.height) {
+                        setCanvasDimensions(data.canvas_dimensions);
+                    }
                     if (data.floors && Array.isArray(data.floors) && data.floors.length > 0) {
                         const sortedFloors = data.floors.sort((a: MapFloor, b: MapFloor) => b.level - a.level);
                         setFloors(sortedFloors);
@@ -794,8 +817,8 @@ export function InteractiveMap() {
         const isPin = displayStyle === 'pin';
         // For pins, we center them so the 'tip' starts at the map center
         // Using the new 120px wide (60px offset) hit box
-        const startX = Math.round((CANVAS_WIDTH / 2) / 12) * 12;
-        const startY = Math.round((CANVAS_HEIGHT / 2) / 12) * 12;
+        const startX = Math.round((canvasDimensions.width / 2) / 12) * 12;
+        const startY = Math.round((canvasDimensions.height / 2) / 12) * 12;
         
         setLocations(prev => prev.map(l => l.id === selectedLocationForBinding ? { ...l, floor_id: currentFloorId } : l));
         markDirty(selectedLocationForBinding);
@@ -845,8 +868,8 @@ export function InteractiveMap() {
         const widthPx = Math.round((widthFt * PIXELS_PER_FOOT) / 12) * 12;
         const heightPx = Math.round((heightFt * PIXELS_PER_FOOT) / 12) * 12;
 
-        let startX = Math.round((CANVAS_WIDTH / 2 - widthPx / 2) / 12) * 12;
-        let startY = Math.round((CANVAS_HEIGHT / 2 - heightPx / 2) / 12) * 12;
+        let startX = Math.round((canvasDimensions.width / 2 - widthPx / 2) / 12) * 12;
+        let startY = Math.round((canvasDimensions.height / 2 - heightPx / 2) / 12) * 12;
 
         const wrapper = wrapperRef.current;
         if (wrapper) {
@@ -864,8 +887,8 @@ export function InteractiveMap() {
         }
 
         // Clamp to canvas boundaries with padding
-        startX = Math.max(120, Math.min(startX, CANVAS_WIDTH - widthPx - 120));
-        startY = Math.max(120, Math.min(startY, CANVAS_HEIGHT - heightPx - 120));
+        startX = Math.max(120, Math.min(startX, canvasDimensions.width - widthPx - 120));
+        startY = Math.max(120, Math.min(startY, canvasDimensions.height - heightPx - 120));
 
         // Cascade/Collision check against existing rooms on the current floor
         let attempts = 0;
@@ -978,7 +1001,7 @@ export function InteractiveMap() {
                         map_coordinates: { x: nextX, y: nextY, width: 360, height: 360 }
                     };
                     nextX += 400;
-                    if (nextX > CANVAS_WIDTH - 400) {
+                    if (nextX > canvasDimensions.width - 400) {
                         nextX = 120;
                         nextY += 400;
                     }
@@ -1868,8 +1891,8 @@ export function InteractiveMap() {
                 
                 const lastGeom = currentGeoms[currentGeoms.length - 1];
                 const newBlock = {
-                    x: Math.min(CANVAS_WIDTH - 240, lastGeom.x + 48),
-                    y: Math.min(CANVAS_HEIGHT - 240, lastGeom.y + 48),
+                    x: Math.min(canvasDimensions.width - 240, lastGeom.x + 48),
+                    y: Math.min(canvasDimensions.height - 240, lastGeom.y + 48),
                     width: 240, // default 10 ft
                     height: 240,
                     rotation: 0
@@ -2047,6 +2070,14 @@ export function InteractiveMap() {
                                 <Plus size={18} />
                             </button>
                         )}
+                        <button
+                            onClick={() => setShowCanvasSizeModal(true)}
+                            className="p-2 rounded-lg bg-tan/10 text-tan hover:bg-tan hover:text-white transition-colors flex items-center gap-1.5 text-xs font-serif font-bold ml-1"
+                            title="Expand or resize museum grid dimensions"
+                        >
+                            <Maximize2 size={16} />
+                            <span className="hidden sm:inline">{(canvasDimensions.width / PIXELS_PER_FOOT).toFixed(0)}′ × {(canvasDimensions.height / PIXELS_PER_FOOT).toFixed(0)}′ Grid</span>
+                        </button>
                     </div>
                 </div>
                 
@@ -2509,8 +2540,8 @@ export function InteractiveMap() {
                 `}</style>
 
                 {!loading && (
-                    <div className="relative flex-shrink-0 m-auto shadow-2xl bg-white border border-tan-light/30" style={{ width: CANVAS_WIDTH * scale, height: CANVAS_HEIGHT * scale }}>
-                                <div className="absolute top-0 left-0 blueprint-grid select-none" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} onDragStart={(e) => e.preventDefault()} style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, transform: `scale(${scale})`, transformOrigin: 'top left', userSelect: 'none', WebkitUserSelect: 'none' }}>
+                    <div className="relative flex-shrink-0 m-auto shadow-2xl bg-white border border-tan-light/30" style={{ width: canvasDimensions.width * scale, height: canvasDimensions.height * scale }}>
+                                <div className="absolute top-0 left-0 blueprint-grid select-none" onMouseDown={handleCanvasMouseDown} onMouseMove={handleCanvasMouseMove} onMouseUp={handleCanvasMouseUp} onMouseLeave={handleCanvasMouseUp} onDragStart={(e) => e.preventDefault()} style={{ width: canvasDimensions.width, height: canvasDimensions.height, transform: `scale(${scale})`, transformOrigin: 'top left', userSelect: 'none', WebkitUserSelect: 'none' }}>
                                     {/* Render Marquee Selection Box */}
                                     {selectionBox && (
                                         <div 
@@ -3534,6 +3565,125 @@ export function InteractiveMap() {
                                     Close
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Canvas Grid Expansion Modal */}
+            {showCanvasSizeModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-tan/20 p-6 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center pb-4 border-b border-tan-light/40">
+                            <div className="flex items-center gap-2">
+                                <Maximize2 className="text-tan" size={22} />
+                                <h3 className="text-lg font-serif font-bold text-charcoal">Expand Museum Grid Canvas</h3>
+                            </div>
+                            <button onClick={() => setShowCanvasSizeModal(false)} className="p-1 hover:bg-tan/10 rounded-lg text-charcoal/60 hover:text-charcoal"><X size={18} /></button>
+                        </div>
+
+                        <div className="my-4 space-y-4">
+                            <div className="bg-cream/60 p-3 rounded-xl border border-tan/20 flex justify-between items-center text-xs">
+                                <div>
+                                    <span className="font-bold text-charcoal/60 uppercase block text-[9px] tracking-wider">Current Grid Size</span>
+                                    <span className="font-mono font-bold text-charcoal text-sm">
+                                        {(canvasDimensions.width / PIXELS_PER_FOOT).toFixed(0)} ft × {(canvasDimensions.height / PIXELS_PER_FOOT).toFixed(0)} ft
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="font-bold text-charcoal/60 uppercase block text-[9px] tracking-wider">Total Blueprint Area</span>
+                                    <span className="font-mono font-bold text-tan text-sm">
+                                        {((canvasDimensions.width / PIXELS_PER_FOOT) * (canvasDimensions.height / PIXELS_PER_FOOT)).toLocaleString()} sq ft
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-charcoal/70 uppercase block mb-2">Grid Size Presets</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: "Standard", ftW: 100, ftH: 66, desc: "2,400 × 1,600 px" },
+                                        { label: "Large Museum", ftW: 150, ftH: 100, desc: "3,600 × 2,400 px" },
+                                        { label: "Mega Campus", ftW: 200, ftH: 150, desc: "4,800 × 3,600 px" },
+                                        { label: "Grand Estate", ftW: 300, ftH: 200, desc: "7,200 × 4,800 px" },
+                                    ].map((preset) => {
+                                        const pW = preset.ftW * PIXELS_PER_FOOT;
+                                        const pH = preset.ftH * PIXELS_PER_FOOT;
+                                        const isCurrent = canvasDimensions.width === pW && canvasDimensions.height === pH;
+                                        return (
+                                            <button
+                                                key={preset.label}
+                                                onClick={() => handleSaveCanvasDimensions(pW, pH)}
+                                                className={`p-3 rounded-xl text-left border transition-all ${isCurrent ? 'border-tan bg-tan/10 shadow-sm font-bold' : 'border-tan-light/40 hover:border-tan/60 hover:bg-cream'}`}
+                                            >
+                                                <div className="font-bold text-xs text-charcoal">{preset.label}</div>
+                                                <div className="text-xs font-mono font-bold text-tan mt-0.5">{preset.ftW}′ × {preset.ftH}′</div>
+                                                <div className="text-[10px] text-charcoal/40 mt-0.5">{preset.desc}</div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-tan-light/30">
+                                <label className="text-xs font-bold text-charcoal/70 uppercase block mb-2">Custom Dimensions (in Feet)</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <span className="text-[10px] font-bold text-charcoal/50 block mb-1">Width (Feet)</span>
+                                        <input
+                                            type="number"
+                                            min="50"
+                                            max="500"
+                                            step="5"
+                                            value={canvasDimensions.width / PIXELS_PER_FOOT}
+                                            onChange={(e) => {
+                                                const ft = parseFloat(e.target.value) || 50;
+                                                handleSaveCanvasDimensions(ft * PIXELS_PER_FOOT, canvasDimensions.height);
+                                            }}
+                                            className="w-full bg-cream border border-tan/30 rounded-lg p-2 text-sm font-mono font-bold outline-none focus:border-tan"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-charcoal/50 block mb-1">Height (Feet)</span>
+                                        <input
+                                            type="number"
+                                            min="30"
+                                            max="500"
+                                            step="5"
+                                            value={canvasDimensions.height / PIXELS_PER_FOOT}
+                                            onChange={(e) => {
+                                                const ft = parseFloat(e.target.value) || 30;
+                                                handleSaveCanvasDimensions(canvasDimensions.width, ft * PIXELS_PER_FOOT);
+                                            }}
+                                            className="w-full bg-cream border border-tan/30 rounded-lg p-2 text-sm font-mono font-bold outline-none focus:border-tan"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    onClick={() => handleSaveCanvasDimensions(canvasDimensions.width + 25 * PIXELS_PER_FOOT, canvasDimensions.height)}
+                                    className="flex-1 p-2 bg-tan/10 hover:bg-tan/20 text-tan font-bold text-xs rounded-lg transition-colors border border-tan/20"
+                                >
+                                    +25 ft Width
+                                </button>
+                                <button
+                                    onClick={() => handleSaveCanvasDimensions(canvasDimensions.width, canvasDimensions.height + 25 * PIXELS_PER_FOOT)}
+                                    className="flex-1 p-2 bg-tan/10 hover:bg-tan/20 text-tan font-bold text-xs rounded-lg transition-colors border border-tan/20"
+                                >
+                                    +25 ft Height
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-tan-light/40 flex justify-end">
+                            <button
+                                onClick={() => setShowCanvasSizeModal(false)}
+                                className="px-4 py-2 bg-tan text-white font-bold text-xs rounded-lg hover:bg-tan-dark transition-colors shadow-sm"
+                            >
+                                Done
+                            </button>
                         </div>
                     </div>
                 </div>
