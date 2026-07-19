@@ -58,6 +58,54 @@ const getSmartBorders = (current: any, all: any[], isSelected: boolean) => {
     return style;
 };
 
+const DimensionInput = ({
+    value,
+    onChange,
+    step = "0.5",
+    disabled = false,
+    className = ""
+}: {
+    value: number,
+    onChange: (val: string) => void,
+    step?: string,
+    disabled?: boolean,
+    className?: string
+}) => {
+    const [localStr, setLocalStr] = useState<string | null>(null);
+
+    useEffect(() => {
+        setLocalStr(null);
+    }, [value]);
+
+    const displayVal = localStr !== null ? localStr : (isNaN(value) ? '' : Number(value.toFixed(2)).toString());
+
+    return (
+        <input 
+            type="number"
+            step={step}
+            disabled={disabled}
+            value={displayVal}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => {
+                const val = e.target.value;
+                setLocalStr(val);
+                if (val !== "" && !isNaN(parseFloat(val))) {
+                    onChange(val);
+                }
+            }}
+            onBlur={() => {
+                setLocalStr(null);
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    (e.target as HTMLInputElement).blur();
+                }
+            }}
+            className={className}
+        />
+    );
+};
+
 export function InteractiveMap() {
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
@@ -2224,14 +2272,13 @@ export function InteractiveMap() {
                                                                                         <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">
                                                                                             {geom.shape === 'circle' ? 'Diameter (ft)' : 'Width (ft)'}
                                                                                         </label>
-                                                                                        <input 
-                                                                                            type="number" 
+                                                                                        <DimensionInput 
                                                                                             step="0.5"
                                                                                             value={geom.width / PIXELS_PER_FOOT} 
-                                                                                            onChange={(e) => {
-                                                                                                handleUpdateRoomProperty(id, 'width', e.target.value, idx);
+                                                                                            onChange={(val) => {
+                                                                                                handleUpdateRoomProperty(id, 'width', val, idx);
                                                                                                 if (geom.shape === 'circle') {
-                                                                                                    handleUpdateRoomProperty(id, 'height', e.target.value, idx);
+                                                                                                    handleUpdateRoomProperty(id, 'height', val, idx);
                                                                                                 }
                                                                                             }}
                                                                                             className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
@@ -2240,11 +2287,10 @@ export function InteractiveMap() {
                                                                                     {geom.shape !== 'circle' && (
                                                                                         <div>
                                                                                             <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
-                                                                                            <input 
-                                                                                                type="number" 
+                                                                                            <DimensionInput 
                                                                                                 step="0.5"
                                                                                                 value={geom.height / PIXELS_PER_FOOT} 
-                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'height', e.target.value, idx)}
+                                                                                                onChange={(val) => handleUpdateRoomProperty(id, 'height', val, idx)}
                                                                                                 className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                                             />
                                                                                         </div>
@@ -2253,42 +2299,38 @@ export function InteractiveMap() {
                                                                                 <div className="grid grid-cols-4 gap-1.5">
                                                                                     <div>
                                                                                         <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
-                                                                                        <input 
-                                                                                            type="number" 
+                                                                                        <DimensionInput 
                                                                                             step="0.5"
                                                                                             value={geom.x / PIXELS_PER_FOOT} 
-                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'x', e.target.value, idx)}
+                                                                                            onChange={(val) => handleUpdateRoomProperty(id, 'x', val, idx)}
                                                                                             className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                                         />
                                                                                     </div>
                                                                                     <div>
                                                                                         <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
-                                                                                        <input 
-                                                                                            type="number" 
+                                                                                        <DimensionInput 
                                                                                             step="0.5"
                                                                                             value={geom.y / PIXELS_PER_FOOT} 
-                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'y', e.target.value, idx)}
+                                                                                            onChange={(val) => handleUpdateRoomProperty(id, 'y', val, idx)}
                                                                                             className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                                         />
                                                                                     </div>
                                                                                     <div>
                                                                                         <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
-                                                                                        <input 
-                                                                                            type="number" 
+                                                                                        <DimensionInput 
                                                                                             step="45"
                                                                                             value={geom.rotation || 0} 
-                                                                                            onChange={(e) => handleUpdateRoomProperty(id, 'rotation', e.target.value, idx)}
+                                                                                            onChange={(val) => handleUpdateRoomProperty(id, 'rotation', val, idx)}
                                                                                             className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                                         />
                                                                                     </div>
                                                                                     {geom.shape !== 'circle' && (
                                                                                         <div>
                                                                                             <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
-                                                                                            <input 
-                                                                                                type="number" 
+                                                                                            <DimensionInput 
                                                                                                 step="15"
                                                                                                 value={geom.skewX || 0} 
-                                                                                                onChange={(e) => handleUpdateRoomProperty(id, 'skewX', e.target.value, idx)}
+                                                                                                onChange={(val) => handleUpdateRoomProperty(id, 'skewX', val, idx)}
                                                                                                 className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                                             />
                                                                                         </div>
@@ -2312,33 +2354,21 @@ export function InteractiveMap() {
                                                             <div className="grid grid-cols-2 gap-3">
                                                                 <div>
                                                                     <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Width (ft)</label>
-                                                                    <input 
-                                                                        type="number" 
+                                                                    <DimensionInput 
                                                                         step="0.5"
                                                                         disabled={locCoords.display_type === 'pin'}
                                                                         value={locCoords.width / PIXELS_PER_FOOT} 
-                                                                        onChange={(e) => handleUpdateLocationProperty(id, 'width', e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                (e.target as HTMLInputElement).blur();
-                                                                            }
-                                                                        }}
+                                                                        onChange={(val) => handleUpdateLocationProperty(id, 'width', val)}
                                                                         className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan disabled:opacity-50"
                                                                     />
                                                                 </div>
                                                                 <div>
                                                                     <label className="text-[9px] font-bold text-charcoal/30 uppercase mb-0.5 block">Height (ft)</label>
-                                                                    <input 
-                                                                        type="number" 
+                                                                    <DimensionInput 
                                                                         step="0.5"
                                                                         disabled={locCoords.display_type === 'pin'}
                                                                         value={locCoords.height / PIXELS_PER_FOOT} 
-                                                                        onChange={(e) => handleUpdateLocationProperty(id, 'height', e.target.value)}
-                                                                        onKeyDown={(e) => {
-                                                                            if (e.key === 'Enter') {
-                                                                                (e.target as HTMLInputElement).blur();
-                                                                            }
-                                                                        }}
+                                                                        onChange={(val) => handleUpdateLocationProperty(id, 'height', val)}
                                                                         className="w-full bg-white border border-tan/10 rounded px-2 py-1 text-xs font-mono font-bold text-charcoal outline-none focus:border-tan disabled:opacity-50"
                                                                     />
                                                                 </div>
@@ -2346,61 +2376,37 @@ export function InteractiveMap() {
                                                             <div className="grid grid-cols-4 gap-1.5">
                                                                  <div>
                                                                      <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">X (ft)</label>
-                                                                     <input 
-                                                                         type="number" 
+                                                                     <DimensionInput 
                                                                          step="0.5"
                                                                          value={locCoords.x / PIXELS_PER_FOOT} 
-                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'x', e.target.value)}
-                                                                         onKeyDown={(e) => {
-                                                                             if (e.key === 'Enter') {
-                                                                                 (e.target as HTMLInputElement).blur();
-                                                                             }
-                                                                         }}
+                                                                         onChange={(val) => handleUpdateLocationProperty(id, 'x', val)}
                                                                          className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                      />
                                                                  </div>
                                                                  <div>
                                                                      <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Y (ft)</label>
-                                                                     <input 
-                                                                         type="number" 
+                                                                     <DimensionInput 
                                                                          step="0.5"
                                                                          value={locCoords.y / PIXELS_PER_FOOT} 
-                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'y', e.target.value)}
-                                                                         onKeyDown={(e) => {
-                                                                             if (e.key === 'Enter') {
-                                                                                 (e.target as HTMLInputElement).blur();
-                                                                             }
-                                                                         }}
+                                                                         onChange={(val) => handleUpdateLocationProperty(id, 'y', val)}
                                                                          className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                      />
                                                                  </div>
                                                                  <div>
                                                                      <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Rot</label>
-                                                                     <input 
-                                                                         type="number" 
+                                                                     <DimensionInput 
                                                                          step="45"
                                                                          value={locCoords.rotation || 0} 
-                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'rotation', e.target.value)}
-                                                                         onKeyDown={(e) => {
-                                                                             if (e.key === 'Enter') {
-                                                                                 (e.target as HTMLInputElement).blur();
-                                                                             }
-                                                                         }}
+                                                                         onChange={(val) => handleUpdateLocationProperty(id, 'rotation', val)}
                                                                          className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                      />
                                                                  </div>
                                                                  <div>
                                                                      <label className="text-[8px] font-bold text-charcoal/30 uppercase mb-0.5 block">Skew</label>
-                                                                     <input 
-                                                                         type="number" 
+                                                                     <DimensionInput 
                                                                          step="15"
                                                                          value={locCoords.skewX || 0} 
-                                                                         onChange={(e) => handleUpdateLocationProperty(id, 'skewX', e.target.value)}
-                                                                         onKeyDown={(e) => {
-                                                                             if (e.key === 'Enter') {
-                                                                                 (e.target as HTMLInputElement).blur();
-                                                                             }
-                                                                         }}
+                                                                         onChange={(val) => handleUpdateLocationProperty(id, 'skewX', val)}
                                                                          className="w-full bg-tan/5 border border-tan/10 rounded px-1 py-0.5 text-[9px] font-mono font-bold text-charcoal outline-none focus:border-tan"
                                                                      />
                                                                  </div>
