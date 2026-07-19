@@ -1472,15 +1472,21 @@ export function InteractiveMap() {
                 const room = rooms.find(r => r.id === id || r.docId === id);
                 if (room) {
                     const rDocId = room.docId || room.id;
+                    const rId = room.id || room.docId;
                     const geometriesCount = room.geometries?.length || 1;
                     for (let gi = 0; gi < geometriesCount; gi++) {
-                        const wallNode = document.getElementById(`ghost-wall-${rDocId}-${gi}`) || document.getElementById(`ghost-wall-${room.id}-${gi}`);
+                        const wallNode = document.getElementById(`ghost-wall-${rDocId}-${gi}`) || (rId ? document.getElementById(`ghost-wall-${room.id}-${gi}`) : null);
                         if (wallNode) wallNode.style.transform = '';
-                        const ctrlNode = document.getElementById(`poly-controls-${rDocId}-geom-${gi}`) || document.getElementById(`poly-controls-${room.id}-geom-${gi}`);
+                        const ctrlNode = document.getElementById(`poly-controls-${rDocId}-geom-${gi}`) || (rId ? document.getElementById(`poly-controls-${room.id}-geom-${gi}`) : null);
                         if (ctrlNode) ctrlNode.style.transform = '';
-                        const elementId = gi === 0 ? `rnd-node-${rDocId}` : `inner-rnd-${rDocId}-geom-${gi}`;
-                        const el = document.getElementById(elementId) || document.getElementById(gi === 0 ? `rnd-node-${room.id}` : `inner-rnd-${room.id}-geom-${gi}`);
-                        if (el) el.style.transform = '';
+                        
+                        // Only clear transform on SVG polygon overlays (not Rnd rect nodes)
+                        const geom = room.geometries?.[gi] || room.map_coordinates;
+                        if (geom?.shape === 'polygon') {
+                            const elementId = gi === 0 ? `rnd-node-${rDocId}` : `inner-rnd-${rDocId}-geom-${gi}`;
+                            const el = document.getElementById(elementId) || (rId ? document.getElementById(gi === 0 ? `rnd-node-${room.id}` : `inner-rnd-${room.id}-geom-${gi}`) : null);
+                            if (el) el.style.transform = '';
+                        }
                     }
                 }
             });
