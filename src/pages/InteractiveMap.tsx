@@ -2137,7 +2137,7 @@ export function InteractiveMap() {
                         {!isSidebarMinimized && (
                             <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
                                 {/* Diagnostic Stats */}
-                                <div className="grid grid-cols-2 gap-2 mb-4">
+                                <div className="grid grid-cols-2 gap-2 mb-3">
                                     <div className="bg-tan/5 p-2 rounded-lg border border-tan/20">
                                         <p className="text-[10px] font-black uppercase text-tan/60 mb-0.5">Rooms</p>
                                         <p className="font-mono text-xs font-bold text-charcoal">{rooms.length} Loaded</p>
@@ -2146,6 +2146,24 @@ export function InteractiveMap() {
                                         <p className="text-[10px] font-black uppercase text-charcoal/40 mb-0.5">Locations</p>
                                         <p className="font-mono text-xs font-bold text-charcoal">{locations.length} Total</p>
                                     </div>
+                                </div>
+
+                                {/* Canvas Grid Expansion Card */}
+                                <div className="mb-4 bg-cream p-3 rounded-xl border border-tan/30 flex justify-between items-center shadow-xs">
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase text-tan tracking-wider">Canvas Grid Size</p>
+                                        <p className="font-mono text-xs font-bold text-charcoal mt-0.5">
+                                            {(canvasDimensions.width / PIXELS_PER_FOOT).toFixed(0)}′ × {(canvasDimensions.height / PIXELS_PER_FOOT).toFixed(0)}′ Grid
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowCanvasSizeModal(true)}
+                                        className="px-2.5 py-1.5 bg-tan text-white hover:bg-tan-dark text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                                        title="Resize or expand canvas grid"
+                                    >
+                                        <Maximize2 size={13} />
+                                        <span>Expand</span>
+                                    </button>
                                 </div>
                                 
                                 {isBindingMode ? (
