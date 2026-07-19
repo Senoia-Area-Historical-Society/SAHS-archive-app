@@ -2732,19 +2732,40 @@ export function InteractiveMap() {
                                                              {/* Midpoint '+' handles and '⌒' curve toggle buttons */}
                                                              {points.map((pt: any, pIdx: number) => {
                                                                  const nextPt = points[(pIdx + 1) % points.length];
-                                                                 const midX = (pt.x + nextPt.x) / 2;
-                                                                 const midY = (pt.y + nextPt.y) / 2;
+                                                                 const isCurved = !!pt.curve;
+
+                                                                 // Calculate midpoint position (on curved arc if curved, otherwise on straight edge)
+                                                                 const midX = isCurved 
+                                                                     ? 0.25 * pt.x + 0.5 * pt.curve.cx + 0.25 * nextPt.x 
+                                                                     : (pt.x + nextPt.x) / 2;
+                                                                 const midY = isCurved 
+                                                                     ? 0.25 * pt.y + 0.5 * pt.curve.cy + 0.25 * nextPt.y 
+                                                                     : (pt.y + nextPt.y) / 2;
+
                                                                  // Compute perpendicular offset direction for curve toggle placement
                                                                  const edgeDx = nextPt.x - pt.x;
                                                                  const edgeDy = nextPt.y - pt.y;
                                                                  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy) || 1;
-                                                                 // Perpendicular unit vector (pointing "outward")
-                                                                 const perpX = -edgeDy / edgeLen;
-                                                                 const perpY = edgeDx / edgeLen;
-                                                                 const toggleOffset = 22; // px offset from edge
+                                                                 let perpX = -edgeDy / edgeLen;
+                                                                 let perpY = edgeDx / edgeLen;
+
+                                                                 // If curved, orient toggle button perpendicular outward from curve bulge
+                                                                 if (isCurved) {
+                                                                     const chordMidX = (pt.x + nextPt.x) / 2;
+                                                                     const chordMidY = (pt.y + nextPt.y) / 2;
+                                                                     const bulgeX = pt.curve.cx - chordMidX;
+                                                                     const bulgeY = pt.curve.cy - chordMidY;
+                                                                     const dot = bulgeX * perpX + bulgeY * perpY;
+                                                                     if (dot < 0) {
+                                                                         perpX = -perpX;
+                                                                         perpY = -perpY;
+                                                                     }
+                                                                 }
+
+                                                                 const toggleOffset = 24; // px offset from curve midpoint
                                                                  const toggleX = midX + perpX * toggleOffset;
                                                                  const toggleY = midY + perpY * toggleOffset;
-                                                                 const isCurved = !!pt.curve;
+
                                                                  return (
                                                                      <g key={`mid-${pIdx}`}>
                                                                          {/* Add corner '+' handle on the edge */}
