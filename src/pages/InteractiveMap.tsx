@@ -2828,7 +2828,7 @@ export function InteractiveMap() {
                                                                      fill="white"
                                                                      stroke="#3b82f6"
                                                                      strokeWidth={3.5}
-                                                                     className="pointer-events-auto cursor-grab active:cursor-grabbing hover:scale-110 transition-transform shadow-lg"
+                                                                     className="pointer-events-auto cursor-grab active:cursor-grabbing hover:fill-blue-50 transition-colors"
                                                                      onMouseDown={(e) => {
                                                                          e.stopPropagation();
                                                                          setDraggingVertex({
