@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, addDoc, deleteDoc, orderBy, deleteField } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
 import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen, Edit2 } from 'lucide-react';
@@ -61,6 +61,8 @@ export function LocationDetail() {
     const [editBoxName, setEditBoxName] = useState('');
     const [editBoxId, setEditBoxId] = useState('');
     const [editBoxDesc, setEditBoxDesc] = useState('');
+    const [editBoxRoomId, setEditBoxRoomId] = useState('');
+    const [rooms, setRooms] = useState<Room[]>([]);
     const [isEditingBox, setIsEditingBox] = useState(false);
 
     // Book Selection State
@@ -703,21 +705,39 @@ export function LocationDetail() {
         }
     };
 
+    const fetchRooms = async () => {
+        try {
+            const snap = await getDocs(query(collection(db, 'rooms'), orderBy('name')));
+            const roomData = snap.docs.map(doc => ({
+                docId: doc.id,
+                ...doc.data()
+            })) as Room[];
+            setRooms(roomData);
+        } catch (error) {
+            console.error("Error fetching rooms:", error);
+        }
+    };
+
     const handleDeleteBox = async () => {
-        if (!locationData?.docId || !parentLocation) return;
+        if (!locationData?.docId) return;
         
-        if (!window.confirm(`Are you sure you want to delete "${locationData.name}"?\n\nThe ${items.length} artifacts inside will NOT be deleted, but they will be unassigned from this physical location.`)) {
+        const isTopLevel = !parentLocation;
+        const confirmMsg = isTopLevel
+            ? `Are you sure you want to delete the location "${locationData.name}"?\n\nThe items inside will NOT be deleted, but they will be unassigned from this physical location.`
+            : `Are you sure you want to delete "${locationData.name}"?\n\nThe ${items.length} artifacts inside will NOT be deleted, but they will be unassigned from this physical location.`;
+
+        if (!window.confirm(confirmMsg)) {
             return;
         }
 
         setIsMovingBox(true); // Reusing the loading state for convenience during the async operation
         try {
+            const batch = writeBatch(db);
+            const now = new Date().toISOString();
+            const adminEmail = user?.email || 'Admin';
+
             // Unassign all items in this box
             if (items.length > 0) {
-                const batch = writeBatch(db);
-                const now = new Date().toISOString();
-                const adminEmail = user?.email || 'Admin';
-
                 items.forEach(item => {
                     const itemRef = doc(db, 'archive_items', item.id!);
                     const currentIds = item.museum_location_ids || [];
@@ -738,18 +758,49 @@ export function LocationDetail() {
 
                     batch.update(itemRef, updates);
                 });
-                
-                await batch.commit();
             }
 
-            // Delete the box
+            // Unassign all library books in this box
+            if (books.length > 0) {
+                books.forEach(book => {
+                    const bookRef = doc(db, 'library_books', book.id);
+                    const currentIds = book.museum_location_ids || [];
+                    const newIds = currentIds.filter(lid => lid !== locationData.id && lid !== locationData.docId);
+
+                    batch.update(bookRef, {
+                        museum_location_ids: newIds,
+                        updated_at: now,
+                        updated_by_email: adminEmail
+                    });
+                });
+            }
+
+            // If top-level, unassign all nested boxes (so they become top-level locations)
+            if (isTopLevel && childBoxes.length > 0) {
+                childBoxes.forEach(child => {
+                    if (child.docId) {
+                        const childRef = doc(db, 'locations', child.docId);
+                        batch.update(childRef, {
+                            parent_location_id: deleteField()
+                        });
+                    }
+                });
+            }
+            
+            await batch.commit();
+
+            // Delete the location
             await deleteDoc(doc(db, 'locations', locationData.docId));
             
-            // Navigate back to parent shelf
-            navigate(`/locations/${parentLocation.id || parentLocation.docId}`);
+            // Navigate back
+            if (isTopLevel) {
+                navigate('/manage-locations');
+            } else {
+                navigate(`/locations/${parentLocation.id || parentLocation.docId}`);
+            }
         } catch (error) {
-            console.error("Error deleting box:", error);
-            alert("Failed to delete box. Please check your permissions.");
+            console.error("Error deleting location:", error);
+            alert("Failed to delete location. Please check your permissions.");
         } finally {
             setIsMovingBox(false);
         }
@@ -760,7 +811,9 @@ export function LocationDetail() {
         setEditBoxName(locationData.name);
         setEditBoxId(locationData.id);
         setEditBoxDesc(locationData.description || '');
+        setEditBoxRoomId(locationData.room_id || '');
         setIsEditBoxModalOpen(true);
+        fetchRooms();
     };
 
     const handleEditBox = async () => {
@@ -789,11 +842,27 @@ export function LocationDetail() {
 
             // Stage box location document updates
             const boxRef = doc(db, 'locations', locationData.docId);
-            batch.update(boxRef, {
+            const boxUpdates: any = {
                 id: sanitizedId,
                 name: editBoxName,
                 description: editBoxDesc
-            });
+            };
+            if (!parentLocation) {
+                boxUpdates.room_id = editBoxRoomId || deleteField();
+            }
+            batch.update(boxRef, boxUpdates);
+
+            // Propagate room_id changes to children if top-level and room changed
+            if (!parentLocation && editBoxRoomId !== (locationData.room_id || '')) {
+                childBoxes.forEach(child => {
+                    if (child.docId) {
+                        const childRef = doc(db, 'locations', child.docId);
+                        batch.update(childRef, {
+                            room_id: editBoxRoomId || deleteField()
+                        });
+                    }
+                });
+            }
 
             if (idChanged) {
                 // Query and stage updates for archive items
@@ -867,7 +936,10 @@ export function LocationDetail() {
             if (idChanged) {
                 navigate(`/locations/${sanitizedId}`, { replace: true });
             } else {
-                setLocationData(prev => prev ? { ...prev, name: editBoxName, description: editBoxDesc } : null);
+                setLocationData(prev => prev ? { ...prev, name: editBoxName, description: editBoxDesc, room_id: editBoxRoomId || undefined } : null);
+                if (!parentLocation && editBoxRoomId !== (locationData.room_id || '')) {
+                    setChildBoxes(prev => prev.map(child => ({ ...child, room_id: editBoxRoomId || undefined })));
+                }
             }
         } catch (error) {
             console.error("Error editing box:", error);
@@ -1123,12 +1195,29 @@ export function LocationDetail() {
                     {isSAHSUser && (
                         <div className="flex items-center gap-2">
                             {!parentLocation && (
-                                <button 
-                                    onClick={() => setIsAddBoxModalOpen(true)}
-                                    className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
-                                >
-                                    <Box size={18} /> Add Nested Box
-                                </button>
+                                <>
+                                    <button 
+                                        onClick={handleDeleteBox}
+                                        disabled={isMovingBox}
+                                        className="flex items-center gap-2 px-4 py-3 rounded-lg font-bold transition-all shadow-sm justify-center bg-red-50 border border-red-200 text-red-600 hover:bg-red-100"
+                                        title="Delete Location"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                    <button 
+                                        onClick={openEditBoxModal}
+                                        className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                        title="Edit Location"
+                                    >
+                                        <Edit2 size={18} /> Edit Location
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsAddBoxModalOpen(true)}
+                                        className="flex items-center gap-2 px-5 py-3 rounded-lg font-bold transition-all shadow-sm w-full sm:w-auto justify-center bg-white border border-tan text-tan hover:bg-tan/5"
+                                    >
+                                        <Box size={18} /> Add Nested Box
+                                    </button>
+                                </>
                             )}
                             {parentLocation && (
                                 <>
@@ -1618,16 +1707,16 @@ export function LocationDetail() {
                     <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 my-8 sm:my-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
-                                <Box className="text-tan" size={24}/> Edit Nested Box
+                                <Box className="text-tan" size={24}/> {parentLocation ? 'Edit Nested Box' : 'Edit Location'}
                             </h2>
                             <button onClick={() => setIsEditBoxModalOpen(false)} className="text-charcoal/40 hover:text-charcoal"><X size={24}/></button>
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Box Name</label>
+                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">{parentLocation ? 'Box Name' : 'Location Name'}</label>
                                 <input 
                                     type="text" 
-                                    placeholder="e.g. Box 14"
+                                    placeholder={parentLocation ? "e.g. Box 14" : "e.g. Case 4"}
                                     value={editBoxName}
                                     onChange={e => setEditBoxName(e.target.value)}
                                     className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
@@ -1637,7 +1726,7 @@ export function LocationDetail() {
                                 <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
                                 <input 
                                     type="text" 
-                                    placeholder="e.g. box-14"
+                                    placeholder={parentLocation ? "e.g. box-14" : "e.g. case-4"}
                                     value={editBoxId}
                                     onChange={e => setEditBoxId(e.target.value)}
                                     className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans"
@@ -1651,15 +1740,31 @@ export function LocationDetail() {
                                         <span>Warning: Slug Changing</span>
                                     </div>
                                     <p className="text-xs leading-relaxed font-sans">
-                                        Changing the Unique ID (Slug) will update references in all {items.length} artifacts and {books.length} books in this box, but **any existing printed QR codes for this box will stop working and must be reprinted**.
+                                        Changing the Unique ID (Slug) will update references in all {items.length} artifacts and {books.length} books in this {parentLocation ? 'box' : 'location'}, but **any existing printed QR codes for this {parentLocation ? 'box' : 'location'} will stop working and must be reprinted**.
                                     </p>
+                                </div>
+                            )}
+
+                            {!parentLocation && (
+                                <div>
+                                    <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Assign to Wing/Room</label>
+                                    <select
+                                        value={editBoxRoomId}
+                                        onChange={e => setEditBoxRoomId(e.target.value)}
+                                        className="w-full bg-cream px-4 py-3 rounded-xl border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal"
+                                    >
+                                        <option value="">No Room (Unassigned)</option>
+                                        {rooms.map(room => (
+                                            <option key={room.docId} value={room.docId}>{room.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             )}
 
                             <div>
                                 <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Description</label>
                                 <textarea 
-                                    placeholder="Add detail about what is housed in this box..."
+                                    placeholder={parentLocation ? "Add detail about what is housed in this box..." : "Add detail about this location..."}
                                     value={editBoxDesc}
                                     onChange={e => setEditBoxDesc(e.target.value)}
                                     className="w-full bg-cream px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-tan/30 transition-all font-sans text-sm resize-none"
