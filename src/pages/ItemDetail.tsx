@@ -340,16 +340,37 @@ export function ItemDetail() {
                     const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
 
                     const collectionsPromise = cIds.length > 0
-                        ? Promise.all(cIds.map(cid => getDoc(doc(db, 'collections', cid))))
+                        ? Promise.all(cIds.map((cid: any) => getDoc(doc(db, 'collections', cid)))).catch(err => {
+                            console.error("Collections fetch failed:", err);
+                            return [];
+                        })
                         : Promise.resolve([]);
 
-                    const forwardFiguresPromise = fetchForward(data.related_figures);
-                    const forwardDocsPromise = fetchForward(data.related_documents);
-                    const forwardOrgsPromise = fetchForward(data.related_organizations);
+                    const forwardFiguresPromise = fetchForward(data.related_figures).catch(err => {
+                        console.error("fetchForward figures failed:", err);
+                        return [];
+                    });
+                    const forwardDocsPromise = fetchForward(data.related_documents).catch(err => {
+                        console.error("fetchForward docs failed:", err);
+                        return [];
+                    });
+                    const forwardOrgsPromise = fetchForward(data.related_organizations).catch(err => {
+                        console.error("fetchForward orgs failed:", err);
+                        return [];
+                    });
 
-                    const backwardFiguresPromise = fetchBackward('related_figures');
-                    const backwardDocsPromise = fetchBackward('related_documents');
-                    const backwardOrgsPromise = fetchBackward('related_organizations');
+                    const backwardFiguresPromise = fetchBackward('related_figures').catch(err => {
+                        console.error("fetchBackward figures failed:", err);
+                        return [];
+                    });
+                    const backwardDocsPromise = fetchBackward('related_documents').catch(err => {
+                        console.error("fetchBackward docs failed:", err);
+                        return [];
+                    });
+                    const backwardOrgsPromise = fetchBackward('related_organizations').catch(err => {
+                        console.error("fetchBackward orgs failed:", err);
+                        return [];
+                    });
 
                     const exploreQuery = cIds.length > 0
                         ? query(
@@ -365,10 +386,16 @@ export function ItemDetail() {
                             where('item_type', '==', data.item_type),
                             limit(12)
                           );
-                    const explorePromise = getDocs(exploreQuery);
+                    const explorePromise = getDocs(exploreQuery).catch(err => {
+                        console.error("explorePromise failed:", err);
+                        return null;
+                    });
 
                     const locationsPromise = locIds.length > 0
-                        ? Promise.all(locIds.map(lid => getDoc(doc(db, 'locations', lid))))
+                        ? Promise.all(locIds.map((lid: any) => getDoc(doc(db, 'locations', lid)))).catch(err => {
+                            console.error("locationsPromise failed:", err);
+                            return [];
+                        })
                         : Promise.resolve([]);
 
                     // Fetch all secondary data in parallel to eliminate sequential database roundtrip latency
@@ -396,7 +423,7 @@ export function ItemDetail() {
 
                     // Process collections
                     const colls = collSnaps
-                        .filter((s: any) => s.exists())
+                        .filter((s: any) => s && s.exists())
                         .map((s: any) => ({ id: s.id, ...s.data() } as any));
                     setCollectionsData(colls);
                     setIsCollectionPrivate(colls.some((c: any) => c.is_private === true));
@@ -422,7 +449,9 @@ export function ItemDetail() {
                     setRelatedDocumentItems(cards);
 
                     // Process explore items
-                    let eItems = exploreSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as ArchiveItem[];
+                    let eItems = exploreSnap && exploreSnap.docs
+                        ? exploreSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as ArchiveItem[]
+                        : [];
                     if (!isSAHSUser) {
                         eItems = eItems.filter(i => !i.is_private);
                     }
@@ -433,13 +462,16 @@ export function ItemDetail() {
 
                     // Process locations and resolve parents
                     const locs = locSnaps
-                        .filter((s: any): s is any => s.exists())
+                        .filter((s: any): s is any => s && s.exists())
                         .map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
 
-                    const parentIds = Array.from(new Set(locs.filter(l => l.parent_location_id).map(l => l.parent_location_id as string)));
+                    const parentIds = Array.from(new Set(locs.filter((l: any) => l.parent_location_id).map((l: any) => l.parent_location_id as string))) as string[];
                     if (parentIds.length > 0) {
-                        const parentSnaps = await Promise.all(parentIds.map((pid: string) => getDoc(doc(db, 'locations', pid))));
-                        const parentLocs = parentSnaps.filter((s: any) => s.exists()).map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                        const parentSnaps = await Promise.all(parentIds.map((pid: string) => getDoc(doc(db, 'locations', pid)).catch(err => {
+                            console.error("Parent location fetch failed:", pid, err);
+                            return null;
+                        })));
+                        const parentLocs = parentSnaps.filter((s: any) => s && s.exists()).map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
                         locs.push(...parentLocs);
                     }
 
