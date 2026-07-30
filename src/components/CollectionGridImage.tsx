@@ -73,12 +73,11 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
 
         fetchImages();
     }, [collectionId, prefetchedItems]);
-
     const containerStyle = `absolute inset-0 w-full h-full overflow-hidden bg-tan-light/10 ${className}`;
 
     if (loading) {
         return (
-            <div className={`${containerStyle} flex items-center justify-center text-tan-light`}>
+            <div className={`absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center text-tan-light bg-charcoal/80 ${className}`}>
                 <div className="w-8 h-8 rounded-full border-2 border-tan/30 border-t-tan animate-spin" />
             </div>
         );
@@ -91,12 +90,11 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
             );
         }
         return (
-            <div className={`${containerStyle} flex items-center justify-center text-tan-light opacity-50`}>
+            <div className={`absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center text-white/30 bg-charcoal/80 ${className}`}>
                 <FolderOpen size={48} className="opacity-40" />
             </div>
         );
     }
-
     if (images.length === 1) {
         return <img src={images[0]} alt="Preview" className={`${containerStyle} object-cover`} />
     }
