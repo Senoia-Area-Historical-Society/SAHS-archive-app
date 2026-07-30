@@ -307,23 +307,6 @@ export function ItemDetail() {
                     const data = { id: docSnap.id, ...(docSnap.data() || {}) } as ArchiveItem;
                     setItem(data);
 
-                    const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
-                    if (cIds.length > 0) {
-                        try {
-                            // Parallelize collection fetching to avoid sequential waterfall latency
-                            const collSnaps = await Promise.all(cIds.map(cid => getDoc(doc(db, 'collections', cid))));
-                            const colls = collSnaps
-                                .filter(s => s.exists())
-                                .map(s => ({ id: s.id, ...s.data() } as any));
-                            setCollectionsData(colls);
-                            setIsCollectionPrivate(colls.some(c => c.is_private === true));
-                        } catch (err) {
-                            console.error("Error fetching collection details:", err);
-                        }
-                    }
-
-
-
                     // 1) Forward explicit references defined on THIS item
                     const fetchForward = async (ids: string[] | undefined) => {
                         if (!ids || ids.length === 0) return [];
@@ -340,12 +323,6 @@ export function ItemDetail() {
                         return results;
                     };
 
-                    const [forwardFigures, forwardDocs, forwardOrgs] = await Promise.all([
-                        fetchForward(data.related_figures),
-                        fetchForward(data.related_documents),
-                        fetchForward(data.related_organizations)
-                    ]);
-
                     // 2) Backward references (items that link TO this item)
                     const fetchBackward = async (field: string) => {
                         const q = query(collection(db, 'archive_items'), where(field, 'array-contains', id));
@@ -359,15 +336,72 @@ export function ItemDetail() {
                         return results;
                     };
 
-                    const [backwardFigures, backwardDocs, backwardOrgs] = await Promise.all([
-                        fetchBackward('related_figures'),
-                        fetchBackward('related_documents'),
-                        fetchBackward('related_organizations')
+                    const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
+                    const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
+
+                    const collectionsPromise = cIds.length > 0
+                        ? Promise.all(cIds.map(cid => getDoc(doc(db, 'collections', cid))))
+                        : Promise.resolve([]);
+
+                    const forwardFiguresPromise = fetchForward(data.related_figures);
+                    const forwardDocsPromise = fetchForward(data.related_documents);
+                    const forwardOrgsPromise = fetchForward(data.related_organizations);
+
+                    const backwardFiguresPromise = fetchBackward('related_figures');
+                    const backwardDocsPromise = fetchBackward('related_documents');
+                    const backwardOrgsPromise = fetchBackward('related_organizations');
+
+                    const exploreQuery = cIds.length > 0
+                        ? query(
+                            collection(db, 'archive_items'), 
+                            or(
+                                where('collection_ids', 'array-contains-any', cIds),
+                                where('collection_id', 'in', cIds)
+                            ),
+                            limit(12)
+                          )
+                        : query(
+                            collection(db, 'archive_items'), 
+                            where('item_type', '==', data.item_type),
+                            limit(12)
+                          );
+                    const explorePromise = getDocs(exploreQuery);
+
+                    const locationsPromise = locIds.length > 0
+                        ? Promise.all(locIds.map(lid => getDoc(doc(db, 'locations', lid))))
+                        : Promise.resolve([]);
+
+                    // Fetch all secondary data in parallel to eliminate sequential database roundtrip latency
+                    const [
+                        collSnaps,
+                        forwardFigures,
+                        forwardDocs,
+                        forwardOrgs,
+                        backwardFigures,
+                        backwardDocs,
+                        backwardOrgs,
+                        exploreSnap,
+                        locSnaps
+                    ] = await Promise.all([
+                        collectionsPromise,
+                        forwardFiguresPromise,
+                        forwardDocsPromise,
+                        forwardOrgsPromise,
+                        backwardFiguresPromise,
+                        backwardDocsPromise,
+                        backwardOrgsPromise,
+                        explorePromise,
+                        locationsPromise
                     ]);
 
-                    // Merge and deduplicate
-                    // An item linking TO us via "related_figures" means THEY considered US a figure.
-                    // But for display purposes, we want to group the merged items by THEIR item_type.
+                    // Process collections
+                    const colls = collSnaps
+                        .filter((s: any) => s.exists())
+                        .map((s: any) => ({ id: s.id, ...s.data() } as any));
+                    setCollectionsData(colls);
+                    setIsCollectionPrivate(colls.some((c: any) => c.is_private === true));
+
+                    // Process related items
                     const allLinkedItems = [
                         ...forwardFigures, ...forwardDocs, ...forwardOrgs,
                         ...backwardFigures, ...backwardDocs, ...backwardOrgs
@@ -379,78 +413,44 @@ export function ItemDetail() {
                     });
                     const uniqueLinked = Array.from(uniqueLinkedMap.values());
 
-                    // Now group the unique linked items based on their actual type
                     const figures = uniqueLinked.filter(i => i.item_type === 'Historic Figure');
                     const orgs = uniqueLinked.filter(i => i.item_type === 'Historic Organization');
 
                     setRelatedFigureItems(figures);
                     setRelatedOrganizationItems(orgs);
-                    // Documents and Artifacts can be displayed together in the DocumentCard grid, 
-                    // or we can separate them. For now, we put Docs + Artifacts + any other type into relatedDocumentItems
                     const cards = uniqueLinked.filter(i => i.item_type !== 'Historic Figure' && i.item_type !== 'Historic Organization');
                     setRelatedDocumentItems(cards);
 
-                    // --- Fetch "Keep Exploring" items ---
-                    let exploreQuery;
-                    const cIdsExplore = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
-                    if (cIdsExplore.length > 0) {
-                        exploreQuery = query(
-                            collection(db, 'archive_items'), 
-                            or(
-                                where('collection_ids', 'array-contains-any', cIdsExplore),
-                                where('collection_id', 'in', cIdsExplore)
-                            ),
-                            limit(12) // Critical: Limit fetching to avoid downloading entire collections
-                        );
-                    } else {
-                        exploreQuery = query(
-                            collection(db, 'archive_items'), 
-                            where('item_type', '==', data.item_type),
-                            limit(12)
-                        );
-                    }
-                    
-                    const exploreSnap = await getDocs(exploreQuery);
-                    let eItems = exploreSnap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
-                    
+                    // Process explore items
+                    let eItems = exploreSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                     if (!isSAHSUser) {
                         eItems = eItems.filter(i => !i.is_private);
                     }
-                    
                     const explicitlyLinkedIds = new Set(uniqueLinked.map(i => i.id));
                     eItems = eItems.filter(i => i.id !== id && !explicitlyLinkedIds.has(i.id));
-                    
                     eItems = eItems.sort(() => 0.5 - Math.random()).slice(0, 4);
                     setExploreItems(eItems);
 
-                    // Fetch only required locations to resolve names
-                    const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
-                    if (locIds.length > 0) {
-                        try {
-                            const locSnaps = await Promise.all(locIds.map(lid => getDoc(doc(db, 'locations', lid))));
-                            const locs = locSnaps
-                                .filter(s => s.exists())
-                                .map(s => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                    // Process locations and resolve parents
+                    const locs = locSnaps
+                        .filter((s: any): s is any => s.exists())
+                        .map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
 
-                            const parentIds = Array.from(new Set(locs.filter(l => l.parent_location_id).map(l => l.parent_location_id as string)));
-                            if (parentIds.length > 0) {
-                                const parentSnaps = await Promise.all(parentIds.map(pid => getDoc(doc(db, 'locations', pid))));
-                                const parentLocs = parentSnaps.filter(s => s.exists()).map(s => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
-                                locs.push(...parentLocs);
-                            }
-
-                            setAllLocations(prev => {
-                                const newMap = new Map(prev.map(l => [l.docId || l.id, l]));
-                                locs.forEach(l => {
-                                    newMap.set(l.docId || l.id, l);
-                                    if (l.id) newMap.set(l.id, l);
-                                });
-                                return Array.from(newMap.values());
-                            });
-                        } catch (err) {
-                            console.error("Could not fetch specific locations", err);
-                        }
+                    const parentIds = Array.from(new Set(locs.filter(l => l.parent_location_id).map(l => l.parent_location_id as string)));
+                    if (parentIds.length > 0) {
+                        const parentSnaps = await Promise.all(parentIds.map((pid: string) => getDoc(doc(db, 'locations', pid))));
+                        const parentLocs = parentSnaps.filter((s: any) => s.exists()).map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                        locs.push(...parentLocs);
                     }
+
+                    setAllLocations(prev => {
+                        const newMap = new Map(prev.map((l: any) => [l.docId || l.id, l]));
+                        locs.forEach((l: any) => {
+                            newMap.set(l.docId || l.id, l);
+                            if (l.id) newMap.set(l.id, l);
+                        });
+                        return Array.from(newMap.values());
+                    });
                 }
 
             } catch (error) {
