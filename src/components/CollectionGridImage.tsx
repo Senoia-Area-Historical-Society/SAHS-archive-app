@@ -18,7 +18,10 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
     useEffect(() => {
         if (prefetchedItems) {
             const urls = prefetchedItems
-                .map(item => item.featured_image_url || item.file_urls?.[0])
+                .map(item => {
+                    const url = item.featured_image_url || item.file_urls?.[0];
+                    return (url && url !== 'null') ? url : null;
+                })
                 .filter(Boolean) as string[];
             setImages(urls.slice(0, 4));
             return;
@@ -59,7 +62,8 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 const urls = snapshot.docs
                     .map(doc => {
                         const data = doc.data();
-                        return data.featured_image_url || data.file_urls?.[0];
+                        const url = data.featured_image_url || data.file_urls?.[0];
+                        return (url && url !== 'null') ? url : null;
                     })
                     .filter(Boolean) as string[];
                 
