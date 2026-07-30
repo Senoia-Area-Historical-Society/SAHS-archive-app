@@ -145,21 +145,23 @@ export function Collections() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-                    {collections.map((col) => (
+                    {collections.map((col) => {
+                        const isVirtual = ['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id);
+                        return (
                         <Link
                             key={col.id}
                             to={`/collections/${col.id}`}
                             className="group flex flex-col bg-white rounded-xl border border-tan-light/50 overflow-hidden hover:shadow-md transition-all duration-300 hover:border-tan/40"
                         >
-                            <div className="aspect-[16/9] bg-tan-light/20 relative overflow-hidden">
+                            <div className={`aspect-[16/9] relative overflow-hidden ${isVirtual ? 'bg-[#3a2d1d]' : 'bg-tan-light/20'}`}>
                                 <CollectionGridImage 
                                     collectionId={col.id}
                                     fallbackImage={col.featured_image_url || col.file_urls?.[0]}
                                     className="group-hover:scale-105 transition-transform duration-700"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                                <div className={`absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent ${isVirtual ? 'opacity-90' : 'opacity-60'} group-hover:opacity-80 transition-opacity`} />
 
-                                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id) && (
+                                {isSAHSUser && !isVirtual && (
                                     <div className="absolute top-3 right-3 flex gap-2 z-10">
                                         <button
                                             onClick={(e) => {
@@ -187,7 +189,7 @@ export function Collections() {
                                     </div>
                                 )}
 
-                                {['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id) && (
+                                {isVirtual && (
                                     <div className={`absolute top-3 ${col.is_private && isSAHSUser ? 'left-24' : 'left-3'} bg-tan text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10`}>
                                         Automatic
                                     </div>
@@ -209,7 +211,8 @@ export function Collections() {
                                 </div>
                             </div>
                         </Link>
-                    ))}
+                    );
+                    })}
                 </div>
             )}
         </div>
