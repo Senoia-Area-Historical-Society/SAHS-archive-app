@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, query, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import type { ArchiveItem, Collection, ItemType } from '../types/database';
 import { 
     ShieldAlert, 
@@ -19,7 +19,8 @@ import {
     LayoutGrid,
     Tag,
     FolderOpen,
-    RotateCw
+    RotateCw,
+    Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -342,6 +343,17 @@ export function AuditDashboard() {
         }
     };
 
+    const handleDelete = async (itemId: string, title: string) => {
+        if (!window.confirm(`Are you sure you want to permanently delete "${title}"? This cannot be undone.`)) return;
+        try {
+            await deleteDoc(doc(db, 'archive_items', itemId));
+            setItems(prev => prev.filter(item => item.id !== itemId));
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            alert("Failed to delete item. Please check your permissions.");
+        }
+    };
+
     if (loading) {
         return (
             <div className="max-w-7xl mx-auto h-[60vh] flex flex-col items-center justify-center gap-6">
@@ -616,13 +628,22 @@ export function AuditDashboard() {
                                         </div>
                                     </td>
                                     <td className="px-10 py-6 text-right">
-                                        <Link 
-                                            to={`/edit-item/${item.id}?from=audit`}
-                                            className="inline-flex items-center gap-3 bg-white border border-tan-light px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal transition-all active:scale-95 shadow-lg shadow-charcoal/5 group/btn"
-                                        >
-                                            Curate Record 
-                                            <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
-                                        </Link>
+                                        <div className="flex items-center justify-end gap-3">
+                                            <button 
+                                                onClick={() => handleDelete(item.id, item.title || item.full_name || item.org_name || "")}
+                                                className="p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-2xl transition-all"
+                                                title="Delete Record"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                            <Link 
+                                                to={`/edit-item/${item.id}?from=audit`}
+                                                className="inline-flex items-center gap-3 bg-white border border-tan-light px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal transition-all active:scale-95 shadow-lg shadow-charcoal/5 group/btn"
+                                            >
+                                                Curate Record 
+                                                <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
