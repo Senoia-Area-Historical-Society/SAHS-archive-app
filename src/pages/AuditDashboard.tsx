@@ -48,6 +48,7 @@ export function AuditDashboard() {
     const [selectedType, setSelectedType] = useState<ItemType | 'All Types'>('All Types');
     const [selectedCollection, setSelectedCollection] = useState<string>('All Collections');
     const [sortBy, setSortBy] = useState<SortOption>('health-asc');
+    const [searchByIdOnly, setSearchByIdOnly] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -176,11 +177,26 @@ export function AuditDashboard() {
 
     const filteredItems = useMemo(() => {
         const filtered = auditData.processedItems.filter(item => {
-            const matchesSearch = 
-                item.title?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                item.artifact_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.org_name?.toLowerCase().includes(searchTerm.toLowerCase());
+            let matchesSearch = true;
+            if (searchTerm.trim()) {
+                const term = searchTerm.toLowerCase().trim();
+                if (searchByIdOnly) {
+                    const searchIds = term.split(/[\s,]+/).filter(Boolean);
+                    if (searchIds.length > 0) {
+                        matchesSearch = searchIds.some(searchId => 
+                            !!item.artifact_id?.toLowerCase().includes(searchId)
+                        );
+                    } else {
+                        matchesSearch = false;
+                    }
+                } else {
+                    matchesSearch = 
+                        !!item.title?.toLowerCase().includes(term) || 
+                        !!item.artifact_id?.toLowerCase().includes(term) ||
+                        !!item.full_name?.toLowerCase().includes(term) ||
+                        !!item.org_name?.toLowerCase().includes(term);
+                }
+            }
             
             const matchesIssue = activeIssue === 'all' || item.auditIssues.includes(activeIssue);
             const rawType = item.item_type || '';
@@ -189,7 +205,7 @@ export function AuditDashboard() {
             const matchesType = selectedType === 'All Types' || normalizedItemType === normalizedSelectedType;
             const matchesCollection = selectedCollection === 'All Collections' || 
                 item.collection_id === selectedCollection || 
-                item.collection_ids?.includes(selectedCollection);
+                (item.collection_ids?.includes(selectedCollection) || false);
             
             return matchesSearch && matchesIssue && matchesType && matchesCollection;
         });
@@ -200,7 +216,7 @@ export function AuditDashboard() {
             if (sortBy === 'health-desc') return b.auditScore! - a.auditScore!;
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
-    }, [auditData.processedItems, searchTerm, activeIssue, selectedType, selectedCollection, sortBy]);
+    }, [auditData.processedItems, searchTerm, searchByIdOnly, activeIssue, selectedType, selectedCollection, sortBy]);
 
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -468,12 +484,28 @@ export function AuditDashboard() {
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={18} />
                                 <input 
                                     type="text" 
-                                    placeholder="Search archival metadata..."
+                                    placeholder={searchByIdOnly ? "Enter ID(s) e.g. 508, 509..." : "Search archival metadata..."}
                                     className="pl-12 pr-6 py-3.5 bg-white border border-tan-light rounded-2xl text-sm outline-none focus:border-tan focus:ring-8 focus:ring-tan/5 transition-all w-80 shadow-sm"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSearchByIdOnly(!searchByIdOnly);
+                                    setSearchTerm('');
+                                }}
+                                className={`px-5 py-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all active:scale-95 shadow-sm ${
+                                    searchByIdOnly 
+                                        ? 'bg-tan text-white border-tan shadow-lg shadow-tan/10' 
+                                        : 'bg-white text-charcoal border-tan-light hover:border-tan'
+                                }`}
+                            >
+                                <Tag size={14} />
+                                ID Search
+                            </button>
                             
                             <div className="flex items-center bg-cream/40 p-1.5 rounded-2xl border border-tan-light shadow-inner">
                                 <button 
@@ -537,8 +569,8 @@ export function AuditDashboard() {
                 </div>
 
                 <div className="flex-1 overflow-auto">
-                    <table className="w-full text-left border-collapse min-w-[900px]">
-                        <thead>
+                    <table className="w-full text-left border-collapse min-w-0">
+                        <thead className="hidden md:table-header-group">
                             <tr className="bg-white border-b border-tan-light italic font-serif">
                                 <th className="px-10 py-5 text-charcoal/40 font-medium">Resource Identity</th>
                                 <th className="px-6 py-5 text-charcoal/40 font-medium">Diagnostic Health</th>
@@ -546,13 +578,13 @@ export function AuditDashboard() {
                                 <th className="px-10 py-5 text-right text-charcoal/40 font-medium">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-tan-light/30">
+                        <tbody className="flex flex-col md:table-row-group divide-y divide-tan-light/30">
                             {filteredItems.map((item) => (
-                                <tr key={item.id} className="group hover:bg-cream/20 transition-all duration-300">
-                                    <td className="px-10 py-6">
+                                <tr key={item.id} className="flex flex-col md:table-row group hover:bg-cream/20 transition-all duration-300 p-4 md:p-0 border-b border-tan-light/20 md:border-b-0">
+                                    <td className="px-4 py-4 md:px-10 md:py-6 block md:table-cell">
                                         <div className="flex items-center gap-5">
                                             {(item.featured_image_url || (item.file_urls && item.file_urls.length > 0)) ? (
-                                                <div className="relative">
+                                                <div className="relative shrink-0">
                                                     <img 
                                                         src={item.featured_image_url || item.file_urls[0]} 
                                                         className="w-16 h-16 rounded-[1.25rem] object-cover border-2 border-tan-light shadow-md" 
@@ -563,7 +595,7 @@ export function AuditDashboard() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="w-16 h-16 rounded-[1.25rem] bg-red-50 border-2 border-red-100 flex items-center justify-center text-red-300 relative">
+                                                <div className="w-16 h-16 rounded-[1.25rem] bg-red-50 border-2 border-red-100 flex items-center justify-center text-red-300 relative shrink-0">
                                                     <ImageIcon size={24} />
                                                     <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full border-4 border-white flex items-center justify-center">
                                                         <AlertCircle size={10} className="text-white" />
@@ -585,49 +617,55 @@ export function AuditDashboard() {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-6 border-l border-cream/50">
-                                        <div className="flex flex-col gap-1.5">
-                                            <div className="flex items-center justify-between gap-4">
-                                                <span className={`text-[11px] font-black uppercase tracking-widest ${item.auditScore! > 60 ? 'text-tan' : 'text-red-500'}`}>
-                                                    {item.auditScore}%
-                                                </span>
-                                                <span className="text-[10px] font-bold text-charcoal/30">Completeness</span>
-                                            </div>
-                                            <div className="w-24 bg-cream h-2 rounded-full overflow-hidden shadow-inner">
-                                                <div className={`h-full transition-all duration-1000 ${
-                                                    item.auditScore! > 80 ? 'bg-green-500' :
-                                                    item.auditScore! > 60 ? 'bg-tan' :
-                                                    item.auditScore! > 30 ? 'bg-amber-500' : 'bg-red-500'
-                                                }`} style={{ width: `${item.auditScore}%` }}></div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-6">
-                                        <div className="flex flex-wrap gap-2">
-                                            {item.auditIssues.map((issue) => (
-                                                <span key={issue} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold tracking-tight transition-transform hover:-translate-y-0.5 shadow-sm border ${
-                                                    issue === 'no-image' ? 'bg-red-50 text-red-600 border-red-100' :
-                                                    issue === 'no-date' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                                    issue === 'no-id' ? 'bg-purple-50 text-purple-600 border-purple-100' :
-                                                    issue === 'no-location' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                    'bg-charcoal/5 text-charcoal/60 border-charcoal/10'
-                                                }`}>
-                                                    {issue === 'no-image' && <ImageIcon size={10} />}
-                                                    {issue === 'no-date' && <Calendar size={10} />}
-                                                    {issue === 'no-id' && <Tag size={10} />}
-                                                    {issue === 'no-location' && <MapPin size={10} />}
-                                                    {issue === 'no-location' ? 'unplaced' : issue.replace('no-', 'missing ')}
-                                                </span>
-                                            ))}
-                                            {item.auditIssues.length === 0 && (
-                                                <div className="flex items-center gap-2 text-green-600 bg-green-50/50 px-4 py-1.5 rounded-full border border-green-100/50">
-                                                    <CheckCircle2 size={14} />
-                                                    <span className="text-[10px] font-black uppercase tracking-tighter">Perfected Archive Record</span>
+                                    <td className="px-4 py-3 md:px-6 md:py-6 block md:table-cell border-l-0 md:border-l border-cream/50">
+                                        <div className="flex md:flex-col items-center md:items-start justify-between md:justify-start gap-4">
+                                            <span className="text-[10px] font-bold text-charcoal/30 md:hidden">Health Score</span>
+                                            <div className="flex flex-col gap-1.5 items-end md:items-start">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span className={`text-[11px] font-black uppercase tracking-widest ${item.auditScore! > 60 ? 'text-tan' : 'text-red-500'}`}>
+                                                        {item.auditScore}%
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-charcoal/30 hidden md:inline">Completeness</span>
                                                 </div>
-                                            )}
+                                                <div className="w-24 bg-cream h-2 rounded-full overflow-hidden shadow-inner">
+                                                    <div className={`h-full transition-all duration-1000 ${
+                                                        item.auditScore! > 80 ? 'bg-green-500' :
+                                                        item.auditScore! > 60 ? 'bg-tan' :
+                                                        item.auditScore! > 30 ? 'bg-amber-500' : 'bg-red-500'
+                                                    }`} style={{ width: `${item.auditScore}%` }}></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="px-10 py-6 text-right">
+                                    <td className="px-4 py-3 md:px-6 md:py-6 block md:table-cell">
+                                        <div className="flex md:block items-center justify-between gap-4">
+                                            <span className="text-[10px] font-bold text-charcoal/30 md:hidden">Identified Gaps</span>
+                                            <div className="flex flex-wrap gap-2 justify-end md:justify-start">
+                                                {item.auditIssues.map((issue) => (
+                                                    <span key={issue} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold tracking-tight transition-transform hover:-translate-y-0.5 shadow-sm border ${
+                                                        issue === 'no-image' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                        issue === 'no-date' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                        issue === 'no-id' ? 'bg-purple-50 text-purple-600 border-purple-100' :
+                                                        issue === 'no-location' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                        'bg-charcoal/5 text-charcoal/60 border-charcoal/10'
+                                                    }`}>
+                                                        {issue === 'no-image' && <ImageIcon size={10} />}
+                                                        {issue === 'no-date' && <Calendar size={10} />}
+                                                        {issue === 'no-id' && <Tag size={10} />}
+                                                        {issue === 'no-location' && <MapPin size={10} />}
+                                                        {issue === 'no-location' ? 'unplaced' : issue.replace('no-', 'missing ')}
+                                                    </span>
+                                                ))}
+                                                {item.auditIssues.length === 0 && (
+                                                    <div className="flex items-center gap-2 text-green-600 bg-green-50/50 px-4 py-1.5 rounded-full border border-green-100/50">
+                                                        <CheckCircle2 size={14} />
+                                                        <span className="text-[10px] font-black uppercase tracking-tighter">Perfected Archive Record</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 md:px-10 md:py-6 block md:table-cell text-right border-t border-tan-light/10 md:border-t-0 mt-2 md:mt-0">
                                         <div className="flex items-center justify-end gap-3">
                                             <button 
                                                 onClick={() => handleDelete(item.id, item.title || item.full_name || item.org_name || "")}
