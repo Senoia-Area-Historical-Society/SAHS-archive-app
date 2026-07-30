@@ -170,39 +170,44 @@ export function LocationDetail() {
 
             // Fetch items for nested child boxes
             if (childBoxesData.length > 0) {
-                const childItemPromises = childBoxesData.map(async (box) => {
+                const childBoxIds = childBoxesData.map(b => b.id).filter(Boolean);
+                
+                // Helper to chunk array
+                const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+                    const chunks: T[][] = [];
+                    for (let i = 0; i < arr.length; i += size) {
+                        chunks.push(arr.slice(i, i + size));
+                    }
+                    return chunks;
+                };
+
+                const chunks = chunkArray(childBoxIds, 30);
+                const uniqueChildItemsMap = new Map<string, ArchiveItem>();
+
+                const chunkPromises = chunks.map(async (chunk) => {
                     const qBox = query(
                         collection(db, 'archive_items'),
-                        where('museum_location_ids', 'array-contains', box.id)
+                        where('museum_location_ids', 'array-contains-any', chunk)
                     );
                     const qBoxLegacy = query(
                         collection(db, 'archive_items'),
-                        where('museum_location_id', '==', box.id)
+                        where('museum_location_id', 'in', chunk)
                     );
                     const [snapBox, snapBoxLegacy] = await Promise.all([
                         getDocs(qBox),
                         getDocs(qBoxLegacy)
                     ]);
                     
-                    const boxItemsMap = new Map<string, ArchiveItem>();
                     snapBox.docs.forEach(doc => {
-                        boxItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                        uniqueChildItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
                     });
                     snapBoxLegacy.docs.forEach(doc => {
-                        boxItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
+                        uniqueChildItemsMap.set(doc.id, { id: doc.id, ...doc.data() } as ArchiveItem);
                     });
-                    return Array.from(boxItemsMap.values());
                 });
-                
-                const resolvedChildItemsList = await Promise.all(childItemPromises);
-                const combinedChildItems = resolvedChildItemsList.flat();
-                
-                // Remove duplicates
-                const uniqueChildItemsMap = new Map<string, ArchiveItem>();
-                combinedChildItems.forEach(item => {
-                    uniqueChildItemsMap.set(item.id, item);
-                });
-                
+
+                await Promise.all(chunkPromises);
+
                 const sortedChildItems = Array.from(uniqueChildItemsMap.values()).sort(
                     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
                 );
