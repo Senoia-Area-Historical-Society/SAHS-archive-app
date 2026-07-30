@@ -6,7 +6,7 @@ import { doc, getDoc, collection, query, where, getDocs, writeBatch, updateDoc, 
 import { useAuth } from '../contexts/AuthContext';
 import { DocumentCard } from '../components/DocumentCard';
 import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen, Edit2 } from 'lucide-react';
-import type { MuseumLocation, ArchiveItem, LibraryBook } from '../types/database';
+import type { MuseumLocation, ArchiveItem, LibraryBook, Room } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 export function LocationDetail() {
