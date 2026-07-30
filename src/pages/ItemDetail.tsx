@@ -336,6 +336,30 @@ export function ItemDetail() {
                         return results;
                     };
 
+                    // 3) Resolve location documents by both Document ID and custom "id" field
+                    const fetchLocations = async (ids: string[]) => {
+                        if (!ids || ids.length === 0) return [];
+                        try {
+                            const qDoc = query(collection(db, 'locations'), where(documentId(), 'in', ids));
+                            const qField = query(collection(db, 'locations'), where('id', 'in', ids));
+                            const [snapDoc, snapField] = await Promise.all([
+                                getDocs(qDoc),
+                                getDocs(qField)
+                            ]);
+                            const map = new Map<string, MuseumLocation>();
+                            snapDoc.docs.forEach(d => {
+                                map.set(d.id, { id: d.id, docId: d.id, ...d.data() } as MuseumLocation);
+                            });
+                            snapField.docs.forEach(d => {
+                                map.set(d.id, { id: d.id, docId: d.id, ...d.data() } as MuseumLocation);
+                            });
+                            return Array.from(map.values());
+                        } catch (err) {
+                            console.error("fetchLocations failed:", err);
+                            return [];
+                        }
+                    };
+
                     const cIds = data.collection_ids || (data.collection_id ? [data.collection_id] : []);
                     const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
 
@@ -391,12 +415,7 @@ export function ItemDetail() {
                         return null;
                     });
 
-                    const locationsPromise = locIds.length > 0
-                        ? Promise.all(locIds.map((lid: any) => getDoc(doc(db, 'locations', lid)))).catch(err => {
-                            console.error("locationsPromise failed:", err);
-                            return [];
-                        })
-                        : Promise.resolve([]);
+                    const locationsPromise = fetchLocations(locIds);
 
                     // Fetch all secondary data in parallel to eliminate sequential database roundtrip latency
                     const [
@@ -461,17 +480,11 @@ export function ItemDetail() {
                     setExploreItems(eItems);
 
                     // Process locations and resolve parents
-                    const locs = locSnaps
-                        .filter((s: any): s is any => s && s.exists())
-                        .map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                    const locs = [...locSnaps];
 
                     const parentIds = Array.from(new Set(locs.filter((l: any) => l.parent_location_id).map((l: any) => l.parent_location_id as string))) as string[];
                     if (parentIds.length > 0) {
-                        const parentSnaps = await Promise.all(parentIds.map((pid: string) => getDoc(doc(db, 'locations', pid)).catch(err => {
-                            console.error("Parent location fetch failed:", pid, err);
-                            return null;
-                        })));
-                        const parentLocs = parentSnaps.filter((s: any) => s && s.exists()).map((s: any) => ({ id: s.id, docId: s.id, ...s.data() } as MuseumLocation));
+                        const parentLocs = await fetchLocations(parentIds);
                         locs.push(...parentLocs);
                     }
 
