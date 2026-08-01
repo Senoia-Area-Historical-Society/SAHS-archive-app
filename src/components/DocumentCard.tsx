@@ -9,12 +9,14 @@ export function DocumentCard({
     galleryIds, 
     collectionId,
     folderId,
+    priority = false,
     onRemove 
 }: { 
     item: ArchiveItem, 
     galleryIds?: string[],
     collectionId?: string,
     folderId?: string,
+    priority?: boolean,
     onRemove?: (e: React.MouseEvent) => void
 }) {
     const { isEditingMode, isSAHSUser } = useAuth();
@@ -33,6 +35,7 @@ export function DocumentCard({
                         src={imageUrl}
                         alt={item.title}
                         optimizedWidth={400}
+                        priority={priority}
                         className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
                     />
                 ) : (
