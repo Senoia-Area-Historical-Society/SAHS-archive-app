@@ -138,8 +138,9 @@ export function AuditDashboard() {
             const rawType = item.item_type || '';
             const type = typeof rawType === 'string' ? rawType.trim().toLowerCase() : '';
             
+            const isDeaccessioned = item.collection_status === 'deaccessioned';
             const hasImage = !!(item.featured_image_url || (item.file_urls && item.file_urls.length > 0));
-            if (!hasImage && type !== 'historic organization') { 
+            if (!hasImage && type !== 'historic organization' && !isDeaccessioned) { 
                 issues.push('no-image');
                 stats.missingImages++;
             }
@@ -157,7 +158,7 @@ export function AuditDashboard() {
             }
 
             const hasLocation = !!(item.museum_location_id || (item.museum_location_ids && item.museum_location_ids.length > 0));
-            if (!hasLocation && type === 'artifact') {
+            if (!hasLocation && type === 'artifact' && !isDeaccessioned) {
                 issues.push('no-location');
                 stats.missingLocations++;
             }
