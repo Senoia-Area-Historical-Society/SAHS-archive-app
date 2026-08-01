@@ -505,9 +505,9 @@ export function AuditDashboard() {
                                         setSearchByIdOnly(!searchByIdOnly);
                                         setSearchTerm('');
                                     }}
-                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/50'}`}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan border-tan' : 'bg-tan-light/30 border-charcoal/30'}`}
                                 >
-                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full shadow-md ring-0 transition-all duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5 bg-white' : 'translate-x-0 bg-charcoal'}`} />
                                 </button>
                             </label>
                             
