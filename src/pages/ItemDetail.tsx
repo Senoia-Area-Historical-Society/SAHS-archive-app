@@ -270,18 +270,55 @@ export function ItemDetail() {
         if (!item) return;
         setIsSavingLocation(true);
         try {
+            const updatedIds = newLocationId ? [newLocationId] : [];
+            const newStage = newLocationId ? 'Housed' : null;
             await updateDoc(doc(db, 'archive_items', id!), {
                 museum_location_id: newLocationId || null,
-                museum_location_ids: newLocationId ? [newLocationId] : [],
+                museum_location_ids: updatedIds,
                 last_tagged_at: new Date().toISOString(),
                 last_tagged_by: user?.email || 'Admin',
-                stage: newLocationId ? 'Housed' : 'Archived'
+                stage: newStage
             });
             
+            // 1. Immediately update local item state so UI refreshes without manual reload
+            setItem(prev => prev ? {
+                ...prev,
+                museum_location_id: newLocationId || null,
+                museum_location_ids: updatedIds,
+                stage: newStage
+            } : null);
+
+            // 2. Resolve location name/breadcrumb for instant feedback
+            let targetLocName = '';
+            if (newLocationId) {
+                const foundLoc = allLocations.find(l => l.id === newLocationId || l.docId === newLocationId);
+                if (foundLoc) {
+                    targetLocName = foundLoc.name;
+                } else {
+                    try {
+                        const locDoc = await getDoc(doc(db, 'locations', newLocationId));
+                        if (locDoc.exists()) {
+                            const locData = { id: locDoc.id, docId: locDoc.id, ...locDoc.data() } as MuseumLocation;
+                            targetLocName = locData.name;
+                            setAllLocations(prev => [...prev, locData]);
+                        }
+                    } catch (e) {
+                        console.error("Could not fetch newly assigned location", e);
+                    }
+                }
+            }
+
             setIsEditingLocation(false);
+
+            // 3. Show instant confirmation toast notification
+            if (newLocationId) {
+                showToast(`Location linked to ${targetLocName || 'museum shelf'}!`);
+            } else {
+                showToast("Location unassigned.");
+            }
         } catch (error) {
             console.error("Failed to update location inline:", error);
-            alert("Failed to update location. Insufficient permissions or network error.");
+            showToast("Failed to update location. Insufficient permissions or network error.");
         } finally {
             setIsSavingLocation(false);
         }
