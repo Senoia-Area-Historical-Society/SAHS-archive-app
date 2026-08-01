@@ -45,6 +45,7 @@ export function ItemDetail() {
     // Inline Location Editing State
     const [isEditingLocation, setIsEditingLocation] = useState(false);
     const [allLocations, setAllLocations] = useState<MuseumLocation[]>([]);
+    const [hasLoadedFullLocationsList, setHasLoadedFullLocationsList] = useState(false);
     const [newLocationId, setNewLocationId] = useState('');
     const [isSavingLocation, setIsSavingLocation] = useState(false);
 
@@ -258,11 +259,15 @@ export function ItemDetail() {
     const handleEditLocationClick = async () => {
         setIsEditingLocation(true);
         setNewLocationId(item?.museum_location_id || '');
-        if (allLocations.length === 0) {
+        if (!hasLoadedFullLocationsList) {
             try {
                 const locSnap = await getDocs(collection(db, 'locations'));
-                setAllLocations(locSnap.docs.map(d => ({ id: d.id, ...d.data() } as MuseumLocation)));
-            } catch (err) { console.error("Could not fetch locations", err); }
+                const fullLocations = locSnap.docs.map(d => ({ id: d.id, docId: d.id, ...d.data() } as MuseumLocation));
+                setAllLocations(fullLocations);
+                setHasLoadedFullLocationsList(true);
+            } catch (err) { 
+                console.error("Could not fetch locations", err); 
+            }
         }
     };
 
