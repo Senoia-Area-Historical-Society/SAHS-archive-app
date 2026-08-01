@@ -20,7 +20,8 @@ import {
     Tag,
     FolderOpen,
     RotateCw,
-    Trash2
+    Trash2,
+    Eye
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -607,9 +608,12 @@ export function AuditDashboard() {
                                                 </div>
                                             )}
                                             <div>
-                                                <div className="font-serif font-bold text-charcoal text-lg leading-tight mb-1 group-hover:text-tan transition-colors">
+                                                <Link 
+                                                    to={`/items/${item.id}`}
+                                                    className="font-serif font-bold text-charcoal text-lg leading-tight mb-1 hover:text-tan transition-colors block"
+                                                >
                                                     {item.title || item.full_name || item.org_name}
-                                                </div>
+                                                </Link>
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-[10px] font-black uppercase tracking-widest text-charcoal/20 px-2 py-0.5 bg-cream/50 rounded-md border border-tan-light/10">
                                                         ID: {item.artifact_id || 'OPEN'}
@@ -670,7 +674,7 @@ export function AuditDashboard() {
                                         </div>
                                     </td>
                                     <td className="px-4 py-4 md:px-10 md:py-6 block md:table-cell text-right border-t border-tan-light/10 md:border-t-0 mt-2 md:mt-0">
-                                        <div className="flex items-center justify-end gap-3">
+                                        <div className="flex items-center justify-end gap-2 sm:gap-3 flex-wrap sm:flex-nowrap">
                                             <button 
                                                 onClick={() => handleDelete(item.id, item.title || item.full_name || item.org_name || "")}
                                                 className="p-3 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-2xl transition-all"
@@ -679,11 +683,18 @@ export function AuditDashboard() {
                                                 <Trash2 size={18} />
                                             </button>
                                             <Link 
+                                                to={`/items/${item.id}`}
+                                                className="inline-flex items-center gap-2 bg-cream/80 border border-tan-light/70 px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-tan hover:bg-tan hover:text-white hover:border-tan transition-all active:scale-95 shadow-sm group/view"
+                                            >
+                                                <Eye size={15} />
+                                                View Artifact
+                                            </Link>
+                                            <Link 
                                                 to={`/edit-item/${item.id}?from=audit`}
-                                                className="inline-flex items-center gap-3 bg-white border border-tan-light px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal transition-all active:scale-95 shadow-lg shadow-charcoal/5 group/btn"
+                                                className="inline-flex items-center gap-2 bg-white border border-tan-light px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest text-charcoal hover:bg-charcoal hover:text-white hover:border-charcoal transition-all active:scale-95 shadow-lg shadow-charcoal/5 group/btn"
                                             >
                                                 Curate Record 
-                                                <ArrowRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+                                                <ArrowRight size={15} className="group-hover/btn:translate-x-0.5 transition-transform" />
                                             </Link>
                                         </div>
                                     </td>
