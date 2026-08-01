@@ -185,7 +185,7 @@ export function AuditDashboard() {
                     const searchIds = term.split(/[\s,]+/).filter(Boolean);
                     if (searchIds.length > 0) {
                         matchesSearch = searchIds.some(searchId => 
-                            !!item.artifact_id?.toLowerCase().includes(searchId)
+                            item.artifact_id?.toLowerCase().trim() === searchId
                         );
                     } else {
                         matchesSearch = false;
@@ -492,21 +492,24 @@ export function AuditDashboard() {
                                 />
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setSearchByIdOnly(!searchByIdOnly);
-                                    setSearchTerm('');
-                                }}
-                                className={`px-5 py-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 border transition-all active:scale-95 shadow-sm ${
-                                    searchByIdOnly 
-                                        ? 'bg-tan text-white border-tan shadow-lg shadow-tan/10' 
-                                        : 'bg-white text-charcoal border-tan-light hover:border-tan'
-                                }`}
-                            >
-                                <Tag size={14} />
-                                ID Search
-                            </button>
+                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                <span className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${searchByIdOnly ? 'text-tan' : 'text-charcoal/40'}`}>
+                                    <Tag size={14} />
+                                    ID Search
+                                </span>
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={searchByIdOnly}
+                                    onClick={() => {
+                                        setSearchByIdOnly(!searchByIdOnly);
+                                        setSearchTerm('');
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/20'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </label>
                             
                             <div className="flex items-center bg-cream/40 p-1.5 rounded-2xl border border-tan-light shadow-inner">
                                 <button 
