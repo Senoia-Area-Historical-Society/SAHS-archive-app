@@ -82,6 +82,7 @@ export function LocationDetail() {
     const [allMuseumLocations, setAllMuseumLocations] = useState<MuseumLocation[]>([]);
     const [destLocationId, setDestLocationId] = useState('');
     const [destSearchQuery, setDestSearchQuery] = useState('');
+    const [boxSearchQuery, setBoxSearchQuery] = useState('');
     const [isRelocatingBulk, setIsRelocatingBulk] = useState(false);
 
     const fetchLocationAndItems = async () => {
@@ -1790,23 +1791,51 @@ export function LocationDetail() {
 
             {childBoxes.length > 0 && (
                 <div className="mb-12">
-                    <h2 className="text-xl font-serif font-bold text-charcoal tracking-tight flex items-center gap-3 mb-6">
-                        Nested Boxes
-                        <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{childBoxes.length}</span>
-                    </h2>
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                        <h2 className="text-xl font-serif font-bold text-charcoal tracking-tight flex items-center gap-3">
+                            Nested Boxes
+                            <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{childBoxes.length}</span>
+                        </h2>
+                        {childBoxes.length > 3 && (
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-charcoal/30" size={14} />
+                                <input
+                                    type="text"
+                                    placeholder="Filter boxes..."
+                                    value={boxSearchQuery}
+                                    onChange={(e) => setBoxSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-7 py-2 bg-white border border-tan-light/70 rounded-full text-xs font-sans outline-none focus:border-tan focus:ring-4 focus:ring-tan/10 transition-all shadow-sm"
+                                />
+                                {boxSearchQuery && (
+                                    <button
+                                        onClick={() => setBoxSearchQuery('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-charcoal/30 hover:text-charcoal transition-colors"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {childBoxes.map(box => (
-                            <Link 
-                                key={box.docId}
-                                to={`/locations/${box.id || box.docId}`}
-                                className="bg-white border border-tan-light/50 rounded-2xl p-4 hover:shadow-lg hover:border-tan/30 transition-all group"
-                            >
-                                <div className="w-10 h-10 bg-tan/10 rounded-xl flex items-center justify-center text-tan mb-3 group-hover:scale-110 transition-transform">
-                                    <Box size={20} />
-                                </div>
-                                <h3 className="font-bold text-charcoal text-sm leading-tight">{box.name}</h3>
-                            </Link>
-                        ))}
+                        {childBoxes
+                            .filter(box => {
+                                if (!boxSearchQuery.trim()) return true;
+                                const q = boxSearchQuery.toLowerCase().trim();
+                                return box.name.toLowerCase().includes(q) || (box.id && box.id.toLowerCase().includes(q));
+                            })
+                            .map(box => (
+                                <Link 
+                                    key={box.docId}
+                                    to={`/locations/${box.id || box.docId}`}
+                                    className="bg-white border border-tan-light/50 rounded-2xl p-4 hover:shadow-lg hover:border-tan/30 transition-all group"
+                                >
+                                    <div className="w-10 h-10 bg-tan/10 rounded-xl flex items-center justify-center text-tan mb-3 group-hover:scale-110 transition-transform">
+                                        <Box size={20} />
+                                    </div>
+                                    <h3 className="font-bold text-charcoal text-sm leading-tight">{box.name}</h3>
+                                </Link>
+                            ))}
                     </div>
                 </div>
             )}

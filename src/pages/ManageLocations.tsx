@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc, writeBatch, query, orderBy, deleteField } from 'firebase/firestore';
-import { MapPin, Plus, Trash2, Loader2, HelpCircle, Edit2, X, Folder, FolderPlus, GripVertical, ChevronRight, Archive } from 'lucide-react';
+import { MapPin, Plus, Trash2, Loader2, HelpCircle, Edit2, X, Folder, FolderPlus, GripVertical, ChevronRight, Archive, Search } from 'lucide-react';
 import type { MuseumLocation, Room } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
@@ -102,6 +102,7 @@ export function ManageLocations() {
     const [activeTab, setActiveTab] = useState<'locations' | 'rooms'>('locations');
     const [mode, setMode] = useState<'add' | 'edit'>('add');
     const [editingDocId, setEditingDocId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Form state
     const [newName, setNewName] = useState('');
@@ -291,7 +292,25 @@ export function ManageLocations() {
                     </p>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="relative flex-1 sm:w-72">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Search location or box (name, ID...)"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-8 py-2.5 bg-white border border-tan-light/70 rounded-full text-xs font-sans outline-none focus:border-tan focus:ring-4 focus:ring-tan/10 transition-all shadow-sm"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/30 hover:text-charcoal transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
                     <div className="h-10 w-px bg-tan-light/30 hidden md:block" />
                     <button 
                         onClick={() => { setActiveTab('locations'); setMode('add'); handleCancel(); }}
@@ -415,6 +434,97 @@ export function ManageLocations() {
                         <div className="p-12 text-center text-charcoal/60 font-serif flex flex-col items-center gap-4">
                             <Loader2 className="animate-spin text-tan" size={32} />
                             Fetching archive folders...
+                        </div>
+                    ) : searchQuery.trim() ? (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between bg-cream/40 px-6 py-4 rounded-2xl border border-tan-light/30">
+                                <h3 className="font-serif font-bold text-lg text-charcoal">
+                                    Search Results for "{searchQuery}"
+                                </h3>
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="text-xs font-bold text-tan hover:text-charcoal transition-colors"
+                                >
+                                    Clear Search
+                                </button>
+                            </div>
+
+                            {(() => {
+                                const q = searchQuery.toLowerCase().trim();
+                                const matchedLocs = locations.filter(l => 
+                                    l.name.toLowerCase().includes(q) || 
+                                    l.id.toLowerCase().includes(q) || 
+                                    (l.description && l.description.toLowerCase().includes(q))
+                                );
+                                const matchedRooms = rooms.filter(r => 
+                                    r.name.toLowerCase().includes(q) || 
+                                    r.id.toLowerCase().includes(q) || 
+                                    (r.description && r.description.toLowerCase().includes(q))
+                                );
+
+                                if (matchedLocs.length === 0 && matchedRooms.length === 0) {
+                                    return (
+                                        <div className="p-16 text-center bg-white rounded-3xl border border-tan-light/40">
+                                            <p className="text-charcoal/40 font-serif text-lg">No locations, boxes, or rooms match "{searchQuery}".</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="space-y-8">
+                                        {matchedRooms.length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">Matching Wings / Rooms ({matchedRooms.length})</h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {matchedRooms.map(room => (
+                                                        <Link 
+                                                            key={room.docId} 
+                                                            to={`/manage-locations/rooms/${room.docId}`}
+                                                            className="bg-white p-5 rounded-2xl border border-tan-light/50 flex items-center justify-between hover:border-tan hover:shadow-md transition-all group"
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-xl bg-tan/10 text-tan flex items-center justify-center group-hover:bg-tan group-hover:text-white transition-colors">
+                                                                    <Folder size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <h5 className="font-serif font-bold text-charcoal">{room.name}</h5>
+                                                                    <span className="text-[10px] font-mono text-tan">{room.id}</span>
+                                                                </div>
+                                                            </div>
+                                                            <ChevronRight size={18} className="text-charcoal/20 group-hover:translate-x-1 transition-transform" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {matchedLocs.length > 0 && (
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">Matching Locations & Boxes ({matchedLocs.length})</h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    {matchedLocs.map(loc => {
+                                                        const parentRoom = rooms.find(r => r.docId === loc.room_id);
+                                                        return (
+                                                            <div key={loc.docId} className="relative">
+                                                                {parentRoom && (
+                                                                    <span className="text-[9px] font-black uppercase tracking-widest bg-tan/10 text-tan px-2.5 py-0.5 rounded-full mb-1 inline-block">
+                                                                        Wing: {parentRoom.name}
+                                                                    </span>
+                                                                )}
+                                                                <LocationCard 
+                                                                    loc={loc} 
+                                                                    handleEditClick={handleEditLocation} 
+                                                                    handleDeleteLocation={(id, name) => handleDelete('locations', id, name)}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     ) : (
                         <div className="space-y-12 pb-32">

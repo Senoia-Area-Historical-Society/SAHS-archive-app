@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where } from 'firebase/firestore';
-import { MapPin, Plus, Trash2, Loader2, Edit2, X, ChevronLeft, GripVertical, Archive, Folder } from 'lucide-react';
+import { MapPin, Plus, Trash2, Loader2, Edit2, X, ChevronLeft, GripVertical, Archive, Folder, Search } from 'lucide-react';
 import type { MuseumLocation, Room } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
@@ -105,6 +105,7 @@ export function ManageRoomLocations() {
     const [newDesc, setNewDesc] = useState('');
     const [selectedRoomId, setSelectedRoomId] = useState(roomId || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [roomSearchQuery, setRoomSearchQuery] = useState('');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -305,16 +306,51 @@ export function ManageRoomLocations() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {locations.filter(l => !l.parent_location_id).map(loc => (
-                        <LocationCard 
-                            key={loc.docId} 
-                            loc={loc} 
-                            childBoxes={locations.filter(child => child.parent_location_id === loc.docId)}
-                            handleEditClick={handleEditClick} 
-                            handleDeleteLocation={handleDelete} 
+                <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="relative w-full sm:w-80">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/30" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Filter locations or boxes in this room..."
+                            value={roomSearchQuery}
+                            onChange={(e) => setRoomSearchQuery(e.target.value)}
+                            className="w-full pl-10 pr-8 py-2.5 bg-white border border-tan-light/70 rounded-full text-xs font-sans outline-none focus:border-tan focus:ring-4 focus:ring-tan/10 transition-all shadow-sm"
                         />
-                    ))}
+                        {roomSearchQuery && (
+                            <button
+                                onClick={() => setRoomSearchQuery('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/30 hover:text-charcoal transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                    {roomSearchQuery && (
+                        <span className="text-xs font-bold text-tan">
+                            Showing matches for "{roomSearchQuery}"
+                        </span>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {locations
+                        .filter(l => !l.parent_location_id)
+                        .filter(l => {
+                            if (!roomSearchQuery.trim()) return true;
+                            const q = roomSearchQuery.toLowerCase().trim();
+                            return l.name.toLowerCase().includes(q) || 
+                                   l.id.toLowerCase().includes(q) || 
+                                   (l.description && l.description.toLowerCase().includes(q));
+                        })
+                        .map(loc => (
+                            <LocationCard 
+                                key={loc.docId} 
+                                loc={loc} 
+                                childBoxes={locations.filter(child => child.parent_location_id === loc.docId)}
+                                handleEditClick={handleEditClick} 
+                                handleDeleteLocation={handleDelete} 
+                            />
+                        ))}
                     
                     {locations.length === 0 && (
                         <div className="col-span-full py-20 text-center border-4 border-dashed border-tan-light/10 rounded-[40px] flex flex-col items-center gap-4">
