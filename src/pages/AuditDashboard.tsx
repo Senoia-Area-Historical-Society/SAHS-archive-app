@@ -505,7 +505,7 @@ export function AuditDashboard() {
                                         setSearchByIdOnly(!searchByIdOnly);
                                         setSearchTerm('');
                                     }}
-                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/35'}`}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/50'}`}
                                 >
                                     <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
