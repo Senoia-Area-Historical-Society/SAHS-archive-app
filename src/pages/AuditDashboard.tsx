@@ -492,9 +492,9 @@ export function AuditDashboard() {
                                 />
                             </div>
 
-                            <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                                <span className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${searchByIdOnly ? 'text-tan' : 'text-charcoal/40'}`}>
-                                    <Tag size={14} />
+                            <label className="flex items-center gap-3 cursor-pointer select-none bg-white border border-tan-light rounded-2xl px-4 py-3 shadow-sm hover:border-tan/40 transition-all">
+                                <span className={`text-sm font-bold flex items-center gap-1.5 transition-colors ${searchByIdOnly ? 'text-tan' : 'text-charcoal/70'}`}>
+                                    <Tag size={16} />
                                     ID Search
                                 </span>
                                 <button
@@ -505,9 +505,9 @@ export function AuditDashboard() {
                                         setSearchByIdOnly(!searchByIdOnly);
                                         setSearchTerm('');
                                     }}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/20'}`}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${searchByIdOnly ? 'bg-tan' : 'bg-charcoal/35'}`}
                                 >
-                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition-transform duration-200 ease-in-out ${searchByIdOnly ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
                             </label>
                             
