@@ -1,10 +1,23 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
-import { Shield, Award, Calendar, ArrowRight, CheckCircle, Info, Landmark, AlertCircle } from 'lucide-react';
+import {
+    Shield,
+    Award,
+    Calendar,
+    ArrowRight,
+    CheckCircle,
+    Info,
+    Landmark,
+    AlertCircle,
+    Compass,
+    Users,
+    Mail,
+    User
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export function MembershipStatus() {
-    const { user, isMember, isExpiredMember, memberData, simulatedRole } = useAuth();
+    const { user, isMember, isExpiredMember, memberData, simulatedRole, openMemberWizard } = useAuth();
     const { settings } = useAppearance();
 
     if (settings.featureToggles?.enableMembership === false) {
@@ -35,17 +48,30 @@ export function MembershipStatus() {
             ? 'Never (Lifetime / No Expiration)' 
             : (memberData?.expiresAt ? new Date(memberData.expiresAt).toLocaleDateString() : 'N/A'));
 
+
     return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 font-sans">
+        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 font-sans pb-12">
             {/* Header */}
-            <div>
-                <h1 className="text-4xl font-serif font-bold text-charcoal mb-3 tracking-tight flex items-center gap-3">
-                    <Landmark className="text-tan" size={36} />
-                    Membership Status
-                </h1>
-                <p className="text-charcoal/70 text-lg max-w-xl">
-                    View your registration details, paying membership tier, and digital archive access benefits.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-4xl font-serif font-bold text-charcoal mb-3 tracking-tight flex items-center gap-3">
+                        <Landmark className="text-tan" size={36} />
+                        Membership Status
+                    </h1>
+                    <p className="text-charcoal/70 text-lg max-w-xl">
+                        View your registration details, paying membership tier, and digital archive access benefits.
+                    </p>
+                </div>
+
+                {hasMembership && (
+                    <button
+                        onClick={() => openMemberWizard()}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-tan/10 text-tan hover:bg-tan/20 border border-tan/30 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shadow-xs shrink-0 self-start sm:self-auto"
+                    >
+                        <Compass size={18} />
+                        Replay Member Tour
+                    </button>
+                )}
             </div>
 
             {/* Simulated Banner Indicator */}
@@ -72,94 +98,139 @@ export function MembershipStatus() {
             {/* Main Content Layout */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 
-                {/* Membership Card */}
+                {/* Primary Column */}
                 <div className="md:col-span-2 space-y-6">
                     {hasMembership ? (
-                        <div className="bg-white border border-tan-light/50 rounded-2xl overflow-hidden shadow-sm">
-                            {/* Card Hero Header */}
-                            <div className="bg-cream/40 p-6 md:p-8 border-b border-tan-light/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                    <p className="text-xs font-black text-tan uppercase tracking-widest">{settings.museumName || 'Senoia Area Historical Society'}</p>
-                                    <h2 className="text-2xl font-serif font-bold text-charcoal">{memberName}</h2>
-                                    <p className="text-sm text-charcoal/60">{memberEmail}</p>
+                        <>
+                            {/* Membership Card */}
+                            <div className="bg-white border border-tan-light/50 rounded-2xl overflow-hidden shadow-sm">
+                                {/* Card Hero Header */}
+                                <div className="bg-cream/40 p-6 md:p-8 border-b border-tan-light/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-black text-tan uppercase tracking-widest">{settings.museumName || 'Senoia Area Historical Society'}</p>
+                                        <h2 className="text-2xl font-serif font-bold text-charcoal">{memberName}</h2>
+                                        <p className="text-sm text-charcoal/60">{memberEmail}</p>
+                                    </div>
+                                    <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                                        <span className="sm:self-start bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-center">
+                                            Active Registered
+                                        </span>
+                                        {(memberData?.isRecurring || displayAsSimulated) && (
+                                            <span className="sm:self-end bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                                Recurring
+                                            </span>
+                                        )}
+                                        {memberData?.isFreeOneYear && (
+                                            <span className="sm:self-end bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                                1-Yr Free (Realtor Paid)
+                                            </span>
+                                        )}
+                                        {memberData?.expiresAt === 'Never' && (
+                                            <span className="sm:self-end bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
+                                                Lifetime
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex flex-col sm:items-end gap-2 shrink-0">
-                                    <span className="sm:self-start bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-center">
-                                        Active Registered
-                                    </span>
-                                    {(memberData?.isRecurring || displayAsSimulated) && (
-                                        <span className="sm:self-end bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
-                                            Recurring
-                                        </span>
-                                    )}
-                                    {memberData?.isFreeOneYear && (
-                                        <span className="sm:self-end bg-green-50 text-green-700 border border-green-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
-                                            1-Yr Free (Realtor Paid)
-                                        </span>
-                                    )}
-                                    {memberData?.expiresAt === 'Never' && (
-                                        <span className="sm:self-end bg-purple-50 text-purple-700 border border-purple-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-center">
-                                            Lifetime
-                                        </span>
+
+                                {/* Card Detailed Grid */}
+                                <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div className="flex gap-3.5 items-start">
+                                        <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
+                                            <Award size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Tier</p>
+                                            <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberTier}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3.5 items-start">
+                                        <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
+                                            <Calendar size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Joined Date</p>
+                                            <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberJoined}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-3.5 items-start sm:col-span-2">
+                                        <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
+                                            <Calendar size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Expiration</p>
+                                            <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberExpires}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Stripe Billing Portal Card Footer */}
+                                <div className="bg-tan/5 border-t border-tan-light/30 px-6 py-5 md:px-8 md:py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <h4 className="text-sm font-bold text-charcoal font-serif">Manage Subscription</h4>
+                                        <p className="text-xs text-charcoal/60 leading-relaxed max-w-md">
+                                            Update your payment method, view billing history, download invoices, or renew your subscription directly via our secure Stripe member portal.
+                                        </p>
+                                    </div>
+                                    {settings.stripeBillingPortalUrl && (
+                                        <a
+                                            href={settings.stripeBillingPortalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
+                                        >
+                                            Stripe Portal <ArrowRight size={14} />
+                                        </a>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Card Detailed Grid */}
-                            <div className="p-6 md:p-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div className="flex gap-3.5 items-start">
-                                    <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
-                                        <Award size={20} />
+                            {/* Secondary Member Email Login Card (Read-Only Status) */}
+                            <div className="bg-white border border-tan-light/50 rounded-2xl p-6 md:p-8 shadow-sm space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-tan/10 text-tan rounded-xl shrink-0">
+                                        <Users size={24} />
                                     </div>
                                     <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Tier</p>
-                                        <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberTier}</p>
+                                        <h3 className="text-xl font-serif font-bold text-charcoal">Secondary Member Email Login</h3>
+                                        <p className="text-xs text-charcoal/60 mt-0.5">
+                                            Allows a family member or spouse to log in with active member access.
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3.5 items-start">
-                                    <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
-                                        <Calendar size={20} />
+                                {memberData?.secondaryEmail ? (
+                                    <div className="bg-cream/40 border border-tan-light/60 rounded-xl p-4 space-y-1">
+                                        <p className="text-xs font-black uppercase tracking-wider text-tan">Active Secondary Email</p>
+                                        <p className="text-sm font-bold text-charcoal flex items-center gap-2">
+                                            <Mail size={16} className="text-charcoal/40" />
+                                            {memberData.secondaryEmail}
+                                        </p>
+                                        {memberData.secondaryName && (
+                                            <p className="text-xs text-charcoal/60 flex items-center gap-2">
+                                                <User size={14} className="text-charcoal/40" />
+                                                {memberData.secondaryName}
+                                            </p>
+                                        )}
+                                        <p className="text-[11px] text-charcoal/50 pt-2 italic">
+                                            Secondary emails are managed by staff. To update or change this address, please contact SAHS staff.
+                                        </p>
                                     </div>
-                                    <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Joined Date</p>
-                                        <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberJoined}</p>
+                                ) : (
+                                    <div className="p-4 bg-tan/5 rounded-xl border border-tan/10 text-xs text-charcoal/70 leading-relaxed font-sans">
+                                        <p>
+                                            <span className="font-bold text-charcoal">Need a secondary login for a family member or spouse?</span>
+                                            <br />
+                                            Staff members can add a secondary email address to your membership account. Please contact museum staff or visit us during museum hours.
+                                        </p>
                                     </div>
-                                </div>
-
-                                <div className="flex gap-3.5 items-start sm:col-span-2">
-                                    <div className="p-2.5 bg-tan/10 text-tan rounded-lg shrink-0">
-                                        <Calendar size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Expiration</p>
-                                        <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberExpires}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Stripe Billing Portal Card Footer */}
-                            <div className="bg-tan/5 border-t border-tan-light/30 px-6 py-5 md:px-8 md:py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                    <h4 className="text-sm font-bold text-charcoal font-serif">Manage Subscription</h4>
-                                    <p className="text-xs text-charcoal/60 leading-relaxed max-w-md">
-                                        Update your payment method, view billing history, download invoices, or renew your subscription directly via our secure Stripe member portal.
-                                    </p>
-                                </div>
-                                {settings.stripeBillingPortalUrl && (
-                                    <a
-                                        href={settings.stripeBillingPortalUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-tan text-white hover:bg-tan-dark active:bg-tan-dark/90 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 shadow-sm whitespace-nowrap"
-                                    >
-                                        Stripe Portal <ArrowRight size={14} />
-                                    </a>
                                 )}
                             </div>
-                        </div>
+                        </>
                     ) : isExpiredMember && memberData ? (
-                        /* Expired member — show their details in a muted state with renewal CTA */
+                        /* Expired member — show details */
                         <div className="bg-white border border-amber-200 rounded-2xl overflow-hidden shadow-sm">
                             <div className="bg-amber-50/50 p-6 md:p-8 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                 <div className="space-y-1">
@@ -186,15 +257,6 @@ export function MembershipStatus() {
                                         <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Originally Joined</p>
                                         <p className="text-base font-serif font-bold text-charcoal leading-snug">
                                             {memberData.joinedAt ? new Date(memberData.joinedAt).toLocaleDateString() : 'N/A'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-3.5 items-start sm:col-span-2">
-                                    <div className="p-2.5 bg-red-50 text-red-400 rounded-lg shrink-0"><Calendar size={20} /></div>
-                                    <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Expired On</p>
-                                        <p className="text-base font-serif font-bold text-red-600 leading-snug">
-                                            {memberData.expiresAt ? new Date(memberData.expiresAt).toLocaleDateString() : 'N/A'}
                                         </p>
                                     </div>
                                 </div>

@@ -30,6 +30,8 @@ export function AdminSettings() {
     const [membersLoading, setMembersLoading] = useState(true);
     const [newMemberEmail, setNewMemberEmail] = useState('');
     const [newMemberName, setNewMemberName] = useState('');
+    const [newMemberSecondaryEmail, setNewMemberSecondaryEmail] = useState('');
+    const [newMemberSecondaryName, setNewMemberSecondaryName] = useState('');
     const [newMemberExpiresAt, setNewMemberExpiresAt] = useState(() => {
         const nextYear = new Date();
         nextYear.setFullYear(nextYear.getFullYear() + 1);
@@ -90,6 +92,8 @@ export function AdminSettings() {
             await setDoc(docRef, {
                 email,
                 name,
+                secondaryEmail: newMemberSecondaryEmail.trim().toLowerCase() || null,
+                secondaryName: newMemberSecondaryName.trim() || null,
                 tier: 'Member',
                 status: 'active',
                 joinedAt,
@@ -100,6 +104,8 @@ export function AdminSettings() {
             
             setNewMemberEmail('');
             setNewMemberName('');
+            setNewMemberSecondaryEmail('');
+            setNewMemberSecondaryName('');
             setNewMemberIsLifetime(false);
             setNewMemberIsRecurring(false);
             setNewMemberIsFreeOneYear(false);
@@ -213,6 +219,8 @@ export function AdminSettings() {
                 await setDoc(newDocRef, {
                     name,
                     email,
+                    secondaryEmail: editingMember.secondaryEmail?.trim().toLowerCase() || null,
+                    secondaryName: editingMember.secondaryName?.trim() || null,
                     tier: 'Member',
                     status: editingMember.status,
                     joinedAt: editingMember.joinedAt,
@@ -224,6 +232,8 @@ export function AdminSettings() {
                 await setDoc(doc(db, 'members', originalId), {
                     name,
                     email,
+                    secondaryEmail: editingMember.secondaryEmail?.trim().toLowerCase() || null,
+                    secondaryName: editingMember.secondaryName?.trim() || null,
                     tier: 'Member',
                     status: editingMember.status,
                     joinedAt: editingMember.joinedAt,
@@ -678,7 +688,8 @@ export function AdminSettings() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Add Member Form */}
                         <div className="lg:col-span-1">
-                            <div className="bg-white p-6 rounded-xl border border-tan-light/50 shadow-sm sticky top-24">
+                            <div className="bg-white rounded-xl border border-tan-light/50 shadow-sm sticky top-24 flex flex-col max-h-[calc(100vh-7rem)]">
+                              <div className="p-6 overflow-y-auto">
                                 <h2 className="text-xl font-serif font-bold text-charcoal mb-6 flex items-center gap-2">
                                     <UserPlus size={20} className="text-tan" />
                                     Add Member
@@ -729,6 +740,20 @@ export function AdminSettings() {
                                         <label htmlFor="noEmail" className="text-sm font-bold text-charcoal/70 cursor-pointer select-none">
                                             No Email Address
                                         </label>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-charcoal/60 uppercase tracking-widest mb-2 font-sans">Secondary Email (Optional)</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
+                                            <input 
+                                                type="email" 
+                                                placeholder="spouse@example.com"
+                                                value={newMemberSecondaryEmail}
+                                                onChange={(e) => setNewMemberSecondaryEmail(e.target.value)}
+                                                className="w-full bg-cream pl-10 pr-4 py-3 rounded-lg border border-transparent focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal"
+                                            />
+                                        </div>
                                     </div>
 
                                     <div className="flex items-center gap-3 py-2 font-sans">
@@ -791,12 +816,13 @@ export function AdminSettings() {
                                         {isSubmittingMember ? <Loader2 className="animate-spin" size={20} /> : 'Add Member to Roll'}
                                     </button>
                                 </form>
+                              </div>
                             </div>
                         </div>
 
                         {/* Members Roll List */}
                         <div className="lg:col-span-2 space-y-4">
-                            <div className="bg-white rounded-xl border border-tan-light/50 overflow-hidden shadow-sm">
+                            <div className="bg-white rounded-xl border border-tan-light/50 overflow-hidden shadow-sm flex flex-col max-h-[calc(100vh-7rem)]">
                                 <div className="px-6 py-4 bg-cream/30 border-b border-tan-light/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <h3 className="font-serif font-bold text-charcoal flex items-center gap-2">
                                         <Users size={18} className="text-tan" />
@@ -837,7 +863,7 @@ export function AdminSettings() {
                                     }
 
                                     return (
-                                        <div className="divide-y divide-tan-light/30 font-sans">
+                                        <div className="divide-y divide-tan-light/30 font-sans overflow-y-auto">
                                             {filteredMembers.map(m => {
                                                 const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
                                                 const displayStatus = isExpired ? 'expired' : m.status;
@@ -883,6 +909,29 @@ export function AdminSettings() {
                                                                             placeholder="e.g. member@domain.com"
                                                                             required={!editingMemberNoEmail}
                                                                             className="w-full bg-cream disabled:opacity-50 px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1">Secondary Email (Optional)</label>
+                                                                        <input
+                                                                            type="email"
+                                                                            value={editingMember.secondaryEmail || ''}
+                                                                            onChange={(e) => setEditingMember({ ...editingMember, secondaryEmail: e.target.value })}
+                                                                            placeholder="spouse@domain.com"
+                                                                            className="w-full bg-cream px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
+                                                                        />
+                                                                    </div>
+                                                                    <div>
+                                                                        <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1">Secondary Name (Optional)</label>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingMember.secondaryName || ''}
+                                                                            onChange={(e) => setEditingMember({ ...editingMember, secondaryName: e.target.value })}
+                                                                            placeholder="e.g. John Doe"
+                                                                            className="w-full bg-cream px-3 py-2 rounded border border-transparent focus:bg-white focus:border-tan outline-none transition-all text-sm text-charcoal"
                                                                         />
                                                                     </div>
                                                                 </div>
@@ -981,6 +1030,12 @@ export function AdminSettings() {
                                                                         )}
                                                                     </div>
                                                                     <p className="text-sm text-charcoal/60 font-sans italic">{m.email || 'No email address'}</p>
+                                                                    {m.secondaryEmail && (
+                                                                        <p className="text-xs font-semibold text-tan font-sans flex items-center gap-1.5 mt-0.5">
+                                                                            <Mail size={12} className="text-tan/60" />
+                                                                            <span>Secondary: {m.secondaryEmail} {m.secondaryName ? `(${m.secondaryName})` : ''}</span>
+                                                                        </p>
+                                                                    )}
                                                                     <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
                                                                         <span>Joined: {new Date(m.joinedAt).toLocaleDateString()}</span>
                                                                         <span>•</span>
