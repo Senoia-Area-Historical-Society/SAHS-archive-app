@@ -5,6 +5,7 @@ import { Menu, QrCode, LogIn, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { MemberSetupWizard } from './MemberSetupWizard';
 
 const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'book' | 'unknown', id: string } => {
     const trimmed = data.trim();
@@ -219,6 +220,9 @@ export default function Layout() {
                     onClose={() => setIsScannerOpen(false)}
                 />
             )}
+
+            {/* Member Onboarding & Setup Tour Wizard */}
+            <MemberSetupWizard />
 
             {/* Premium Toast Notification */}
             {toastMessage && (

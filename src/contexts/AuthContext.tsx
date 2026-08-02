@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, db } from '../lib/firebase';
-import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useLocation } from 'react-router-dom';
 import { useAppearance } from './AppearanceContext';
 import type { Member } from '../types/database';
@@ -27,6 +27,10 @@ interface AuthContextType {
     memberData: Member | null;
     hasResearchAccess: boolean;
     isSetupComplete: boolean;
+    isMemberWizardOpen: boolean;
+    openMemberWizard: () => void;
+    closeMemberWizard: () => void;
+    updateMemberData: (updated: Partial<Member>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -45,6 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isExpiredMember, setIsExpiredMember] = useState(false);
     const [memberData, setMemberData] = useState<Member | null>(null);
     const [isSetupComplete, setIsSetupComplete] = useState(true); // Default true to prevent flash
+    const [isMemberWizardOpen, setIsMemberWizardOpen] = useState(false);
+
+    const openMemberWizard = () => setIsMemberWizardOpen(true);
+    const closeMemberWizard = () => setIsMemberWizardOpen(false);
+
+    const updateMemberData = (updated: Partial<Member>) => {
+        setMemberData(prev => prev ? { ...prev, ...updated } : null);
+    };
 
     const location = useLocation();
 
@@ -148,16 +160,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
                 }
 
-                // Verify member status — keep expired members logged in with data intact
+                // Verify member status — check primary email, then secondary email
                 try {
+                    let mData: Member | null = null;
                     const memberDoc = await getDoc(doc(db, 'members', email));
                     if (memberDoc.exists()) {
-                        const mData = memberDoc.data() as Member;
+                        mData = { id: memberDoc.id, ...memberDoc.data() } as Member;
+                    } else {
+                        // Secondary email query
+                        const secondaryQuery = query(collection(db, 'members'), where('secondaryEmail', '==', email));
+                        const secondarySnap = await getDocs(secondaryQuery);
+                        if (!secondarySnap.empty) {
+                            const matchDoc = secondarySnap.docs[0];
+                            mData = { id: matchDoc.id, ...matchDoc.data() } as Member;
+                        }
+                    }
+
+                    if (mData) {
                         const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
                         if (mData.status === 'active' && !isExpired) {
                             setIsMember(true);
                             setIsExpiredMember(false);
                             setMemberData(mData);
+                            // Auto-trigger Member Setup Wizard if not completed
+                            if (mData.hasCompletedMemberWizard !== true) {
+                                setTimeout(() => setIsMemberWizardOpen(true), 500);
+                            }
                         } else {
                             // Expired or manually set to inactive — allow login but block write features
                             setIsMember(false);
@@ -269,7 +297,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isExpiredMember,
         memberData,
         hasResearchAccess,
-        isSetupComplete
+        isSetupComplete,
+        isMemberWizardOpen,
+        openMemberWizard,
+        closeMemberWizard,
+        updateMemberData
     };
 
     const { settings } = useAppearance();

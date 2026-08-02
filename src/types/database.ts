@@ -168,12 +168,15 @@ export interface Member {
     id: string; // Firebase Document ID (email in lowercase)
     name: string;
     email: string;
+    secondaryEmail?: string;
+    secondaryName?: string;
     tier: 'Member';
     status: 'active' | 'expired';
     joinedAt: string;
     expiresAt: string; // ISO date string or 'Never'
     isRecurring?: boolean;
     isFreeOneYear?: boolean;
+    hasCompletedMemberWizard?: boolean;
 }
 
 export type BookStatus = 'Available' | 'Reference Only' | 'Checked Out' | 'Missing';
