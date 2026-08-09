@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react';
-import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, Users, RotateCw, Plus, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award, Play, Pause, Music } from 'lucide-react';
+import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, FileText, ArrowLeft, Lock, Camera, Upload, Edit2, BookOpen, Sparkles, AlertCircle, AlertTriangle, Users, RotateCw, Plus, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award, Play, Pause, Music } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
@@ -222,6 +222,7 @@ export default function EditItem() {
     const [selectedRelatedOrgs, setSelectedRelatedOrgs] = useState<{ id: string, org_name: string }[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [isPrivate, setIsPrivate] = useState(false);
+    const [isGraphic, setIsGraphic] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
@@ -492,6 +493,7 @@ export default function EditItem() {
                         .then(setExistingAccessionUrls);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
+                    setIsGraphic(data.is_graphic || false);
                     setCollectionStatus(data.collection_status || 'permanent');
                 } else {
                     setError("Item not found.");
@@ -816,6 +818,7 @@ export default function EditItem() {
         collection_id: item.collection_id || null,
                 collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
                 is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                is_graphic: isGraphic,
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
                 // Core DC Elements
@@ -1270,6 +1273,34 @@ export default function EditItem() {
                 >
                     <span
                         className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                </button>
+            </div>
+
+            {/* Graphic Content Toggle */}
+            <div className="mb-8 flex items-center justify-between bg-white p-5 rounded-2xl border border-tan-light/50 shadow-sm">
+                <div className="flex items-center gap-4 text-charcoal">
+                    <div className={`p-2.5 rounded-xl transition-colors ${isGraphic ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-charcoal/40'}`}>
+                        <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-sm uppercase tracking-wider">
+                            {isGraphic ? 'Graphic Content' : 'No Content Warning'}
+                        </h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            {isGraphic
+                                ? 'Images will be blurred by default. Visitors must click to confirm before viewing.'
+                                : 'No warning applied. Images are displayed normally to all visitors.'}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setIsGraphic(!isGraphic)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isGraphic ? 'bg-red-500' : 'bg-gray-400'}`}
+                >
+                    <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isGraphic ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                 </button>
             </div>

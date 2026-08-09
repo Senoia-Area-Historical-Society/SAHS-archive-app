@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, QrCode, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
+import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, QrCode, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { resolveRestrictedMedia } from '../lib/restrictedMedia';
@@ -68,6 +68,7 @@ export function ItemDetail() {
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
     
     const [showLinkedItems, setShowLinkedItems] = useState(false);
+    const [graphicRevealed, setGraphicRevealed] = useState(false);
 
     // Pass null until the item resolves so the previous route's metadata isn't
     // replaced by a placeholder mid-load. Items inside a private collection are
@@ -1220,6 +1221,44 @@ export function ItemDetail() {
                     <div className="w-full lg:w-[420px] shrink-0">
                     <div className="lg:sticky lg:top-8 space-y-4">
                         <div className="aspect-[3/4] bg-tan-light/20 rounded-2xl overflow-hidden border border-tan-light/50 relative shadow-md group">
+                            {/* Graphic Content Blur Gate */}
+                            {item.is_graphic && !graphicRevealed && (
+                                <div className="absolute inset-0 z-40 flex flex-col items-center justify-center rounded-2xl overflow-hidden">
+                                    {/* Blurred background image */}
+                                    {file_urls && file_urls.length > 0 && (
+                                        <div
+                                            className="absolute inset-0 scale-110"
+                                            style={{
+                                                backgroundImage: `url(${file_urls[currentImageIndex]})`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                                filter: 'blur(24px)',
+                                            }}
+                                        />
+                                    )}
+                                    {/* Dark overlay */}
+                                    <div className="absolute inset-0 bg-charcoal/70" />
+                                    {/* Warning card */}
+                                    <div className="relative z-10 flex flex-col items-center gap-4 p-6 text-center max-w-[280px]">
+                                        <div className="w-14 h-14 rounded-full bg-red-600/20 border-2 border-red-500/50 flex items-center justify-center">
+                                            <AlertTriangle size={28} className="text-red-400" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white font-bold text-base mb-1 font-serif">Graphic Content</h3>
+                                            <p className="text-white/70 text-xs leading-relaxed font-sans">
+                                                This item has been flagged as potentially graphic or disturbing. Viewer discretion is advised.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setGraphicRevealed(true)}
+                                            className="mt-1 px-5 py-2.5 bg-white text-charcoal text-xs font-black uppercase tracking-widest rounded-xl hover:bg-red-50 hover:text-red-700 transition-all duration-200 shadow-lg active:scale-95"
+                                        >
+                                            I understand — View Content
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                             {file_urls && file_urls.length > 0 ? (
                                 <>
                                     <OptimizedImage

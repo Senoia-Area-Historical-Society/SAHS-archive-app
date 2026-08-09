@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award, Play, Pause, Music } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, AlertTriangle, ChevronDown, ChevronUp, BookOpen, Sparkles, X, Plus, Search, FileText, Tag, Users, Lock, Camera, RotateCw, ChevronLeft, ChevronRight, Clock, XCircle, Calendar, Award, Play, Pause, Music } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -142,6 +142,7 @@ export function AddItem() {
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
     const [isPrivate, setIsPrivate] = useState(false);
+    const [isGraphic, setIsGraphic] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
 
     useEffect(() => {
@@ -496,6 +497,7 @@ export function AddItem() {
                 uploaded_by_email: user?.email || null,
                 uploaded_by_name: user?.displayName || null,
                 is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                is_graphic: isGraphic,
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
                 title: formData.get('title') as string || "",
@@ -841,6 +843,34 @@ export function AddItem() {
                 >
                     <span
                         className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                </button>
+            </div>
+
+            {/* Graphic Content Toggle */}
+            <div className="mb-8 flex items-center justify-between bg-white p-5 rounded-2xl border border-tan-light/50 shadow-sm">
+                <div className="flex items-center gap-4 text-charcoal">
+                    <div className={`p-2.5 rounded-xl transition-colors ${isGraphic ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-charcoal/40'}`}>
+                        <AlertTriangle size={20} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-sm uppercase tracking-wider">
+                            {isGraphic ? 'Graphic Content' : 'No Content Warning'}
+                        </h3>
+                        <p className="text-xs text-charcoal/60 leading-relaxed font-sans">
+                            {isGraphic
+                                ? 'Images will be blurred by default. Visitors must click to confirm before viewing.'
+                                : 'No warning applied. Images are displayed normally to all visitors.'}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setIsGraphic(!isGraphic)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isGraphic ? 'bg-red-500' : 'bg-gray-400'}`}
+                >
+                    <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isGraphic ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                 </button>
             </div>

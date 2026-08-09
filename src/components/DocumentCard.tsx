@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Lock, X, Clock, XCircle, Calendar, Mic } from 'lucide-react';
+import { Lock, X, Clock, XCircle, Calendar, Mic, AlertTriangle } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { OptimizedImage } from './OptimizedImage';
@@ -36,7 +36,7 @@ export function DocumentCard({
                         alt={item.title}
                         optimizedWidth={400}
                         priority={priority}
-                        className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500"
+                        className={`absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500 ${item.is_graphic ? 'blur-md scale-110' : ''}`}
                     />
                 ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-tan-light bg-charcoal/5">
@@ -87,6 +87,12 @@ export function DocumentCard({
                 {(item.artifact_id || item.archive_reference) && (
                     <span className="absolute bottom-3 left-3 bg-charcoal/90 backdrop-blur-sm text-white text-[10px] px-2 py-1 rounded font-mono font-bold tracking-wider z-10">
                         #{item.artifact_id || item.archive_reference}
+                    </span>
+                )}
+                {/* Graphic content badge */}
+                {item.is_graphic && (
+                    <span className="absolute top-3 left-3 bg-red-600 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
+                        <AlertTriangle size={10} /> Graphic
                     </span>
                 )}
                 {onRemove && isSAHSUser && (

@@ -121,6 +121,7 @@ export interface ArchiveItem {
      * client — set `is_private` and the trigger records the intent.
      */
     is_private_own?: boolean;
+    is_graphic?: boolean;
 
     // Figure specific
     full_name?: string | null;
