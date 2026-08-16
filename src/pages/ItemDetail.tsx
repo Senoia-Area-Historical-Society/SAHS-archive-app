@@ -11,6 +11,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import type { ArchiveItem, MuseumLocation } from '../types/database';
 import { containsBannedWords } from '../utils/profanityFilter';
+import { useSeo } from '../hooks/useSeo';
+import { buildItemSeo } from '../lib/seo';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -41,6 +43,16 @@ export function ItemDetail() {
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
     
     const [showLinkedItems, setShowLinkedItems] = useState(false);
+
+    // Pass null until the item resolves so the previous route's metadata isn't
+    // replaced by a placeholder mid-load. Items inside a private collection are
+    // treated as private for indexing purposes.
+    useSeo(item
+        ? buildItemSeo(
+            { ...item, id, is_private: item.is_private || isCollectionPrivate },
+            settings.museumName
+        )
+        : null);
 
     // Inline Location Editing State
     const [isEditingLocation, setIsEditingLocation] = useState(false);

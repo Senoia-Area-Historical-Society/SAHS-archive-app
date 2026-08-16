@@ -7,6 +7,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo } from '../lib/seo';
 import { EditableText } from '../components/EditableText';
 
 // Premium Curated Mock Stories for a spectacular initial experience
@@ -61,6 +63,14 @@ export function SenoiaStories() {
     const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
     const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
     const [logoUploading, setLogoUploading] = useState(false);
+
+    // Called before the feature-toggle early return below to keep hook order stable.
+    useSeo(buildPageSeo(
+        settings.contentBlocks?.storiesTitle || 'Senoia Stories',
+        'Listen to oral histories from the Senoia area — first-hand accounts and recorded memories preserved by the Senoia Area Historical Society.',
+        '/stories',
+        settings.museumName
+    ));
 
     if (settings.featureToggles?.enableOralHistories === false) {
         return (

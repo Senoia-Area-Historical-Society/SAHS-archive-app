@@ -5,6 +5,9 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import type { LibraryBook, MuseumLocation, ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildBookSeo } from '../lib/seo';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 export function LibraryDetail() {
@@ -12,12 +15,16 @@ export function LibraryDetail() {
     const navigate = useNavigate();
     const { isSAHSUser } = useAuth();
 
+    const { settings } = useAppearance();
+
     const [book, setBook] = useState<LibraryBook | null>(null);
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
     const [relatedItems, setRelatedItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useSeo(book ? buildBookSeo({ ...book, id }, settings.museumName) : null);
 
     const handleDeleteBook = async () => {
         if (!book) return;

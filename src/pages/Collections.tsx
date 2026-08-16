@@ -4,6 +4,8 @@ import { db } from '../lib/firebase';
 import { collection, getDocs, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo } from '../lib/seo';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
 import { CollectionGridImage } from '../components/CollectionGridImage';
@@ -13,6 +15,14 @@ export function Collections() {
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
+
+    // Called before the feature-toggle early return below to keep hook order stable.
+    useSeo(buildPageSeo(
+        'Collections',
+        'Browse curated collections of photographs, documents and artifacts from the Senoia and Coweta County historical archive.',
+        '/collections',
+        settings.museumName
+    ));
 
     if (settings.featureToggles?.enableCollections === false) {
         return (
