@@ -17,6 +17,32 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "headers": [
+      {
+        "comment": "Vite content-hashes these filenames, so a new build produces a new URL. They can be cached indefinitely; the default max-age=3600 forced every repeat visitor to revalidate hourly.",
+        "source": "/assets/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "comment": "Static media is not content-hashed, so use a shorter TTL than assets but far longer than an hour.",
+        "source": "**/*.@(jpg|jpeg|png|webp|svg|ico|woff2)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=604800" }
+        ]
+      },
+      {
+        "comment": "The hero image is a CSS background applied by React, so it is invisible to the preload scanner — it was not even queued until ~392ms, while the download itself took under 1ms. This Link header makes it discoverable in the initial response. Scoped to the homepage so item pages don't pay for an image they never render.",
+        "source": "/",
+        "headers": [
+          {
+            "key": "Link",
+            "value": "</home-pharmacy.webp>; rel=preload; as=image; fetchpriority=high"
+          }
+        ]
+      }
+    ],
     "redirects": [
       {
         "source": "/senoia-stories",
