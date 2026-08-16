@@ -4,6 +4,8 @@ import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, F
 import { QRCodeSVG } from 'qrcode.react';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { EditableText } from '../components/EditableText';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo, DEFAULT_DESCRIPTION } from '../lib/seo';
 
 
 const BACKGROUND_IMAGES = [
@@ -34,9 +36,12 @@ export function Home() {
         }
     };
 
-    useEffect(() => {
-        document.title = `Home | ${settings.museumShortName || 'SAHS'} Digital Archive`;
-    }, [settings.museumShortName]);
+    useSeo(buildPageSeo(
+        undefined, // the homepage title is just the site name, with no page prefix
+        settings.contentBlocks?.heroSubtitle || DEFAULT_DESCRIPTION,
+        '/',
+        settings.museumName
+    ));
 
     useEffect(() => {
         const timer = setInterval(() => {

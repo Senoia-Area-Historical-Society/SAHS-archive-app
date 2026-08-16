@@ -6,12 +6,22 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { LibraryBook, MuseumLocation } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo } from '../lib/seo';
 import { EditableText } from '../components/EditableText';
 
 export function LibraryBrowse() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
+
+    // Called before the feature-toggle early return below to keep hook order stable.
+    useSeo(buildPageSeo(
+        'Reference Library',
+        'Search the reference library of books on Senoia, Coweta County and Georgia history, genealogy and local heritage.',
+        '/library',
+        settings.museumName
+    ));
 
     if (settings.featureToggles?.enableLibrary === false) {
         return (

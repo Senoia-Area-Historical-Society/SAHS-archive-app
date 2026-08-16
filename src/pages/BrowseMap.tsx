@@ -6,12 +6,22 @@ import type { ArchiveItem } from '../types/database';
 import { ArchiveMap } from '../components/ArchiveMap';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo } from '../lib/seo';
 
 export function BrowseMap() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
+
+    // Called before the feature-toggle early return below to keep hook order stable.
+    useSeo(buildPageSeo(
+        'Map Discovery',
+        'Explore the archive geographically — historic photographs, buildings and documents plotted across Senoia and Coweta County, Georgia.',
+        '/map',
+        settings.museumName
+    ));
 
     if (settings.featureToggles?.enableMap === false) {
         return (

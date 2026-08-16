@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { ChevronLeft, FolderOpen, Image as ImageIcon, Lock, Users, Plus, X, Search, CheckCircle, Minus, Edit2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildCollectionSeo } from '../lib/seo';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
@@ -16,7 +18,11 @@ export function CollectionDetail() {
     const [loading, setLoading] = useState(true);
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
-    
+
+    useSeo(collectionData
+        ? buildCollectionSeo({ ...collectionData, id }, settings.museumName)
+        : null);
+
     // Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [allOtherItems, setAllOtherItems] = useState<ArchiveItem[]>([]);

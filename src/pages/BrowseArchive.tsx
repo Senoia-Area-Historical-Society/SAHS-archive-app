@@ -8,6 +8,8 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
+import { useSeo } from '../hooks/useSeo';
+import { buildPageSeo } from '../lib/seo';
 
 export function BrowseArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -190,9 +192,12 @@ export function BrowseArchive() {
 
     const headerText = getHeaderText();
 
-    useEffect(() => {
-        document.title = `${headerText.title} | ${settings.museumShortName || 'SAHS'} Digital Archive`;
-    }, [headerText.title, settings.museumShortName]);
+    useSeo(buildPageSeo(
+        headerText.title,
+        headerText.description,
+        '/archive',
+        settings.museumName
+    ));
 
     if (loading) {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;

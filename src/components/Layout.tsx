@@ -60,11 +60,11 @@ export default function Layout() {
     const [showHeader, setShowHeader] = useState(true);
     const [lastScrollY, setLastScrollY] = useState(0);
 
-    useEffect(() => {
-        if (settings.museumName) {
-            document.title = `${settings.museumName} | Digital Archive`;
-        }
-    }, [settings.museumName]);
+    // NOTE: Layout deliberately no longer sets document.title. This effect was
+    // keyed on the Firestore-backed museum name, so when those settings resolved
+    // it overwrote whatever title the child page had already set — every route
+    // ended up with the same generic title. Titles are now owned solely by
+    // useSeo() in the page components.
 
     useEffect(() => {
         const handleScroll = () => {
@@ -137,9 +137,10 @@ export default function Layout() {
                         >
                             <Menu size={24} />
                         </button>
-                        <h1 className="font-serif text-lg leading-tight font-bold text-charcoal md:hidden">
+                        {/* Site branding, not a document heading — see Sidebar. */}
+                        <div className="font-serif text-lg leading-tight font-bold text-charcoal md:hidden">
                             {settings.museumName}
-                        </h1>
+                        </div>
                     </div>
 
                     {/* Right Section (QR and Account Profile Status) */}

@@ -39,6 +39,7 @@ const AddBook = lazy(() => import('./pages/AddBook').then(m => ({ default: m.Add
 const EditBook = lazy(() => import('./pages/EditBook'));
 const AppearanceSettings = lazy(() => import('./pages/AppearanceSettings').then(m => ({ default: m.AppearanceSettings })));
 const SetupWizard = lazy(() => import('./pages/SetupWizard').then(m => ({ default: m.SetupWizard })));
+const NotFound = lazy(() => import('./pages/NotFound').then(m => ({ default: m.NotFound })));
 
 function PageWrapper() {
   return (
@@ -193,6 +194,11 @@ export default function App() {
                   <Route path="my-research" element={<ResearchRoute><MyResearch /></ResearchRoute>} />
                   <Route path="my-research/map" element={<ResearchRoute><MyResearchMap /></ResearchRoute>} />
                   <Route path="my-research/membership" element={<ResearchRoute><MembershipStatus /></ResearchRoute>} />
+
+                  {/* Catch-all. Without this, unknown URLs rendered an empty
+                      <Outlet> — a blank page at HTTP 200 that crawlers treat as
+                      a thin duplicate. NotFound marks itself noindex. */}
+                  <Route path="*" element={<NotFound />} />
                 </Route>
               </Route>
             </Routes>

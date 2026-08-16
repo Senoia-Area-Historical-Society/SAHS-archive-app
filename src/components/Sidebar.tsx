@@ -186,9 +186,11 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             <img src={settings.logoUrl || logo} alt="SAHS Logo" className="w-full h-full object-contain p-1" />
                         </div>
                         <div>
-                            <h1 className="font-serif text-lg leading-tight font-bold text-charcoal whitespace-pre-line">
+                            {/* Site branding, not a document heading — using <h1> here put the
+                                same title above every page's real <h1>. */}
+                            <div className="font-serif text-lg leading-tight font-bold text-charcoal whitespace-pre-line">
                                 {settings.sidebarTitle || settings.museumName || "Senoia Area\nHistorical Society"}
-                            </h1>
+                            </div>
                             <p className="text-xs text-charcoal-light mt-0.5 tracking-wide">
                                 Archive Database
                             </p>
