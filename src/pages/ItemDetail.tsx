@@ -13,6 +13,8 @@ import type { ArchiveItem, MuseumLocation } from '../types/database';
 import { containsBannedWords } from '../utils/profanityFilter';
 import { useSeo } from '../hooks/useSeo';
 import { buildItemSeo } from '../lib/seo';
+import { useJsonLd } from '../hooks/useJsonLd';
+import { buildItemJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -53,6 +55,17 @@ export function ItemDetail() {
             settings.museumName
         )
         : null);
+
+    useJsonLd(item && !item.is_private && !isCollectionPrivate
+        ? [
+            buildItemJsonLd({ ...item, id }, settings.museumName),
+            buildBreadcrumbJsonLd([
+                { name: 'Home', path: '/' },
+                { name: 'Archive', path: '/archive' },
+                { name: item.title, path: `/items/${id}` },
+            ]),
+        ]
+        : []);
 
     // Inline Location Editing State
     const [isEditingLocation, setIsEditingLocation] = useState(false);

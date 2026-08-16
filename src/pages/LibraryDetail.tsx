@@ -8,6 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildBookSeo } from '../lib/seo';
+import { useJsonLd } from '../hooks/useJsonLd';
+import { buildBookJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 export function LibraryDetail() {
@@ -25,6 +27,17 @@ export function LibraryDetail() {
     const [error, setError] = useState<string | null>(null);
 
     useSeo(book ? buildBookSeo({ ...book, id }, settings.museumName) : null);
+
+    useJsonLd(book
+        ? [
+            buildBookJsonLd({ ...book, id }, settings.museumName),
+            buildBreadcrumbJsonLd([
+                { name: 'Home', path: '/' },
+                { name: 'Library', path: '/library' },
+                { name: book.title, path: `/library/${id}` },
+            ]),
+        ]
+        : []);
 
     const handleDeleteBook = async () => {
         if (!book) return;

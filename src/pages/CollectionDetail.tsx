@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildCollectionSeo } from '../lib/seo';
+import { useJsonLd } from '../hooks/useJsonLd';
+import { buildCollectionJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
@@ -22,6 +24,17 @@ export function CollectionDetail() {
     useSeo(collectionData
         ? buildCollectionSeo({ ...collectionData, id }, settings.museumName)
         : null);
+
+    useJsonLd(collectionData && !collectionData.is_private
+        ? [
+            buildCollectionJsonLd({ ...collectionData, id }, settings.museumName),
+            buildBreadcrumbJsonLd([
+                { name: 'Home', path: '/' },
+                { name: 'Collections', path: '/collections' },
+                { name: collectionData.title, path: `/collections/${id}` },
+            ]),
+        ]
+        : []);
 
     // Modal State
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
