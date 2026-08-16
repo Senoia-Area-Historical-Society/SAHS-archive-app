@@ -17,6 +17,18 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/senoia-stories",
+        "destination": "/stories",
+        "type": 301
+      },
+      {
+        "source": "/figures/:id",
+        "destination": "/items/:id",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "**",

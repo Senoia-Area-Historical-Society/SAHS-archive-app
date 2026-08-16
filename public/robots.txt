@@ -1,0 +1,32 @@
+# https://archives.senoiahistory.com/robots.txt
+# Senoia Area Historical Society — Digital Archive
+
+User-agent: *
+Allow: /
+
+# Authenticated and operational surfaces. These are already protected by Firebase
+# Auth and Firestore rules; disallowing them keeps crawl budget on archive content
+# instead of pages that only ever redirect to /login.
+Disallow: /login
+Disallow: /setup
+Disallow: /settings
+Disallow: /appearance
+Disallow: /add-item
+Disallow: /add-collection
+Disallow: /edit-item/
+Disallow: /edit-collection/
+Disallow: /library/add
+Disallow: /library/edit/
+Disallow: /tagging
+Disallow: /audit
+Disallow: /notifications
+Disallow: /bulk-qr-print
+Disallow: /manage-locations
+Disallow: /interactive-map
+Disallow: /rooms/
+Disallow: /locations/
+Disallow: /my-research
+
+# Search result pages are generated permutations of content that is already
+# indexable at its canonical URL.
+Disallow: /search
