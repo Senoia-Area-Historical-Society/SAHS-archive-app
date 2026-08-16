@@ -9,6 +9,7 @@
     "emulators": "firebase emulators:start",
     "build": "tsc -b && vite build",
     "sitemap": "node scripts/generate-sitemap.cjs",
+    "prepare:functions": "node scripts/prepare-functions.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
