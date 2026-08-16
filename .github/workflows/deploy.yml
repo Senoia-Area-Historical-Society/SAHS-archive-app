@@ -60,6 +60,11 @@ jobs:
           workload_identity_provider: 'projects/993507659072/locations/global/workloadIdentityPools/sahs-github-pool/providers/sahs-github-provider'
           service_account: 'github-action-1168899154@sahs-archives.iam.gserviceaccount.com'
 
+      # Reads Firestore with the OIDC credentials obtained above and writes
+      # dist/sitemap.xml, so it must run after auth and before deploy.
+      - name: Generate sitemap.xml
+        run: node scripts/generate-sitemap.cjs
+
       # 🚀 Deploy to Firebase using the authenticated environment
       - name: Deploy to Firebase
         run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives --force

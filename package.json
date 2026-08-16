@@ -8,6 +8,7 @@
     "dev:emulators": "VITE_USE_FIREBASE_EMULATOR=true vite",
     "emulators": "firebase emulators:start",
     "build": "tsc -b && vite build",
+    "sitemap": "node scripts/generate-sitemap.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
