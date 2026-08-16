@@ -30,3 +30,6 @@ Disallow: /my-research
 # Search result pages are generated permutations of content that is already
 # indexable at its canonical URL.
 Disallow: /search
+
+# Generated at deploy time by scripts/generate-sitemap.cjs
+Sitemap: https://archives.senoiahistory.com/sitemap.xml
