@@ -68,6 +68,15 @@ export function useSeo(meta: SeoMeta | null) {
         upsertTag('meta', 'property', 'og:title', 'content', resolvedTitle);
         upsertTag('meta', 'property', 'og:description', 'content', resolvedDescription);
         upsertTag('meta', 'property', 'og:image', 'content', resolvedImage);
+
+        // index.html declares width/height/alt for the default share image. Once
+        // a page swaps in its own og:image those describe the wrong file, so drop
+        // them rather than leave dimensions and alt text that no longer match.
+        if (resolvedImage !== DEFAULT_OG_IMAGE) {
+            removeTag('meta[property="og:image:width"]');
+            removeTag('meta[property="og:image:height"]');
+            removeTag('meta[property="og:image:alt"]');
+        }
         upsertTag('meta', 'property', 'og:type', 'content', type || 'website');
         upsertTag('meta', 'property', 'og:site_name', 'content', siteName);
         upsertTag('meta', 'name', 'twitter:title', 'content', resolvedTitle);
