@@ -108,7 +108,16 @@ export function buildOrganizationJsonLd(siteName: string = DEFAULT_SITE_NAME): J
     };
 }
 
-/** WebSite node with a search action, which can enable a sitelinks search box. */
+/**
+ * WebSite node.
+ *
+ * Deliberately no `potentialAction`/`SearchAction`: a sitelinks search box
+ * requires the search results URL to be crawlable, and robots.txt disallows
+ * /search because those pages are permutations of content already indexable at
+ * its canonical URL. Declaring an action against a disallowed path is inert at
+ * best and can be reported as an error, so we keep the disallow and drop the
+ * action rather than opening /search to crawlers for a cosmetic feature.
+ */
 export function buildWebSiteJsonLd(siteName: string = DEFAULT_SITE_NAME): Json {
     return {
         '@context': 'https://schema.org',
@@ -116,14 +125,6 @@ export function buildWebSiteJsonLd(siteName: string = DEFAULT_SITE_NAME): Json {
         name: `${siteName} Digital Archive`,
         url: SITE_URL,
         publisher: publisherRef(siteName),
-        potentialAction: {
-            '@type': 'SearchAction',
-            target: {
-                '@type': 'EntryPoint',
-                urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
-            },
-            'query-input': 'required name=search_term_string',
-        },
     };
 }
 
