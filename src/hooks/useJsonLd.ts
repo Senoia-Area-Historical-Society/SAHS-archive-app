@@ -19,6 +19,16 @@ export function useJsonLd(blocks: Array<Record<string, unknown> | null | undefin
 
     useEffect(() => {
         const parsed: unknown[] = JSON.parse(serialized);
+
+        // Detail pages are server-rendered by the renderMeta Cloud Function, which
+        // emits its blocks with the same marker. Clearing them first means the page
+        // ends up with one copy of each entity instead of a server copy plus a
+        // client copy. Runs before the early return so a page that emits nothing
+        // still clears stale server blocks.
+        document.head
+            .querySelectorAll(`script[${MANAGED_ATTR}]`)
+            .forEach((el) => el.remove());
+
         if (parsed.length === 0) return;
 
         const added = parsed.map((block) => {

@@ -57,6 +57,19 @@
     ],
     "rewrites": [
       {
+        "comment": "Detail pages are served by renderMeta, which injects real title/description/og tags from Firestore before returning the SPA shell. Social scrapers don't run JavaScript, so without this every shared link previews as the generic site title. Rewrites are first-match-wins, so these must precede the catch-all below.",
+        "source": "/items/**",
+        "function": "renderMeta"
+      },
+      {
+        "source": "/collections/**",
+        "function": "renderMeta"
+      },
+      {
+        "source": "/library/**",
+        "function": "renderMeta"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
