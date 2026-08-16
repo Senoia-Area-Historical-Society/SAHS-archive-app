@@ -48,6 +48,28 @@
       content="Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia."
     />
     <meta name="twitter:image" content="https://archives.senoiahistory.com/home-street-view.jpg" />
+
+    <!--
+      Sitewide organization entity. Kept static rather than injected at runtime
+      so crawlers that don't execute JavaScript still see it. Per-page entities
+      (items, collections, books, breadcrumbs) are added by useJsonLd.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Museum",
+        "name": "Senoia Area Historical Society",
+        "url": "https://archives.senoiahistory.com",
+        "logo": "https://archives.senoiahistory.com/logo2.png",
+        "description": "The Senoia Area Historical Society preserves and shares the history of Senoia and Coweta County, Georgia through a digital archive of photographs, documents, artifacts and oral histories.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Senoia",
+          "addressRegion": "GA",
+          "addressCountry": "US"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

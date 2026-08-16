@@ -6,6 +6,8 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { EditableText } from '../components/EditableText';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo, DEFAULT_DESCRIPTION } from '../lib/seo';
+import { useJsonLd } from '../hooks/useJsonLd';
+import { buildWebSiteJsonLd } from '../lib/structuredData';
 
 
 const BACKGROUND_IMAGES = [
@@ -42,6 +44,8 @@ export function Home() {
         '/',
         settings.museumName
     ));
+
+    useJsonLd([buildWebSiteJsonLd(settings.museumName)]);
 
     useEffect(() => {
         const timer = setInterval(() => {
