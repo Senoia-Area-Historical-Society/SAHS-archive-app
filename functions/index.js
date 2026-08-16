@@ -295,3 +295,7 @@ exports.lookupIsbnFallback = onCall({
 });
 
 
+
+// Server-rendered <head> for archive detail pages. Social scrapers don't execute
+// JavaScript, so without this every shared link previews as the generic site title.
+exports.renderMeta = require("./renderMeta").renderMeta;
