@@ -10,18 +10,46 @@ import { useJsonLd } from '../hooks/useJsonLd';
 import { buildWebSiteJsonLd } from '../lib/structuredData';
 
 
+// WebP versions: 404 KB -> 216 KB across the four slides. home-old-main was a
+// photograph stored as PNG, which alone went from 135 KB to 13 KB.
+// The first entry is preloaded via a Link header on "/" (see firebase.json),
+// so keep it first — it is the LCP element.
 const BACKGROUND_IMAGES = [
-    "/home-pharmacy.jpg",
-    "/home-street-view.jpg",
-    "/home-old-main.png",
-    "/home-industrial.jpg"
+    "/home-pharmacy.webp",
+    "/home-street-view.webp",
+    "/home-old-main.webp",
+    "/home-industrial.webp"
 ];
+
+/** The bundled hero images that now have WebP versions alongside them. */
+const BUNDLED_HERO_IMAGES = new Set([
+    '/home-pharmacy',
+    '/home-street-view',
+    '/home-old-main',
+    '/home-industrial',
+]);
+
+/**
+ * site_settings/appearance stores backgroundImages, and it currently holds the
+ * original .jpg/.png paths — which take precedence over the constant above, so
+ * changing that list alone would have had no effect in production.
+ *
+ * Rather than mutating stored settings, upgrade our own bundled assets to WebP
+ * at render time. Admin-uploaded URLs don't match the pattern and pass through
+ * untouched.
+ */
+function preferWebp(src: string): string {
+    const match = src.match(/^(\/home-[a-z-]+)\.(jpg|jpeg|png)$/i);
+    return match && BUNDLED_HERO_IMAGES.has(match[1]) ? `${match[1]}.webp` : src;
+}
 
 export function Home() {
     const { settings } = useAppearance();
-    const backgroundImagesList = settings.backgroundImages && settings.backgroundImages.length > 0
-        ? settings.backgroundImages
-        : BACKGROUND_IMAGES;
+    const backgroundImagesList = (
+        settings.backgroundImages && settings.backgroundImages.length > 0
+            ? settings.backgroundImages
+            : BACKGROUND_IMAGES
+    ).map(preferWebp);
 
     const [currentSlide, setCurrentSlide] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');

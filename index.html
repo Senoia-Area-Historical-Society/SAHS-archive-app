@@ -4,8 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <link rel="icon" type="image/png" href="/logo2.png" />
-    <link rel="apple-touch-icon" href="/logo2.png" />
+    <!--
+      Every page needs Firestore and Storage. Warming the connections here saves
+      a DNS + TLS round trip on the critical path, since the app can't request
+      any content until the JS bundle has parsed and initialized Firebase.
+    -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.weserv.nl" />
+
+    <!-- logo2.png is 2000x2000 and 105 KB; these are sized for their actual use. -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#3a2d1d" />
 
     <!--
