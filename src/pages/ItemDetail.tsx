@@ -2402,7 +2402,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                             <span className="text-[10px] font-black text-tan uppercase tracking-widest font-sans bg-tan/10 px-2 py-0.5 rounded-full">Interviewee</span>
                             <h3 className="text-2xl font-serif font-bold text-charcoal leading-tight mt-1">
                                 {narrator ? (
-                                    <Link to={`/figures/${narrator.id}`} className="hover:text-tan transition-colors hover:underline">
+                                    <Link to={`/items/${narrator.id}`} className="hover:text-tan transition-colors hover:underline">
                                         {narrator.title}
                                     </Link>
                                 ) : (

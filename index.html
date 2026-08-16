@@ -2,9 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo2.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Historical Society | Digital Archive</title>
+
+    <link rel="icon" type="image/png" href="/logo2.png" />
+    <link rel="apple-touch-icon" href="/logo2.png" />
+    <meta name="theme-color" content="#3a2d1d" />
+
+    <!--
+      Defaults only. Public routes override title/description/canonical at runtime
+      (see src/lib/seo.ts). Crawlers that do not execute JavaScript fall back to these.
+    -->
+    <title>Senoia Area Historical Society | Digital Archive</title>
+    <meta
+      name="description"
+      content="Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia."
+    />
+    <!--
+      No static rel=canonical here on purpose. index.html is the shell for every
+      route, so a hardcoded canonical would declare all ~1,500 item pages to be
+      duplicates of the homepage. Canonicals are set per-route in src/lib/seo.ts.
+    -->
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Senoia Area Historical Society Digital Archive" />
+    <meta property="og:title" content="Senoia Area Historical Society | Digital Archive" />
+    <meta
+      property="og:description"
+      content="Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia."
+    />
+    <!-- og:url is likewise omitted: scrapers fall back to the requested URL,
+         whereas a hardcoded value would collapse every shared item into one entity. -->
+    <meta property="og:image" content="https://archives.senoiahistory.com/home-street-view.jpg" />
+    <meta property="og:image:width" content="960" />
+    <meta property="og:image:height" content="602" />
+    <meta property="og:image:alt" content="Historic street view of Senoia, Georgia" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Senoia Area Historical Society | Digital Archive" />
+    <meta
+      name="twitter:description"
+      content="Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia."
+    />
+    <meta name="twitter:image" content="https://archives.senoiahistory.com/home-street-view.jpg" />
   </head>
   <body>
     <div id="root"></div>

@@ -154,7 +154,8 @@ export default function App() {
                 <Route element={<PageWrapper />}>
                   <Route path="archive" element={<BrowseArchive />} />
                   <Route path="stories" element={<SenoiaStories />} />
-                  <Route path="senoia-stories" element={<Navigate to="/stories" replace />} />
+                  {/* /senoia-stories and /figures/:id are consolidated by 301 redirects
+                      in firebase.json so crawlers see a single canonical URL. */}
                   <Route path="collections" element={<Collections />} />
                   <Route path="collections/:id" element={<CollectionDetail />} />
                   
@@ -164,7 +165,6 @@ export default function App() {
 
                   {/* Authentication and Admin routes */}
                   <Route path="items/:id" element={<ItemDetail />} />
-                  <Route path="figures/:id" element={<ItemDetail />} /> {/* Legacy detail redirect handled later */}
                   <Route path="search" element={<SearchArchive />} />
                   <Route path="map" element={<BrowseMap />} />
                   <Route path="login" element={<Login />} />
