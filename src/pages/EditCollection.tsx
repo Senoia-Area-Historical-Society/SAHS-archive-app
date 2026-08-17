@@ -5,6 +5,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
+import { errorMessage } from '../lib/errors';
 
 export function EditCollection() {
     const { id } = useParams<{ id: string }>();
@@ -152,9 +153,9 @@ export function EditCollection() {
 
             await updateDoc(doc(db, 'collections', id), updatedData);
             setSuccess(true);
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error updating collection: ", err);
-            setError(err.message || "Failed to update collection.");
+            setError(errorMessage(err) || "Failed to update collection.");
         } finally {
             setIsSubmitting(false);
         }

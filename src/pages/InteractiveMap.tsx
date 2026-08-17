@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ModuleDisabled } from '../components/ModuleDisabled';
+import { errorMessage } from '../lib/errors';
 
 type LayoutHistoryState = {
     rooms: Room[];
@@ -766,9 +767,9 @@ function InteractiveMapEditor() {
 
             setIsEditMode(false);
             alert("Layout saved successfully!");
-        } catch (error: any) {
+        } catch (error) {
             console.error("Error saving layout:", error);
-            alert(`Error saving layout: ${error.message || error}`);
+            alert(`Error saving layout: ${errorMessage(error) || String(error)}`);
         } finally {
             setIsSaving(false);
         }

@@ -13,6 +13,7 @@ import { convertPdfToPngs } from '../lib/pdfUtils';
 import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
+import { errorMessage } from '../lib/errors';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
     useEffect(() => {
@@ -970,9 +971,9 @@ export default function EditItem() {
             }
 
             setSuccess(true);
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error updating item: ", err);
-            setError(err.message || "Failed to update item. Please check your Firebase configuration.");
+            setError(errorMessage(err) || "Failed to update item. Please check your Firebase configuration.");
         } finally {
             setIsSubmitting(false);
         }

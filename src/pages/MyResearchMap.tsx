@@ -5,6 +5,7 @@ import { collection, getDocs, query, where, or, documentId } from 'firebase/fire
 import { Sparkles, AlertCircle } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
+import { errorMessage } from '../lib/errors';
 
 export function MyResearchMap() {
     const { user, hasResearchAccess } = useAuth();
@@ -77,9 +78,9 @@ export function MyResearchMap() {
                 });
                 
                 setItems(loadedItems);
-            } catch (err: any) {
+            } catch (err) {
                 console.error("Error loading research items:", err);
-                setError(err?.message || "Failed to load research item coordinates.");
+                setError(errorMessage(err) || "Failed to load research item coordinates.");
             } finally {
                 setLoading(false);
             }
