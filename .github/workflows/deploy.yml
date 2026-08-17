@@ -72,6 +72,12 @@ jobs:
       - name: Generate sitemap.xml
         run: node scripts/generate-sitemap.cjs
 
+      # Pre-renders the <head> of the list pages into dist/<route>.html. Same
+      # constraints as the sitemap above: needs Firestore credentials for the
+      # curator-editable titles, and needs dist/ to already exist.
+      - name: Generate static list-page metadata
+        run: node scripts/generate-static-pages.cjs
+
       # 🚀 Deploy to Firebase using the authenticated environment
       - name: Deploy to Firebase
         run: npx firebase-tools deploy --only hosting,functions,storage,firestore --project sahs-archives --force
