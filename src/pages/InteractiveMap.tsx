@@ -52,14 +52,19 @@ const DEFAULT_CANVAS_WIDTH = 2400;
 const DEFAULT_CANVAS_HEIGHT = 1600;
 const PIXELS_PER_FOOT = 24; // 1 foot = 24 pixels (1 inch = 2 pixels)
 
+// The room-geometry node combines its border with getSmartBorders() output, so that node
+// must stay longhand-only — mixing `border` with borderTop/Right/Bottom/Left on one element
+// trips React's shorthand/longhand conflict warning on every re-render.
+const uniformBorders = (borderStyle: string): React.CSSProperties => ({
+    borderTop: borderStyle,
+    borderBottom: borderStyle,
+    borderLeft: borderStyle,
+    borderRight: borderStyle
+});
+
 const getSmartBorders = (current: MapGeometry, all: MapGeometry[], isSelected: boolean) => {
     const borderStyle = isSelected ? '2px solid #3b82f6' : '2px solid rgba(139, 115, 85, 0.3)';
-    const style: React.CSSProperties = {
-        borderTop: borderStyle,
-        borderBottom: borderStyle,
-        borderLeft: borderStyle,
-        borderRight: borderStyle
-    };
+    const style: React.CSSProperties = uniformBorders(borderStyle);
 
     const threshold = 2; // px threshold for "touching"
 
@@ -2996,11 +3001,10 @@ function InteractiveMapEditor() {
                                                 boxShadow: (hoveredBlock && hoveredBlock.roomId === room.docId && hoveredBlock.index === index) 
                                                     ? '0 0 15px rgba(59, 130, 246, 0.5)' 
                                                     : 'none',
-                                                border: hasTransform
-                                                    ? (isSelected ? '1px dashed rgba(59, 130, 246, 0.4)' : 'none')
-                                                    : (isSelected ? '2px solid #3b82f6' : '1px solid #d2b48c'),
                                                 borderRadius: isCircle ? '50%' : '0',
-                                                ...(hasTransform ? {} : getSmartBorders(c, geometries, isSelected))
+                                                ...(hasTransform
+                                                    ? uniformBorders(isSelected ? '1px dashed rgba(59, 130, 246, 0.4)' : 'none')
+                                                    : getSmartBorders(c, geometries, isSelected))
                                             }}
                                             scale={scale}
                                             disableDragging={!isEditMode}
