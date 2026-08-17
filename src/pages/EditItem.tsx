@@ -177,6 +177,7 @@ export default function EditItem() {
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
+    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -570,34 +571,35 @@ export default function EditItem() {
         const fileArray = Array.from(files);
         
         
-        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
-
-        if (hasPdf) {
-            setIsConvertingPdf(true);
-            setPdfConvertProgress(0);
-        }
-        if (hasHeic) {
-            setIsConvertingHeic(true);
-        }
-
+        // The indicators are raised per file, immediately around the conversion they
+        // describe. Setting them up-front from a hasPdf/hasHeic scan meant a mixed
+        // selection showed both for the whole run: a PDF bar pinned at its 5% floor
+        // while a HEIC was still decoding, then a stale HEIC spinner through the PDF
+        // pages. Only one conversion is ever in flight, so only one can be true.
         try {
             const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
-                
+
                 // HEIC Conversion
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    setIsConvertingHeic(true);
                     file = await convertHeicToPng(file);
                     file = await compressImage(file);
+                    setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
+                    setIsOptimizingImage(true);
                     file = await compressImage(file);
+                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
+                    setIsConvertingPdf(true);
+                    setPdfConvertProgress(0);
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
+                    setIsConvertingPdf(false);
                     newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f, caption: '' })));
                 } else {
                     newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file, caption: '' });
@@ -610,6 +612,7 @@ export default function EditItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
+            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -1336,6 +1339,14 @@ export default function EditItem() {
                                     <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                         <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                     </div>
+                                </div>
+                            )}
+
+                            {isOptimizingImage && (
+                                <div className="flex flex-col items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="font-bold text-charcoal">Optimizing Image...</p>
+                                    <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                 </div>
                             )}
 

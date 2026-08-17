@@ -48,6 +48,7 @@ export function AddItem() {
     const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
+    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -252,33 +253,34 @@ export function AddItem() {
         const fileArray = Array.from(files);
         const finalFiles: File[] = [];
         
-        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
-        
-        if (hasPdf) {
-            setIsConvertingPdf(true);
-            setPdfConvertProgress(0);
-        }
-        if (hasHeic) {
-            setIsConvertingHeic(true);
-        }
-
+        // The indicators are raised per file, immediately around the conversion they
+        // describe. Setting them up-front from a hasPdf/hasHeic scan meant that for a
+        // mixed selection isConvertingHeic stayed true for the whole run, so the ternary
+        // below kept showing the HEIC spinner and the PDF page-progress bar — the only
+        // real percentage in this form — never appeared at all.
         try {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
-                
+
                 // HEIC Conversion
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    setIsConvertingHeic(true);
                     file = await convertHeicToPng(file);
                     file = await compressImage(file);
+                    setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
+                    setIsOptimizingImage(true);
                     file = await compressImage(file);
+                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
+                    setIsConvertingPdf(true);
+                    setPdfConvertProgress(0);
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
+                    setIsConvertingPdf(false);
                     finalFiles.push(...pngs);
                 } else {
                     finalFiles.push(file);
@@ -292,6 +294,7 @@ export function AddItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
+            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -921,6 +924,12 @@ export function AddItem() {
                                         <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                             <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                         </div>
+                                    </div>
+                                ) : isOptimizingImage ? (
+                                    <div className="flex flex-col items-center gap-3 mt-4">
+                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="font-bold text-charcoal">Optimizing Image...</p>
+                                        <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                     </div>
                                 ) : selectedFiles.length > 0 ? (
                                     <div className="grid grid-cols-4 gap-2 w-full max-w-sm mt-4">
