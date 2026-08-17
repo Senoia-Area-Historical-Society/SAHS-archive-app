@@ -105,6 +105,7 @@ export function GoogleDrivePicker({ onFilesSelected, onError }: GoogleDrivePicke
                         const file = await downloadFile(fileId, fileName, mimeType, token);
                         filesToUpload.push(file);
                     } catch (err) {
+                        console.error(`Drive download failed for ${fileName}`, err);
                         onError(`Failed to download ${fileName}`);
                     }
                 }

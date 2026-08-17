@@ -571,14 +571,16 @@ export default function EditItem() {
         
         
         const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
-        
+
         if (hasPdf) {
             setIsConvertingPdf(true);
             setPdfConvertProgress(0);
         }
-        if (hasHeic) {
-        }
+
+        // NOTE: AddItem sets an isConvertingHeic flag here and renders a spinner for it.
+        // This form never had that state, so HEIC conversion below runs with no progress
+        // indicator and the form looks frozen. An empty `if (hasHeic) {}` used to stand in
+        // for it; removed because it did nothing. The missing spinner is still missing.
 
         try {
             const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
@@ -687,8 +689,8 @@ export default function EditItem() {
                 }
             }
 
-            let finalFileUrls: string[] = [];
-            let finalFileCaptions: string[] = [];
+            const finalFileUrls: string[] = [];
+            const finalFileCaptions: string[] = [];
             let finalFeaturedUrl = featuredImageUrl;
 
             if (mediaItems.length > 0) {

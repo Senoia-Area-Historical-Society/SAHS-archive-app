@@ -61,7 +61,7 @@ export function AddCollection() {
             const formData = new FormData(e.target as HTMLFormElement);
 
             const newFiles = selectedFiles;
-            let fileUrls: string[] = [];
+            const fileUrls: string[] = [];
 
             if (newFiles.length > 0) {
                 const totalFiles = newFiles.length;

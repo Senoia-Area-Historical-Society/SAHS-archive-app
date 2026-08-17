@@ -66,6 +66,7 @@ function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel:
             <input
                 ref={inputRef}
                 type="text"
+                aria-label={`Rename ${defaultLabel} navigation link`}
                 value={val}
                 onChange={(e) => setVal(e.target.value)}
                 onBlur={handleSave}
