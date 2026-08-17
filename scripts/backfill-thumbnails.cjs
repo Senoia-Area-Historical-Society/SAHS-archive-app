@@ -29,6 +29,7 @@ const admin = require('firebase-admin');
 const sharp = require('sharp');
 
 const BUCKET = 'sahs-archives.firebasestorage.app';
+const DATABASE_ID = 'sahs-archives';
 const SIZES = [400, 1000]; // must match THUMB_SIZES in src/lib/imageThumbs.ts
 const RESIZED_DIR = 'thumbs'; // must match RESIZED_DIR there
 
@@ -69,9 +70,63 @@ function thumbPath(objectPath, size) {
 }
 
 const stats = {
-    sourceImages: 0, alreadyDone: 0, processed: 0, failed: 0,
+    sourceImages: 0, alreadyDone: 0, skippedPrivate: 0, processed: 0, failed: 0,
     bytesIn: 0, bytesOut: 0,
 };
+
+/**
+ * Object paths belonging to items the public cannot see.
+ *
+ * Thumbnails are written with makePublic(), readable with no token, at a path
+ * derivable from the original's. Privacy here is a Firestore property, not a path
+ * property, so an item marked is_private — or sitting in a private collection —
+ * keeps its scans in archive_media/ alongside everything else. Resizing those
+ * would publish a 400px and a 1000px copy of material whose original correctly
+ * returns 403.
+ *
+ * accession_paperwork/ is handled by simply not being in PREFIXES. This covers the
+ * case that a path prefix cannot express.
+ */
+async function loadHiddenObjectPaths() {
+    const db = admin.firestore();
+    db.settings({ databaseId: DATABASE_ID });
+
+    const privateCollections = new Set();
+    const collections = await db.collection('collections').get();
+    collections.forEach((doc) => {
+        if (doc.data().is_private === true) privateCollections.add(doc.id);
+    });
+
+    const hidden = new Set();
+    const items = await db.collection('archive_items').get();
+    items.forEach((doc) => {
+        const data = doc.data();
+        const isHidden = data.is_private === true
+            || (data.collection_id && privateCollections.has(data.collection_id))
+            || (Array.isArray(data.collection_ids)
+                && data.collection_ids.some((id) => privateCollections.has(id)));
+        if (!isHidden) return;
+
+        for (const url of [...(data.file_urls || []), data.featured_image_url]) {
+            const path = objectPathFromUrl(url);
+            if (path) hidden.add(path);
+        }
+    });
+
+    return { hidden, privateCollections: privateCollections.size };
+}
+
+/** Recovers a bucket object path from a stored download URL, signed or public. */
+function objectPathFromUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    // .../o/archive_media%2Fscan.png?alt=media&token=...
+    const tokenStyle = url.match(/\/o\/([^?]+)/);
+    if (tokenStyle) return decodeURIComponent(tokenStyle[1]);
+    // https://storage.googleapis.com/<bucket>/archive_media/scan.png
+    const publicStyle = url.match(/storage\.googleapis\.com\/[^/]+\/([^?]+)/);
+    if (publicStyle) return decodeURIComponent(publicStyle[1]);
+    return null;
+}
 
 async function resizeOne(bucket, file, targets, index, total) {
     const objectPath = file.name;
@@ -137,6 +192,7 @@ function printSummary() {
     console.log('\n--- summary ---');
     console.log(`  source images found ${stats.sourceImages}`);
     console.log(`  already had thumbs  ${stats.alreadyDone}`);
+    console.log(`  skipped, non-public ${stats.skippedPrivate}`);
     console.log(`  processed           ${stats.processed}`);
     console.log(`  failed              ${stats.failed}`);
     console.log(`  original bytes read ${mb(stats.bytesIn)}`);
@@ -162,6 +218,10 @@ async function main() {
         process.exit(130);
     });
 
+    process.stdout.write('reading item privacy from Firestore... ');
+    const { hidden, privateCollections } = await loadHiddenObjectPaths();
+    console.log(`${hidden.size} object${hidden.size === 1 ? ' belongs' : 's belong'} to non-public items (${privateCollections} private collection${privateCollections === 1 ? '' : 's'})\n`);
+
     const work = [];
 
     for (const prefix of PREFIXES) {
@@ -174,10 +234,11 @@ async function main() {
         // the reason a resumed run sat silent for minutes before its first output.
         const present = new Set(files.map((f) => f.name));
 
-        let found = 0, done = 0;
+        let found = 0, done = 0, restricted = 0;
         for (const file of files) {
             if (file.name.includes(`/${RESIZED_DIR}/`) || !IMAGE_RE.test(file.name)) continue;
             found += 1;
+            if (hidden.has(file.name)) { restricted += 1; continue; }
             const targets = SIZES
                 .map((size) => ({ size, path: thumbPath(file.name, size) }))
                 .filter((t) => !present.has(t.path));
@@ -187,7 +248,9 @@ async function main() {
 
         stats.sourceImages += found;
         stats.alreadyDone += done;
-        console.log(`${files.length} objects, ${found} source images, ${done} already done, ${found - done} to do`);
+        stats.skippedPrivate += restricted;
+        const restrictedNote = restricted ? `, ${restricted} skipped as non-public` : '';
+        console.log(`${files.length} objects, ${found} source images, ${done} already done${restrictedNote}, ${found - done - restricted} to do`);
     }
 
     const queue = work.slice(0, LIMIT === Infinity ? work.length : LIMIT);
