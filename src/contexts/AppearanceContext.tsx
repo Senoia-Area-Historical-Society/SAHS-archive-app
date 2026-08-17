@@ -19,7 +19,10 @@ export const THEME_PRESETS: Record<string, ThemeConfig> = {
         cream: '#fcfaf6',
         beige: '#f1ede4',
         tanLight: '#e1d7c6',
-        tan: '#8b7355',
+        // #8b7355 measured 4.49:1 against white — just under the 4.5:1 WCAG AA
+        // threshold, so every primary button failed. This is a shade darker and
+        // clears it at 4.91:1 while staying visually the same heritage tan.
+        tan: '#846d4d',
         tanDark: '#68543f',
         charcoal: '#3a2d1d',
         charcoalLight: '#746048'
