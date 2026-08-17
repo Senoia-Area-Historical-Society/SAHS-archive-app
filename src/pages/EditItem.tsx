@@ -570,34 +570,33 @@ export default function EditItem() {
         const fileArray = Array.from(files);
         
         
-        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
-
-        if (hasPdf) {
-            setIsConvertingPdf(true);
-            setPdfConvertProgress(0);
-        }
-        if (hasHeic) {
-            setIsConvertingHeic(true);
-        }
-
+        // The indicators are raised per file, immediately around the conversion they
+        // describe. Setting them up-front from a hasPdf/hasHeic scan meant a mixed
+        // selection showed both for the whole run: a PDF bar pinned at its 5% floor
+        // while a HEIC was still decoding, then a stale HEIC spinner through the PDF
+        // pages. Only one conversion is ever in flight, so only one can be true.
         try {
             const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
-                
+
                 // HEIC Conversion
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    setIsConvertingHeic(true);
                     file = await convertHeicToPng(file);
                     file = await compressImage(file);
+                    setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
                     file = await compressImage(file);
                 }
 
                 if (file.type === 'application/pdf') {
+                    setIsConvertingPdf(true);
+                    setPdfConvertProgress(0);
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
+                    setIsConvertingPdf(false);
                     newItems.push(...pngs.map((f, idx) => ({ id: `new-${Date.now()}-${i}-${idx}`, type: 'new' as const, value: f, caption: '' })));
                 } else {
                     newItems.push({ id: `new-${Date.now()}-${i}`, type: 'new' as const, value: file, caption: '' });

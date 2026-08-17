@@ -252,33 +252,32 @@ export function AddItem() {
         const fileArray = Array.from(files);
         const finalFiles: File[] = [];
         
-        const hasPdf = fileArray.some(f => f.type === 'application/pdf');
-        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
-        
-        if (hasPdf) {
-            setIsConvertingPdf(true);
-            setPdfConvertProgress(0);
-        }
-        if (hasHeic) {
-            setIsConvertingHeic(true);
-        }
-
+        // The indicators are raised per file, immediately around the conversion they
+        // describe. Setting them up-front from a hasPdf/hasHeic scan meant that for a
+        // mixed selection isConvertingHeic stayed true for the whole run, so the ternary
+        // below kept showing the HEIC spinner and the PDF page-progress bar — the only
+        // real percentage in this form — never appeared at all.
         try {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
-                
+
                 // HEIC Conversion
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                    setIsConvertingHeic(true);
                     file = await convertHeicToPng(file);
                     file = await compressImage(file);
+                    setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
                     file = await compressImage(file);
                 }
 
                 if (file.type === 'application/pdf') {
+                    setIsConvertingPdf(true);
+                    setPdfConvertProgress(0);
                     const pngs = await convertPdfToPngs(file, (p) => {
                         setPdfConvertProgress(p);
                     });
+                    setIsConvertingPdf(false);
                     finalFiles.push(...pngs);
                 } else {
                     finalFiles.push(file);
