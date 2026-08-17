@@ -15,19 +15,24 @@ import {
     User
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { ModuleDisabled } from '../components/ModuleDisabled';
 
 export function MembershipStatus() {
+    const { settings, loading } = useAppearance();
+
+    // Gate lives in this wrapper so the hook count above it never varies — see ModuleDisabled.
+    // This page happens to declare no hooks below the gate today, so ESLint stays quiet about
+    // it, but the shape is the same trap as the other five and one added useState would spring it.
+    if (!loading && settings.featureToggles?.enableMembership === false) {
+        return <ModuleDisabled module="Membership" />;
+    }
+
+    return <MembershipCard />;
+}
+
+function MembershipCard() {
     const { user, isMember, isExpiredMember, memberData, simulatedRole, openMemberWizard } = useAuth();
     const { settings } = useAppearance();
-
-    if (settings.featureToggles?.enableMembership === false) {
-        return (
-            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
-                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
-                <p className="text-charcoal/60 max-w-md">The Membership module is not active for this archive site.</p>
-            </div>
-        );
-    }
 
     // Determine what display data to show based on real/simulated roles
     const displayAsSimulated = simulatedRole === 'member';

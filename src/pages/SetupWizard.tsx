@@ -3,11 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { db, storage } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { Loader2, ArrowRight, ShieldCheck, Palette, Building2, CheckCircle2, Link as LinkIcon, MapPin, Type, FileText, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 
 export function SetupWizard() {
-    const { user, isSetupComplete } = useAuth();
+    const { user, isSetupComplete, realIsAdmin } = useAuth();
     const navigate = useNavigate();
 
     const [step, setStep] = useState(1);
@@ -155,10 +155,12 @@ export function SetupWizard() {
         setContentBlocks(prev => ({ ...prev, [key]: value }));
     };
 
-    // If setup is complete, only real Admins are allowed to access this page manually
-    if (isSetupComplete && !useAuth().realIsAdmin) {
-        navigate('/', { replace: true });
-        return null;
+    // If setup is complete, only real Admins are allowed to access this page manually.
+    // realIsAdmin comes from the useAuth() call at the top of the component — calling
+    // the hook inline here made it conditional, and navigating during render is a side
+    // effect React does not allow. <Navigate> does the redirect on commit instead.
+    if (isSetupComplete && !realIsAdmin) {
+        return <Navigate to="/" replace />;
     }
 
     if (!user) {

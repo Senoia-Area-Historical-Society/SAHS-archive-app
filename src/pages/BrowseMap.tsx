@@ -8,14 +8,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
+import { ModuleDisabled } from '../components/ModuleDisabled';
 
 export function BrowseMap() {
-    const [items, setItems] = useState<ArchiveItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { isSAHSUser } = useAuth();
-    const { settings } = useAppearance();
+    const { settings, loading } = useAppearance();
 
-    // Called before the feature-toggle early return below to keep hook order stable.
     useSeo(buildPageSeo(
         'Map Discovery',
         'Explore the archive geographically — historic photographs, buildings and documents plotted across Senoia and Coweta County, Georgia.',
@@ -23,14 +20,19 @@ export function BrowseMap() {
         settings.museumName
     ));
 
-    if (settings.featureToggles?.enableMap === false) {
-        return (
-            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
-                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
-                <p className="text-charcoal/60 max-w-md">The Map Discovery module is not active for this archive site.</p>
-            </div>
-        );
+    // Gate lives in this wrapper so the hook count above it never varies — see ModuleDisabled.
+    if (!loading && settings.featureToggles?.enableMap === false) {
+        return <ModuleDisabled module="Map Discovery" />;
     }
+
+    return <MapBrowser />;
+}
+
+function MapBrowser() {
+    const [items, setItems] = useState<ArchiveItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
 
     useEffect(() => {
         const fetchItems = async () => {

@@ -9,14 +9,11 @@ import { buildPageSeo } from '../lib/seo';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
 import { CollectionGridImage } from '../components/CollectionGridImage';
+import { ModuleDisabled } from '../components/ModuleDisabled';
 
 export function Collections() {
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { isSAHSUser } = useAuth();
-    const { settings } = useAppearance();
+    const { settings, loading } = useAppearance();
 
-    // Called before the feature-toggle early return below to keep hook order stable.
     useSeo(buildPageSeo(
         'Collections',
         'Browse curated collections of photographs, documents and artifacts from the Senoia and Coweta County historical archive.',
@@ -24,15 +21,19 @@ export function Collections() {
         settings.museumName
     ));
 
-    if (settings.featureToggles?.enableCollections === false) {
-        return (
-            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
-                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
-                <p className="text-charcoal/60 max-w-md">The Curated Collections module is not active for this archive site.</p>
-            </div>
-        );
+    // Gate lives in this wrapper so the hook count above it never varies — see ModuleDisabled.
+    if (!loading && settings.featureToggles?.enableCollections === false) {
+        return <ModuleDisabled module="Curated Collections" />;
     }
 
+    return <CollectionsBrowser />;
+}
+
+function CollectionsBrowser() {
+    const [collections, setCollections] = useState<Collection[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { isSAHSUser } = useAuth();
+    const { settings } = useAppearance();
     const navigate = useNavigate();
 
     useEffect(() => {

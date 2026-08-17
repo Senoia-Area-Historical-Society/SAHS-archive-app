@@ -10,6 +10,7 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
 import { EditableText } from '../components/EditableText';
+import { ModuleDisabled } from '../components/ModuleDisabled';
 
 // Premium Curated Mock Stories for a spectacular initial experience
 const MOCK_STORIES: ArchiveItem[] = [
@@ -59,12 +60,8 @@ const MOCK_STORIES: ArchiveItem[] = [
 ];
 
 export function SenoiaStories() {
-    const { isSAHSUser, realIsAdmin } = useAuth();
-    const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
-    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
-    const [logoUploading, setLogoUploading] = useState(false);
+    const { settings, loading } = useAppearance();
 
-    // Called before the feature-toggle early return below to keep hook order stable.
     useSeo(buildPageSeo(
         settings.contentBlocks?.storiesTitle || 'Senoia Stories',
         'Listen to oral histories from the Senoia area — first-hand accounts and recorded memories preserved by the Senoia Area Historical Society.',
@@ -72,14 +69,19 @@ export function SenoiaStories() {
         settings.museumName
     ));
 
-    if (settings.featureToggles?.enableOralHistories === false) {
-        return (
-            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
-                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
-                <p className="text-charcoal/60 max-w-md">The Oral Histories module is not active for this archive site.</p>
-            </div>
-        );
+    // Gate lives in this wrapper so the hook count above it never varies — see ModuleDisabled.
+    if (!loading && settings.featureToggles?.enableOralHistories === false) {
+        return <ModuleDisabled module="Oral Histories" />;
     }
+
+    return <StoriesBrowser />;
+}
+
+function StoriesBrowser() {
+    const { isSAHSUser, realIsAdmin } = useAuth();
+    const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
+    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
+    const [logoUploading, setLogoUploading] = useState(false);
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
