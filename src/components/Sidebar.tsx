@@ -204,6 +204,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="Instagram"
+                                        aria-label="Senoia Area Historical Society on Instagram"
                                     >
                                         <Instagram size={14} />
                                     </a>
@@ -215,6 +216,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="Facebook"
+                                        aria-label="Senoia Area Historical Society on Facebook"
                                     >
                                         <Facebook size={14} />
                                     </a>
@@ -226,6 +228,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="YouTube"
+                                        aria-label="Senoia Area Historical Society on YouTube"
                                     >
                                         <Youtube size={14} />
                                     </a>

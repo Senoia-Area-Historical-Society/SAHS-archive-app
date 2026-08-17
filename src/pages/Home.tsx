@@ -334,7 +334,7 @@ export function Home() {
                         
                         {/* Text Side */}
                         <div className={`w-full ${settings.spotlight?.imageUrl ? 'md:flex-1 text-center md:text-left' : 'text-center'}`}>
-                            <div className={`inline-flex items-center gap-3 text-tan text-xs font-black uppercase tracking-[0.25em] mb-6 ${!settings.spotlight?.imageUrl && 'mx-auto'}`}>
+                            <div className={`inline-flex items-center gap-3 text-tan-light text-xs font-black uppercase tracking-[0.25em] mb-6 ${!settings.spotlight?.imageUrl && 'mx-auto'}`}>
                                 <span className="w-12 h-px bg-tan/50"></span>
                                 Spotlight
                                 <span className="w-12 h-px bg-tan/50"></span>
@@ -436,6 +436,7 @@ export function Home() {
                             <div className="bg-white p-8 rounded-[2rem] shadow-xl relative z-10 flex flex-col items-center">
                                 <div className="mb-6 p-4 bg-tan/5 rounded-2xl border border-tan/10">
                                     <QRCodeSVG 
+                                        title="QR code linking to the Senoia Area Historical Society digital archive"
                                         value={settings.contentBlocks?.qrValue || "https://sahs-archives.web.app"} 
                                         size={200}
                                         level="H"
@@ -483,17 +484,17 @@ export function Home() {
                 <div className="max-w-4xl mx-auto flex flex-col items-center">
                     <div className="flex items-center gap-8 mb-10">
                         {settings.instagramUrl && (
-                            <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                            <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on Instagram" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Instagram size={24} />
                             </a>
                         )}
                         {settings.facebookUrl && (
-                            <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                            <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on Facebook" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Facebook size={24} />
                             </a>
                         )}
                         {settings.youtubeUrl && (
-                            <a href={settings.youtubeUrl} target="_blank" rel="noopener noreferrer" className="text-cream opacity-40 hover:opacity-100 hover:text-tan transition-all">
+                            <a href={settings.youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on YouTube" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Youtube size={24} />
                             </a>
                         )}

@@ -11,7 +11,7 @@ export default {
         beige: 'var(--color-beige, #f1ede4)',
         tan: {
           light: 'var(--color-tan-light, #e1d7c6)',
-          DEFAULT: 'var(--color-tan, #8b7355)',
+          DEFAULT: 'var(--color-tan, #846d4d)',
           dark: 'var(--color-tan-dark, #68543f)'
         },
         charcoal: {
