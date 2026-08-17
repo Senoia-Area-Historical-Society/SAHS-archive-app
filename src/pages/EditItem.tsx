@@ -176,7 +176,7 @@ export default function EditItem() {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
-    
+    const [isConvertingHeic, setIsConvertingHeic] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -571,16 +571,15 @@ export default function EditItem() {
         
         
         const hasPdf = fileArray.some(f => f.type === 'application/pdf');
+        const hasHeic = fileArray.some(f => f.name.toLowerCase().endsWith('.heic') || f.name.toLowerCase().endsWith('.heif'));
 
         if (hasPdf) {
             setIsConvertingPdf(true);
             setPdfConvertProgress(0);
         }
-
-        // NOTE: AddItem sets an isConvertingHeic flag here and renders a spinner for it.
-        // This form never had that state, so HEIC conversion below runs with no progress
-        // indicator and the form looks frozen. An empty `if (hasHeic) {}` used to stand in
-        // for it; removed because it did nothing. The missing spinner is still missing.
+        if (hasHeic) {
+            setIsConvertingHeic(true);
+        }
 
         try {
             const newItems: { id: string, type: 'new', value: File, caption?: string }[] = [];
@@ -610,6 +609,7 @@ export default function EditItem() {
             alert("Failed to read or convert one or more files.");
         } finally {
             setIsConvertingPdf(false);
+            setIsConvertingHeic(false);
             setPdfConvertProgress(0);
         }
     };
@@ -1320,6 +1320,14 @@ export default function EditItem() {
                                 <p className="font-bold text-sm text-charcoal mb-0.5">Click to append scans</p>
                                 <p className="text-[10px] text-charcoal/50">Multiple PNG, JPG, or PDF allowed</p>
                             </div>
+
+                            {isConvertingHeic && (
+                                <div className="flex flex-col items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
+                                    <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                </div>
+                            )}
 
                             {isConvertingPdf && (
                                 <div className="flex flex-col items-center gap-3 mb-6">
