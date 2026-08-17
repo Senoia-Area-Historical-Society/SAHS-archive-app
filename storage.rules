@@ -4,48 +4,87 @@ service firebase.storage {
 
     // Helper function for admin/curator roles
     function isSAHSUser() {
-      return request.auth != null && 
-             request.auth.token != null && 
+      return request.auth != null &&
+             request.auth.token != null &&
              request.auth.token.email != null && (
-               request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
-               request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
+               request.auth.token.email.matches('(?i).*@senoiahistory\\.com') ||
+               request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)sahsintern@senoiahistory\\.com')
              );
     }
 
-    // archive_media folder: Everyone can read, only SAHS users can write
+    // ── How public read access works here ────────────────────────────────────
+    //
+    // These rules deliberately grant NO anonymous read. That is not a lockdown of
+    // the public archive — it is a move of the decision to a layer that can
+    // actually express it.
+    //
+    // Rules cannot read Firestore. There is no rule that says "public unless this
+    // object's archive_item is marked is_private", so a blanket
+    // `allow read: if true` on archive_media/ was the only way to serve the public
+    // archive — and it published every private item's scans along with it. That
+    // was measured: a private item's original returned HTTP 200 and 493 KB to an
+    // anonymous request with no token.
+    //
+    // Public visibility now lives in each object's own ACL, which a script CAN set
+    // from Firestore state. Public objects are readable at
+    // https://storage.googleapis.com/<bucket>/<path>, which is governed by IAM
+    // rather than by these rules — the same mechanism the resize extension's
+    // MAKE_PUBLIC already relies on and src/lib/imageThumbs.ts already builds URLs
+    // for. scripts/reconcile-media-visibility.cjs is what keeps the two in step.
+    //
+    // Note that a Firebase download token BYPASSES these rules entirely. An object
+    // under accession_paperwork/ — already isSAHSUser()-only below — returned
+    // HTTP 200 and 802 KB anonymously because its stored URL carried a token.
+    // Tightening a rule therefore protects nothing on its own; the reconcile
+    // script revokes tokens on restricted objects, and that is what made the same
+    // request return 403.
+    //
+    // Consequence for curators: restricted media has no token, so the app must ask
+    // for one at render time via getDownloadURL(), which requires auth and is
+    // checked against these rules. The next reconcile run revokes it again.
+
+    // Archive scans. Public copies are served via their object ACL, not from here.
     match /archive_media/{allPaths=**} {
-      allow read: if true;
+      allow read: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
-    // additional_media folder: Everyone can read, only SAHS users can write
+    // Video and audio attached to artifacts.
     match /additional_media/{allPaths=**} {
-      allow read: if true;
+      allow read: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
-    // accession_paperwork folder: Only SAHS users can read or write
+    // Donor and provenance records. Staff-only by design, and now actually
+    // staff-only: the tokens that were bypassing this rule have been revoked.
     match /accession_paperwork/{allPaths=**} {
       allow read, write: if isSAHSUser();
     }
 
-    // collections folder: Everyone can read, only SAHS users can write
+    // Collection artwork.
     match /collections/{allPaths=**} {
-      allow read: if true;
+      allow read: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
-    // library_covers folder: Everyone can read, only SAHS users can write
+    // Historic figure portraits.
+    match /portraits/{allPaths=**} {
+      allow read: if isSAHSUser();
+      allow write: if isSAHSUser();
+    }
+
+    // Legacy top-level path. Book covers now upload to
+    // archive_media/library_covers/, so this covers older objects only.
     match /library_covers/{allPaths=**} {
-      allow read: if true;
+      allow read: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
-    // site_assets folder: Everyone can read, only SAHS users can write
+    // Logos, hero imagery and other site furniture.
     match /site_assets/{allPaths=**} {
-      allow read: if true;
+      allow read: if isSAHSUser();
       allow write: if isSAHSUser();
     }
 
