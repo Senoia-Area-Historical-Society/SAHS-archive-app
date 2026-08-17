@@ -7,6 +7,9 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 
+/** The sort orders the ?sort= parameter accepts — see the comparator below. */
+type SortOption = 'newest' | 'id_asc' | 'id_desc' | 'az' | 'za';
+
 export function SearchArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -32,7 +35,7 @@ export function SearchArchive() {
     const [localExcludeTypes, setLocalExcludeTypes] = useState<string[]>(searchParams.get('ex_types')?.split(',').filter(Boolean) || []);
 
     const selectedType = (searchParams.get('type') as ItemType | null) || 'All Items';
-    const sortBy = (searchParams.get('sort') as any) || 'newest';
+    const sortBy = (searchParams.get('sort') as SortOption | null) || 'newest';
 
     // Debounce effects to sync local state to URL
     useEffect(() => {

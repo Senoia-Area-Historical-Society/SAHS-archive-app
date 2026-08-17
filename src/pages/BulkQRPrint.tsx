@@ -4,6 +4,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import QRCode from 'qrcode';
 import { QrCode, Printer, AlertCircle, Loader2 } from 'lucide-react';
 import { useAppearance } from '../contexts/AppearanceContext';
+import type { ArchiveItem } from '../types/database';
 
 export function BulkQRPrint() {
     const [idsInput, setIdsInput] = useState('');
@@ -43,7 +44,7 @@ export function BulkQRPrint() {
                 chunks.push(targetIds.slice(i, i + 10));
             }
 
-            const items: any[] = [];
+            const items: ArchiveItem[] = [];
             
             for (const chunk of chunks) {
                 const q = query(
@@ -52,7 +53,7 @@ export function BulkQRPrint() {
                 );
                 const snapshot = await getDocs(q);
                 snapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() });
+                    items.push({ id: doc.id, ...doc.data() } as ArchiveItem);
                 });
             }
 

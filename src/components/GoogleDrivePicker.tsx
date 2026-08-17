@@ -6,10 +6,72 @@ interface GoogleDrivePickerProps {
     onError: (error: string) => void;
 }
 
+/**
+ * Minimal shapes for the two Google globals this component uses.
+ *
+ * Deliberately not @types/gapi and @types/google.picker: those are large, drift
+ * from the runtime script that actually gets loaded, and describe far more
+ * surface than the dozen calls below. What is declared here is what this file
+ * touches, so anything else becomes a compile error rather than a silent `any`.
+ *
+ * The picker returns documents keyed by its own constants — `doc[Document.ID]`
+ * rather than `doc.id` — so a record keyed by string is the honest description
+ * of that shape, not a placeholder.
+ */
+type PickerDocument = Record<string, string>;
+type PickerData = Record<string, unknown>;
+
+interface DocsView {
+    setMimeTypes(mimeTypes: string): DocsView;
+    setIncludeFolders(include: boolean): DocsView;
+    setEnableDrives(enable: boolean): DocsView;
+}
+
+interface PickerBuilder {
+    enableFeature(feature: string): PickerBuilder;
+    setDeveloperKey(key: string): PickerBuilder;
+    setAppId(appId: string): PickerBuilder;
+    setOAuthToken(token: string): PickerBuilder;
+    addView(view: unknown): PickerBuilder;
+    setCallback(callback: (data: PickerData) => void): PickerBuilder;
+    build(): { setVisible(visible: boolean): void };
+}
+
+interface TokenResponse {
+    error?: string;
+    access_token: string;
+}
+
+interface TokenClient {
+    requestAccessToken(options: { prompt: string }): void;
+}
+
+interface GoogleGlobal {
+    accounts: {
+        oauth2: {
+            initTokenClient(config: {
+                client_id: string;
+                scope: string;
+                callback: (response: TokenResponse) => void;
+            }): TokenClient;
+        };
+    };
+    picker: {
+        Response: { ACTION: string; DOCUMENTS: string };
+        Action: { PICKED: string };
+        Document: { ID: string; NAME: string; MIME_TYPE: string };
+        Feature: { NAV_HIDDEN: string; MULTISELECT_ENABLED: string; SUPPORT_TEAM_DRIVES: string };
+        ViewId: { DOCS: string };
+        DocsView: new (viewId: string) => DocsView;
+        DocsUploadView: new () => unknown;
+        PickerBuilder: new () => PickerBuilder;
+    };
+}
+
 declare global {
     interface Window {
-        google: any;
-        gapi: any;
+        google: GoogleGlobal;
+        gapi: { load(name: string, callback: () => void): void };
     }
 }
 
@@ -22,7 +84,7 @@ const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 
 export function GoogleDrivePicker({ onFilesSelected, onError }: GoogleDrivePickerProps) {
     const [isLoaded, setIsLoaded] = useState(false);
-    const [tokenClient, setTokenClient] = useState<any>(null);
+    const [tokenClient, setTokenClient] = useState<TokenClient | null>(null);
     const [accessToken, setAccessToken] = useState<string | null>(null);
 
     // 1. Load Google API and GIS client scripts
@@ -52,7 +114,7 @@ export function GoogleDrivePicker({ onFilesSelected, onError }: GoogleDrivePicke
             const client = window.google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: (response: any) => {
+                callback: (response: TokenResponse) => {
                     if (response.error !== undefined) {
                         onError(response.error);
                         return;
@@ -91,9 +153,9 @@ export function GoogleDrivePicker({ onFilesSelected, onError }: GoogleDrivePicke
 
     // 3. Create and open the Picker
     const createPicker = useCallback((token: string) => {
-        const pickerCallback = async (data: any) => {
+        const pickerCallback = async (data: PickerData) => {
             if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.PICKED) {
-                const documents = data[window.google.picker.Response.DOCUMENTS];
+                const documents = (data[window.google.picker.Response.DOCUMENTS] ?? []) as PickerDocument[];
                 const filesToUpload: File[] = [];
 
                 for (const doc of documents) {

@@ -4,6 +4,17 @@ import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc, writeBatch, query, orderBy, deleteField } from 'firebase/firestore';
 import { MapPin, Plus, Trash2, Loader2, HelpCircle, Edit2, X, Folder, FolderPlus, GripVertical, ChevronRight, Archive, Search } from 'lucide-react';
 import type { MuseumLocation, Room } from '../types/database';
+
+/**
+ * Rooms as they were stored before they got their own collection — an array on
+ * settings/interactive_map. Read once by the auto-migration below and never
+ * written, so it lives here rather than in types/database.ts with the live model.
+ */
+interface LegacyRoom {
+    id: string | number;
+    name: string;
+    map_coordinates?: Room['map_coordinates'];
+}
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 
 // --- Sub-components ---
@@ -142,7 +153,10 @@ export function ManageLocations() {
                         const batch = writeBatch(db);
                         const migratedRooms: Room[] = [];
                     
-                    legacyRooms.forEach((r: any) => {
+                    // The pre-rooms-collection shape, read once at migration and
+                    // never written again — so it is described here rather than
+                    // in types/database.ts alongside the live model.
+                    legacyRooms.forEach((r: LegacyRoom) => {
                         const newRoomRef = doc(collection(db, 'rooms'));
                         const roomObj = {
                             id: r.id.toString(),
@@ -173,7 +187,11 @@ export function ManageLocations() {
         }
     };
 
-    const handleSave = async (e: React.FormEvent) => {
+    // SyntheticEvent, not FormEvent: this is invoked both as the form's onSubmit
+    // and from the description textarea's Enter key. The cast at that second call
+    // site existed only to force a KeyboardEvent through a FormEvent parameter,
+    // and preventDefault() is all the handler ever reads.
+    const handleSave = async (e: React.SyntheticEvent) => {
         e.preventDefault();
         if (!newName || (!newId && activeTab === 'locations')) return;
 
@@ -181,7 +199,11 @@ export function ManageLocations() {
         try {
             const targetColl = activeTab === 'locations' ? 'locations' : 'rooms';
             if (mode === 'edit' && editingDocId) {
-                const updateData: any = {
+                // Built up conditionally and handed to updateDoc, which is why it
+                // is a loose record rather than a Partial<MuseumLocation>:
+                // deleteField() is a FieldValue sentinel, not a value of the
+                // field's own type.
+                const updateData: Record<string, unknown> = {
                     name: newName,
                     description: newDesc
                 };
@@ -191,7 +213,7 @@ export function ManageLocations() {
                 await updateDoc(doc(db, targetColl, editingDocId), updateData);
             } else {
                 const slug = newId.toLowerCase().replace(/\s+/g, '-').trim() || Date.now().toString();
-                const newData: any = {
+                const newData: Record<string, unknown> = {
                     name: newName,
                     description: newDesc,
                     id: slug,
@@ -407,7 +429,7 @@ export function ManageLocations() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
-                                            handleSave(e as any);
+                                            handleSave(e);
                                         }
                                     }}
                                     rows={3}

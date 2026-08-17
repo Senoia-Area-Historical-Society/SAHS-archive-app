@@ -75,6 +75,20 @@ export interface MuseumLocation {
 
 export type ItemType = 'Document' | 'Historic Figure' | 'Historic Organization' | 'Artifact' | 'Oral History';
 
+/**
+ * Named so the form handlers that read these back out of a <select> can say what
+ * they are narrowing to. They previously reached for `as any`, which asserted
+ * whatever the DOM handed over straight into the field.
+ *
+ * Books have no 'Needs to be rescanned' — that describes a scan of a document,
+ * not a physical volume on a shelf.
+ */
+export type ItemCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | 'Needs to be rescanned';
+export type BookCondition = 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile';
+
+/** How the museum holds an artifact. Set from the button group on the item forms. */
+export type CollectionStatus = 'permanent' | 'pending' | 'deaccessioned' | 'loan';
+
 // Dublin Core Metadata Element Set (v1.1)
 export interface ArchiveItem {
     id: string;
@@ -130,7 +144,7 @@ export interface ArchiveItem {
     coverage?: string | null;      // The spatial or temporal topic of the resource
 
     // SAHS Specific
-    condition?: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | 'Needs to be rescanned' | null;
+    condition?: ItemCondition | null;
     physical_location?: string | null;
     historical_address?: string | null; // Physical address for geolocation
     coordinates?: { // Automatically populated by Firebase Geocoding Extension
@@ -153,7 +167,7 @@ export interface ArchiveItem {
     accession_paperwork_urls?: string[]; // Admin/Curator only scans of paperwork
     additional_media_urls?: string[]; // Video/Audio recordings for artifacts
     accession_date?: string | null;
-    collection_status?: 'permanent' | 'pending' | 'deaccessioned' | 'loan' | null;
+    collection_status?: CollectionStatus | null;
 
     // Oral History specific
     narrator_id?: string | null;        // ID of the narrator (Historic Figure)
@@ -193,7 +207,7 @@ export interface LibraryBook {
     subjects?: string[]; // e.g., Civil War, Genealogies, Senoia History
     donor?: string | null;
     accession_number?: string | null;
-    condition?: 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile' | null;
+    condition?: BookCondition | null;
     status: BookStatus;
     cover_image_url?: string | null;
     file_urls?: string[]; // For additional page scans, table of contents, index images

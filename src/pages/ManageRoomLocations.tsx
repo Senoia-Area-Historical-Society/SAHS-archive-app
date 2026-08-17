@@ -138,7 +138,9 @@ export function ManageRoomLocations() {
         setSelectedRoomId(roomId || '');
     }, [roomId]);
 
-    const handleSave = async (e: React.FormEvent) => {
+    // SyntheticEvent, not FormEvent — see the Enter-key call site below; the cast
+    // there only existed to force a KeyboardEvent through a FormEvent parameter.
+    const handleSave = async (e: React.SyntheticEvent) => {
         e.preventDefault();
         if (!roomId || isSubmitting) return;
 
@@ -157,7 +159,7 @@ export function ManageRoomLocations() {
                     setLocations(prev => [...prev, { docId: docRef.id, ...newLoc } as MuseumLocation]);
                 }
             } else if (editingLoc?.docId) {
-                const updates: any = { 
+                const updates: Record<string, unknown> = {
                     name: newName,
                     description: newDesc,
                     room_id: selectedRoomId || null
@@ -286,7 +288,7 @@ export function ManageRoomLocations() {
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
-                                        handleSave(e as any);
+                                        handleSave(e);
                                     }
                                 }}
                                 rows={3}

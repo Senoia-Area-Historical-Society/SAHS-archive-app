@@ -618,7 +618,7 @@ export function LocationDetail() {
             const newIds = currentIds.filter(lid => lid !== id);
 
             // 2. Prepare update object
-            const updates: any = {
+            const updates: Record<string, unknown> = {
                 museum_location_ids: newIds,
                 last_tagged_at: now,
                 last_tagged_by: adminEmail
@@ -750,7 +750,7 @@ export function LocationDetail() {
                     const currentIds = item.museum_location_ids || [];
                     const newIds = currentIds.filter(lid => lid !== locationData.id && lid !== locationData.docId);
                     
-                    const updates: any = {
+                    const updates: Record<string, unknown> = {
                         museum_location_ids: newIds,
                         last_tagged_at: now,
                         last_tagged_by: adminEmail
@@ -849,7 +849,7 @@ export function LocationDetail() {
 
             // Stage box location document updates
             const boxRef = doc(db, 'locations', locationData.docId);
-            const boxUpdates: any = {
+            const boxUpdates: Record<string, unknown> = {
                 id: sanitizedId,
                 name: editBoxName,
                 description: editBoxDesc
@@ -900,7 +900,7 @@ export function LocationDetail() {
                     const currentIds = item.museum_location_ids || [];
                     const newIds = currentIds.map(lid => lid === originalId ? sanitizedId : lid);
                     
-                    const updates: any = {
+                    const updates: Record<string, unknown> = {
                         museum_location_ids: newIds,
                         last_tagged_at: now,
                         last_tagged_by: adminEmail

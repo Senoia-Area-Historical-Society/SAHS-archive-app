@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
 
 export interface ThemeConfig {
     name: string;
@@ -246,7 +247,11 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     };
 
     // ── Parse raw Firestore data into typed AppearanceSettings ────────────────
-    const parseAppearanceData = (data: Record<string, any>): AppearanceSettings => ({
+    // DocumentData is what snap.data() actually returns, so this now says where
+    // the value came from rather than describing it as an arbitrary bag. Every
+    // field below is still defaulted, because a Firestore document genuinely can
+    // be missing any of them — that defaulting is this function's whole job.
+    const parseAppearanceData = (data: DocumentData): AppearanceSettings => ({
         theme: data.theme || 'classic',
         heroTitle: data.heroTitle || DEFAULT_SETTINGS.heroTitle,
         heroSubtitle: data.heroSubtitle || DEFAULT_SETTINGS.heroSubtitle,

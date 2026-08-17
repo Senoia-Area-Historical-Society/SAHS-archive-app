@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react'
 import Cropper from 'react-easy-crop'
+import type { Area } from 'react-easy-crop'
 import { X, Check, RotateCcw, RotateCw, Maximize2 } from 'lucide-react'
 import getCroppedImg from '../utils/imageUtils'
 
@@ -19,7 +20,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [isApplying, setIsApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentAspect, setCurrentAspect] = useState<number | undefined>(aspectRatio)
@@ -31,7 +32,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
   }
 
   const onCropCompleteInternal = useCallback(
-    (_croppedArea: any, croppedAreaPixels: any) => {
+    (_croppedArea: Area, croppedAreaPixels: Area) => {
       setCroppedAreaPixels(croppedAreaPixels)
     },
     []
@@ -60,6 +61,15 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
   }
 
   const handleSave = async () => {
+    // Typing croppedAreaPixels as Area rather than any surfaced this:
+    // getCroppedImg reads pixelCrop.x straight off, so saving before the cropper
+    // has reported an area would have thrown. react-easy-crop fires
+    // onCropComplete very soon after layout, so the window is small — but it was
+    // reachable, and `any` was what hid it.
+    if (!croppedAreaPixels) {
+      setError("The image is still loading. Please wait a moment and try again.")
+      return
+    }
     setIsApplying(true)
     setError(null)
     try {

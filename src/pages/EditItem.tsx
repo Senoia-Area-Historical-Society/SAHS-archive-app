@@ -4,7 +4,37 @@ import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import type { ArchiveItem, ItemType, Collection } from '../types/database';
+import type { ArchiveItem, ItemType, Collection, ItemCondition, CollectionStatus } from '../types/database';
+
+/**
+ * A figure attached to an item as a narrator or subject.
+ *
+ * Both name fields are optional because the display code reads
+ * `full_name || title`, and typing it surfaced why: figures selected in this
+ * session come from the picker keyed by `full_name`, while ones already saved on
+ * the item can arrive carrying `title` instead. The fallback was load-bearing,
+ * not defensive padding — a required `full_name` would have been a tidier type
+ * that was untrue.
+ */
+interface RelatedFigure {
+    id: string;
+    full_name?: string;
+    title?: string;
+}
+
+/** A figure in the searchable "all figures" list. */
+interface FigureOption {
+    id: string;
+    title: string;
+}
+
+/** One row of the media editor: either an already-uploaded URL or a pending File. */
+interface MediaItem {
+    id: string;
+    type: 'existing' | 'new';
+    value: string | File;
+    caption?: string;
+}
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
@@ -15,7 +45,9 @@ import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
 
-function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
+// RefObject<HTMLElement | null> rather than <any>: the hook only needs
+// contains(), and null is part of the type because a ref starts unattached.
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
     useEffect(() => {
         const listener = (event: MouseEvent | TouchEvent) => {
             if (!ref.current || ref.current.contains(event.target as Node)) {
@@ -164,7 +196,7 @@ export default function EditItem() {
     const [itemType, setItemType] = useState<ItemType>('Document');
     const [showAdvancedDC, setShowAdvancedDC] = useState(false);
     const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-    const [mediaItems, setMediaItems] = useState<{ id: string, type: 'existing' | 'new', value: string | File, caption?: string }[]>([]);
+    const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
     
     // Derived states for backward compatibility and simpler logic in some places
     
@@ -184,12 +216,12 @@ export default function EditItem() {
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
     const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<{ id: string, full_name: string }[]>([]);
+    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<RelatedFigure[]>([]);
     const [selectedRelatedDocs, setSelectedRelatedDocs] = useState<{ id: string, title: string }[]>([]);
     const [selectedRelatedOrgs, setSelectedRelatedOrgs] = useState<{ id: string, org_name: string }[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
     const [isPrivate, setIsPrivate] = useState(false);
-    const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
+    const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
 
@@ -354,7 +386,7 @@ export default function EditItem() {
 
 
     // Networking / Linking
-    const [allFigures, setAllFigures] = useState<{ id: string, title: string }[]>([]);
+    const [allFigures, setAllFigures] = useState<FigureOption[]>([]);
     const [figureSearch, setFigureSearch] = useState('');
     const [debouncedFigureSearch, setDebouncedFigureSearch] = useState('');
     const [showFigureResults, setShowFigureResults] = useState(false);
@@ -395,7 +427,7 @@ export default function EditItem() {
     };
 
     const handleCollectionToggle = (collId: string) => {
-        setItem((prev: any) => {
+        setItem((prev) => {
             if (!prev) return prev;
             const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
             const newIds = currentIds.includes(collId) ? currentIds.filter((id: string) => id !== collId) : [...currentIds, collId];
@@ -415,7 +447,7 @@ export default function EditItem() {
                 });
                 const newCol = { id: docRef.id, title: nextTitle, description: "", created_at: new Date().toISOString() };
                 setCollections(prev => [...prev, newCol].sort((a, b) => a.title.localeCompare(b.title)));
-                setItem((prev: any) => {
+                setItem((prev) => {
                     if (!prev) return prev;
                     const currentIds = prev.collection_ids || (prev.collection_id ? [prev.collection_id] : []);
                     const newIds = [...currentIds, docRef.id];
@@ -479,7 +511,7 @@ export default function EditItem() {
 
                 const qItemsAll = query(collection(db, 'archive_items'));
                 const itemsSnapAll = await getDocs(qItemsAll);
-                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ArchiveItem[];
 
                 // Collect purely numeric artifact IDs for suggestion logic (only focusing on Artifacts to avoid hex/garbage IDs)
                 let maxId = 0;
@@ -804,8 +836,8 @@ export default function EditItem() {
                 coverage: formData.get('coverage') as string || "",
 
                 // SAHS Archival Tracking
-                condition: (formData.get('condition') as any) || null,
-                physical_location: (formData.get('physical_location') as any) || null,
+                condition: (formData.get('condition') as ItemCondition | null) || null,
+                physical_location: (formData.get('physical_location') as string | null) || null,
                 historical_address: historical_address,
                 coordinates: coordinates,
                 category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
@@ -1178,7 +1210,7 @@ export default function EditItem() {
                                 <button
                                     key={status}
                                     type="button"
-                                    onClick={() => setCollectionStatus(status as any)}
+                                    onClick={() => setCollectionStatus(status as CollectionStatus)}
                                     className={`p-4 rounded-xl border-2 text-left flex flex-col justify-between transition-all duration-200 group/btn h-full ${isActive ? activeClass : inactiveClass}`}
                                 >
                                     <div className="flex items-center gap-2 mb-2">
@@ -2301,8 +2333,8 @@ interface OralHistoryEditFormProps {
     item: ArchiveItem;
     isSubmitting: boolean;
     handleSubmit: (e?: React.FormEvent) => Promise<void>;
-    mediaItems: any[];
-    setMediaItems: React.Dispatch<React.SetStateAction<any[]>>;
+    mediaItems: MediaItem[];
+    setMediaItems: React.Dispatch<React.SetStateAction<MediaItem[]>>;
     fileObjectURLs: Map<File, string>;
     setFileObjectURLs: React.Dispatch<React.SetStateAction<Map<File, string>>>;
     featuredImageUrl: string | null;
@@ -2315,9 +2347,9 @@ interface OralHistoryEditFormProps {
     setAdditionalMediaFiles: React.Dispatch<React.SetStateAction<File[]>>;
     existingAdditionalMediaUrls: string[];
     setExistingAdditionalMediaUrls: React.Dispatch<React.SetStateAction<string[]>>;
-    selectedRelatedFigures: any[];
-    setSelectedRelatedFigures: React.Dispatch<React.SetStateAction<any[]>>;
-    allFigures: any[];
+    selectedRelatedFigures: RelatedFigure[];
+    setSelectedRelatedFigures: React.Dispatch<React.SetStateAction<RelatedFigure[]>>;
+    allFigures: FigureOption[];
     figureSearch: string;
     setFigureSearch: (s: string) => void;
     showFigureResults: boolean;

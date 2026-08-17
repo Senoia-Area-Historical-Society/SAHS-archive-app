@@ -4,6 +4,27 @@ import { Camera, X, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState } from 'react';
 import { useAppearance } from '../contexts/AppearanceContext';
 
+/**
+ * Camera zoom is not in lib.dom's MediaTrack types.
+ *
+ * It comes from the MediaStream Image Capture spec, which is only partly
+ * implemented and mostly on mobile — hence the runtime `track.getCapabilities ?`
+ * guards below. TypeScript describing it as absent is correct for the standard
+ * surface, so these extend the standard types rather than replacing them, and
+ * everything stays optional because on desktop it genuinely is.
+ */
+interface ZoomableCapabilities extends MediaTrackCapabilities {
+    zoom?: { min?: number; max?: number; step?: number };
+}
+
+interface ZoomableSettings extends MediaTrackSettings {
+    zoom?: number;
+}
+
+interface ZoomConstraint extends MediaTrackConstraintSet {
+    zoom?: number;
+}
+
 interface QRScannerProps {
     onScan: (data: string) => void;
     onClose?: () => void;
@@ -52,8 +73,8 @@ export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
                     activeTracksRef.current.push(track);
                     setTimeout(() => {
                         try {
-                            const capabilities = track.getCapabilities ? track.getCapabilities() : {} as any;
-                            const settings = track.getSettings ? track.getSettings() : {} as any;
+                            const capabilities: ZoomableCapabilities = track.getCapabilities ? track.getCapabilities() : {};
+                            const settings: ZoomableSettings = track.getSettings ? track.getSettings() : {};
                             if (capabilities.zoom) {
                                 setZoomParams({
                                     min: capabilities.zoom.min || 1,
@@ -210,7 +231,7 @@ export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
                                         const newZoom = parseFloat(e.target.value);
                                         setZoomLevel(newZoom);
                                         if (activeTracksRef.current[0]) {
-                                            const advancedConstraint: any = { zoom: newZoom };
+                                            const advancedConstraint: ZoomConstraint = { zoom: newZoom };
                                             activeTracksRef.current[0].applyConstraints({ advanced: [advancedConstraint] }).catch(console.error);
                                         }
                                     }}

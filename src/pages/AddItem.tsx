@@ -4,7 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import type { ItemType, Collection, ArchiveItem } from '../types/database';
+import type { ItemType, Collection, ArchiveItem, ItemCondition, CollectionStatus } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
@@ -13,7 +13,15 @@ import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { errorMessage } from '../lib/errors';
 
-function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
+/** A figure as the related-figures picker lists it. */
+interface FigureOption {
+    id: string;
+    title: string;
+}
+
+// RefObject<HTMLElement | null> rather than <any>: the hook only ever needs
+// contains(), and null is part of the type because a ref starts out unattached.
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
     useEffect(() => {
         const listener = (event: MouseEvent | TouchEvent) => {
             if (!ref.current || ref.current.contains(event.target as Node)) {
@@ -106,8 +114,8 @@ export function AddItem() {
 
     // New Fields & Data State
     const [collections, setCollections] = useState<Collection[]>([]);
-    const [allFigures, setAllFigures] = useState<{ id: string, title: string }[]>([]);
-    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<{ id: string, title: string }[]>([]);
+    const [allFigures, setAllFigures] = useState<FigureOption[]>([]);
+    const [selectedRelatedFigures, setSelectedRelatedFigures] = useState<FigureOption[]>([]);
     const [figureSearch, setFigureSearch] = useState('');
     const [showFigureResults, setShowFigureResults] = useState(false);
     const [allOrgs, setAllOrgs] = useState<{ id: string, title: string }[]>([]);
@@ -133,7 +141,7 @@ export function AddItem() {
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
     const [isPrivate, setIsPrivate] = useState(false);
-    const [collectionStatus, setCollectionStatus] = useState<'permanent' | 'pending' | 'deaccessioned' | 'loan'>('permanent');
+    const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
 
     useEffect(() => {
         if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
@@ -177,7 +185,7 @@ export function AddItem() {
                 // Fetch all archive items once and filter in memory to avoid index requirements
                 const qItemsAll = query(collection(db, 'archive_items'));
                 const itemsSnapAll = await getDocs(qItemsAll);
-                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ArchiveItem[];
 
                 const figures = allItemsData
                     .filter(i => i.item_type === 'Historic Figure')
@@ -501,8 +509,8 @@ export function AddItem() {
                 category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
 
                 // SAHS Specific
-                condition: (formData.get('condition') as any) || null,
-                physical_location: (formData.get('physical_location') as any) || null,
+                condition: (formData.get('condition') as ItemCondition | null) || null,
+                physical_location: (formData.get('physical_location') as string | null) || null,
                 historical_address: final_historical_address,
                 coordinates: final_coordinates,
                 related_figures: selectedRelatedFigures.map(f => f.id),
@@ -683,7 +691,7 @@ export function AddItem() {
                             try {
                                 const qItemsAll = query(collection(db, 'archive_items'));
                                 const itemsSnapAll = await getDocs(qItemsAll);
-                                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+                                const allItemsData = itemsSnapAll.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ArchiveItem[];
                                 
                                 let maxId = 0;
                                 allItemsData.forEach(item => {
@@ -778,7 +786,7 @@ export function AddItem() {
                                 <button
                                     key={status}
                                     type="button"
-                                    onClick={() => setCollectionStatus(status as any)}
+                                    onClick={() => setCollectionStatus(status as CollectionStatus)}
                                     className={`p-4 rounded-xl border-2 text-left flex flex-col justify-between transition-all duration-200 group/btn h-full ${isActive ? activeClass : inactiveClass}`}
                                 >
                                     <div className="flex items-center gap-2 mb-2">
@@ -1832,9 +1840,9 @@ interface OralHistoryAddFormProps {
     setAccessionFiles: React.Dispatch<React.SetStateAction<File[]>>;
     additionalMediaFiles: File[];
     setAdditionalMediaFiles: React.Dispatch<React.SetStateAction<File[]>>;
-    selectedRelatedFigures: any[];
-    setSelectedRelatedFigures: React.Dispatch<React.SetStateAction<any[]>>;
-    allFigures: any[];
+    selectedRelatedFigures: FigureOption[];
+    setSelectedRelatedFigures: React.Dispatch<React.SetStateAction<FigureOption[]>>;
+    allFigures: FigureOption[];
     figureSearch: string;
     setFigureSearch: (s: string) => void;
     showFigureResults: boolean;

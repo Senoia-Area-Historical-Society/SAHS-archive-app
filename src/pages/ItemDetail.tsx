@@ -17,6 +17,26 @@ import { buildItemSeo } from '../lib/seo';
 import { useJsonLd } from '../hooks/useJsonLd';
 import { buildItemJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { errorMessage, errorCode } from '../lib/errors';
+// Aliased: `User` is already taken in this file by the lucide-react icon.
+import type { User as FirebaseUser } from 'firebase/auth';
+
+/** A comment or reply on an item. Replies carry the parent's id. */
+interface ItemComment {
+    id: string;
+    authorName: string;
+    authorEmail: string;
+    role: 'Admin' | 'Curator' | 'Member';
+    content: string;
+    createdAt: string;
+    parentId?: string;
+}
+
+/** Just the collection fields this page shows and gates privacy on. */
+interface CollectionSummary {
+    id: string;
+    title: string;
+    is_private?: boolean;
+}
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -43,7 +63,7 @@ export function ItemDetail() {
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [collectionsData, setCollectionsData] = useState<{id: string, title: string, is_private?: boolean}[]>([]);
+    const [collectionsData, setCollectionsData] = useState<CollectionSummary[]>([]);
     const [isCollectionPrivate, setIsCollectionPrivate] = useState(false);
     
     const [showLinkedItems, setShowLinkedItems] = useState(false);
@@ -107,15 +127,7 @@ export function ItemDetail() {
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
     // Comments States & Callback Logic
-    const [comments, setComments] = useState<{
-        id: string;
-        authorName: string;
-        authorEmail: string;
-        role: 'Admin' | 'Curator' | 'Member';
-        content: string;
-        createdAt: string;
-        parentId?: string;
-    }[]>([]);
+    const [comments, setComments] = useState<ItemComment[]>([]);
     const [loadingComments, setLoadingComments] = useState(false);
     const [newCommentText, setNewCommentText] = useState('');
     const [isPostingComment, setIsPostingComment] = useState(false);
@@ -433,7 +445,7 @@ export function ItemDetail() {
                     const locIds = data.museum_location_ids || (data.museum_location_id ? [data.museum_location_id] : []);
 
                     const collectionsPromise = cIds.length > 0
-                        ? Promise.all(cIds.map((cid: any) => getDoc(doc(db, 'collections', cid)))).catch(err => {
+                        ? Promise.all(cIds.map((cid: string) => getDoc(doc(db, 'collections', cid)))).catch(err => {
                             console.error("Collections fetch failed:", err);
                             return [];
                         })
@@ -510,11 +522,14 @@ export function ItemDetail() {
                     ]);
 
                     // Process collections
+                    // Now that cIds maps to string, collSnaps is DocumentSnapshot[]
+                    // and s.id / s.exists() / s.data() are all typed — the three
+                    // annotations here were only propping up an untyped cIds.
                     const colls = collSnaps
-                        .filter((s: any) => s && s.exists())
-                        .map((s: any) => ({ id: s.id, ...s.data() } as any));
+                        .filter((s) => s && s.exists())
+                        .map((s) => ({ id: s.id, ...s.data() }) as CollectionSummary);
                     setCollectionsData(colls);
-                    setIsCollectionPrivate(colls.some((c: any) => c.is_private === true));
+                    setIsCollectionPrivate(colls.some((c) => c.is_private === true));
 
                     // Process related items
                     const allLinkedItems = [
@@ -538,7 +553,7 @@ export function ItemDetail() {
 
                     // Process explore items
                     let eItems = exploreSnap && exploreSnap.docs
-                        ? exploreSnap.docs.map((d: any) => ({ id: d.id, ...d.data() })) as ArchiveItem[]
+                        ? exploreSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as ArchiveItem[]
                         : [];
                     if (!isSAHSUser) {
                         eItems = eItems.filter(i => !i.is_private);
@@ -551,15 +566,15 @@ export function ItemDetail() {
                     // Process locations and resolve parents
                     const locs = [...locSnaps];
 
-                    const parentIds = Array.from(new Set(locs.filter((l: any) => l.parent_location_id).map((l: any) => l.parent_location_id as string))) as string[];
+                    const parentIds = Array.from(new Set(locs.filter((l) => l.parent_location_id).map((l) => l.parent_location_id as string))) as string[];
                     if (parentIds.length > 0) {
                         const parentLocs = await fetchLocations(parentIds);
                         locs.push(...parentLocs);
                     }
 
                     setAllLocations(prev => {
-                        const newMap = new Map(prev.map((l: any) => [l.docId || l.id, l]));
-                        locs.forEach((l: any) => {
+                        const newMap = new Map(prev.map((l) => [l.docId || l.id, l]));
+                        locs.forEach((l) => {
                             newMap.set(l.docId || l.id, l);
                             if (l.id) newMap.set(l.id, l);
                         });
@@ -585,8 +600,8 @@ export function ItemDetail() {
             const commentsList = snap.docs.map(docSnap => ({
                 id: docSnap.id,
                 ...docSnap.data()
-            })) as any[];
-            
+            })) as ItemComment[];
+
             // Sort oldest first
             commentsList.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
             setComments(commentsList);
@@ -2670,7 +2685,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
 
 interface StickyNoteWidgetProps {
     id: string;
-    user: any;
+    user: FirebaseUser | null;
     hasResearchAccess: boolean;
 }
 

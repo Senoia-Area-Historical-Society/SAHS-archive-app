@@ -12,7 +12,10 @@ export function Login() {
     const [isLoading, setIsLoading] = useState(false);
 
     // Get the return URL from location state, or default to home
-    const from = (location.state as any)?.from?.pathname || '/';
+    // Set by ProtectedRoute when it bounces an unauthenticated visitor here, so
+    // login can return them where they were headed. Anything else navigating to
+    // /login leaves state null, hence the optional chain.
+    const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
     const handleLogin = async () => {
         setError(null);
