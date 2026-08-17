@@ -1,0 +1,104 @@
+name: Reconcile media visibility
+
+# Keeps every Storage object's public/private state in step with the Firestore
+# document that references it.
+#
+# This needs to run on a schedule rather than only on demand because the two can
+# drift with no code change and no deploy: a curator ticks "private" on an item,
+# or flips a collection's flag and changes the visibility of everything inside it
+# at once. Storage security rules cannot read Firestore, so nothing enforces the
+# link at request time — this job is the enforcement.
+#
+# It also collects the download tokens that restrictedMediaUrl mints when a
+# curator views restricted media. Those are deliberately short-lived in practice
+# rather than by expiry: minted on demand, revoked on the next run of this job.
+
+on:
+  schedule:
+    # 06:00 UTC on the 1st and 15th — roughly every two weeks. GitHub's cron has
+    # no native fortnightly expression, and fixed dates are more predictable than
+    # a week-parity trick. Times are UTC, so this is roughly 1–2am US Eastern,
+    # well away from curator activity.
+    - cron: '0 6 1,15 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would change without changing anything'
+        type: boolean
+        default: true
+
+permissions:
+  contents: 'read'
+  id-token: 'write'
+
+# Two runs mutating object ACLs at the same time is worth preventing outright.
+# Queue rather than cancel: a half-finished reconcile leaves the bucket in a
+# state nobody chose.
+concurrency:
+  group: reconcile-media-visibility
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same workload identity federation the deploy uses. The service account
+      # already holds roles/storage.admin and roles/firebase.admin, which is
+      # exactly what this needs — Firestore reads plus object ACL and metadata
+      # writes — so no additional grant was required.
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: 'projects/993507659072/locations/global/workloadIdentityPools/sahs-github-pool/providers/sahs-github-provider'
+          service_account: 'github-action-1168899154@sahs-archives.iam.gserviceaccount.com'
+
+      # Scheduled runs apply. Manual runs default to reporting only, so anyone
+      # can look before touching anything.
+      - name: Reconcile
+        id: reconcile
+        run: |
+          set -o pipefail
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/reconcile-media-visibility.cjs --dry-run | tee reconcile.log
+          else
+            node scripts/reconcile-media-visibility.cjs | tee reconcile.log
+          fi
+
+      # The counts are the useful artefact. A run that changed nothing is the
+      # expected outcome; a run that changed something means the bucket had
+      # drifted from Firestore since last time, which is worth being able to see
+      # without opening the raw log.
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Media visibility reconcile"
+            echo
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "_Dry run — nothing was changed._"
+              echo
+            fi
+            echo '```'
+            sed -n '/--- summary ---/,$p' reconcile.log || echo "no summary produced"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconcile-log
+          path: reconcile.log
+          retention-days: 30
