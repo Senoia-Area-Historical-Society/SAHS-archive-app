@@ -85,6 +85,32 @@ export function thumbObjectPath(objectPath: string, targetWidth: number): string
     return `${resizedDir}/${stem}_${size}x${size}.webp`;
 }
 
+/** Encode each path segment without turning the separators into %2F. */
+function encodePath(objectPath: string): string {
+    return objectPath.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
+ * Unsigned URL for an object we own, relying on its ACL rather than on a token.
+ *
+ * Stored URLs are firebasestorage.googleapis.com links carrying a permanent
+ * download token, and a token bypasses storage.rules completely — which is how a
+ * private item's scan and eight accession-paperwork pages were anonymously
+ * downloadable. Visibility now lives in each object's ACL and is kept in step with
+ * Firestore by scripts/reconcile-media-visibility.cjs, so preferring this form
+ * means the app reads public media through the mechanism that actually encodes
+ * whether it is public.
+ *
+ * Returns null for anything outside our bucket. A restricted object returns a URL
+ * that 403s, which is the point: OptimizedImage then asks for a short-lived
+ * authenticated URL instead.
+ */
+export function publicMediaUrl(url: string): string | null {
+    const objectPath = storageObjectPath(url);
+    if (!objectPath) return null;
+    return `https://storage.googleapis.com/${BUCKET}/${encodePath(objectPath)}`;
+}
+
 /** Public URL for a resized variant, or null if this isn't a Storage URL we own. */
 export function thumbnailUrl(originalUrl: string, targetWidth: number): string | null {
     const objectPath = storageObjectPath(originalUrl);
@@ -95,5 +121,5 @@ export function thumbnailUrl(originalUrl: string, targetWidth: number): string |
 
     const path = thumbObjectPath(objectPath, targetWidth);
     // MAKE_PUBLIC=true, so no signature or token is required.
-    return `https://storage.googleapis.com/${BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
+    return `https://storage.googleapis.com/${BUCKET}/${encodePath(path)}`;
 }
