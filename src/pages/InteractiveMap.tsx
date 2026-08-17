@@ -575,8 +575,13 @@ function InteractiveMapEditor() {
                 ...doc.data()
             })) as Room[];
 
-            // Auto-Migration check: If rooms collection is empty OR any exist without coordinates, check legacy settings
-            const needsMigration = roomData.length === 0 || roomData.some(r => !r.map_coordinates);
+            // Auto-Migration check: If rooms collection is empty OR any room is unplaced, check legacy settings.
+            // A room counts as placed if it has either representation: `geometries` (the current
+            // multi-shape model) or `map_coordinates` (the legacy single-shape one). Testing only the
+            // legacy field would flag every room that has already moved to `geometries` — those rooms
+            // store `map_coordinates: null` — and re-run this check on every load forever.
+            const needsMigration = roomData.length === 0 ||
+                roomData.some(r => !r.map_coordinates && (!r.geometries || r.geometries.length === 0));
             if (needsMigration) {
                 console.log("Map Diagnostics: Checking legacy settings for missing room coordinates...");
                 try {
