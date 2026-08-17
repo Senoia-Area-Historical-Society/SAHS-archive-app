@@ -26,5 +26,10 @@
     "@eslint/js": "^8.57.1",
     "globals": "^15.0.0"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "@types/request": {
+      "form-data": "^2.5.6"
+    }
+  }
 }
