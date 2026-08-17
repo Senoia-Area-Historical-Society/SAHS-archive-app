@@ -64,6 +64,7 @@ const stats = {
     alreadyCorrect: 0,
     missing: 0,
     unattributed: 0,
+    orphanRestricted: 0,
     failed: 0,
 };
 
@@ -106,6 +107,24 @@ const RESTRICTED_COLLECTIONS = new Set([
  * provenance record; an item being public does not make its paperwork public.
  */
 const RESTRICTED_FIELDS = new Set(['accession_paperwork_urls']);
+
+/**
+ * Prefixes where nothing is ever public, whether or not a document references it.
+ *
+ * Firestore attribution cannot cover an object no document points at, and five
+ * orphaned scans under accession_paperwork/ — including one named "Archival
+ * Paperwork.pdf" — still carried live download tokens after the first reconcile
+ * run, because it only visited referenced objects. An item can be deleted or have
+ * its paperwork replaced while the uploaded file stays behind.
+ *
+ * A prefix is the right tool for exactly this case: it needs no attribution. It is
+ * deliberately narrow. archive_media/ orphans are left alone because their
+ * visibility genuinely is ambiguous, and content_images/, posts/ and public/
+ * belong to the sahs-website app, which uses the default Firestore database rather
+ * than this one — they only look unreferenced from here, they are served purely by
+ * token, and revoking those would break that site.
+ */
+const RESTRICTED_PREFIXES = ['accession_paperwork/'];
 
 /**
  * Every Storage URL reachable from a document, found structurally rather than by
@@ -256,11 +275,17 @@ async function main() {
     const presentPaths = new Set(allFiles.map((f) => f.name));
     console.log(`${presentPaths.size} objects\n`);
 
-    // Objects no Firestore document points at. Not touched — deciding their
-    // visibility would be guessing — but counted, because after the rules change
-    // they are only reachable by a token, and this is where an orphan would hide.
+    // Objects no Firestore document points at. Mostly not touched — deciding their
+    // visibility would be guessing — but anything under a never-public prefix is
+    // restricted regardless, since that needs no attribution to decide.
     for (const name of presentPaths) {
-        if (!want.has(name)) stats.unattributed += 1;
+        if (want.has(name)) continue;
+        if (RESTRICTED_PREFIXES.some((prefix) => name.startsWith(prefix))) {
+            want.set(name, 'restricted');
+            stats.orphanRestricted += 1;
+        } else {
+            stats.unattributed += 1;
+        }
     }
 
     const entries = [...want.entries()];
@@ -285,6 +310,7 @@ async function main() {
     console.log(`  ${DRY_RUN ? 'would revoke tokens   ' : 'tokens revoked        '} ${stats.tokensRevoked}`);
     console.log(`  referenced but absent   ${stats.missing}`);
     console.log(`  in bucket, unreferenced ${stats.unattributed}`);
+    console.log(`  orphans in restricted prefixes ${stats.orphanRestricted}`);
     console.log(`  failed                  ${stats.failed}`);
 
     process.exit(stats.failed > 0 ? 1 : 0);
