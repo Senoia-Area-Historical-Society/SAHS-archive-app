@@ -6,7 +6,8 @@ import { doc, getDoc, updateDoc, getDocs, collection, deleteDoc } from 'firebase
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '../contexts/AuthContext';
-import type { LibraryBook, MuseumLocation } from '../types/database';
+import type { LibraryBook, MuseumLocation, BookStatus, BookCondition } from '../types/database';
+import type { NamedEntry, GoogleBookInfo, FallbackBookInfo } from '../types/bookLookup';
 import { ImageCropper } from '../components/ImageCropper';
 
 export default function EditBook() {
@@ -41,8 +42,8 @@ export default function EditBook() {
     const [subjects, setSubjects] = useState('');
     const [donor, setDonor] = useState('');
     const [accessionNumber, setAccessionNumber] = useState('');
-    const [condition, setCondition] = useState<'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Fragile'>('Good');
-    const [status, setStatus] = useState<'Available' | 'Reference Only' | 'Checked Out' | 'Missing'>('Available');
+    const [condition, setCondition] = useState<BookCondition>('Good');
+    const [status, setStatus] = useState<BookStatus>('Available');
     const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
 
     useEffect(() => {
@@ -193,8 +194,8 @@ export default function EditBook() {
             }
 
             let source: 'openlibrary' | 'googlebooks' | 'isbnsearch' = 'openlibrary';
-            let googleBookInfo: any = null;
-            let fallbackBookInfo: any = null;
+            let googleBookInfo: GoogleBookInfo | null = null;
+            let fallbackBookInfo: FallbackBookInfo | null = null;
 
             if (!bookData) {
                 // Fallback to Google Books API
@@ -217,7 +218,7 @@ export default function EditBook() {
                 try {
                     const lookupIsbnFn = httpsCallable(functions, 'lookupIsbnFallback');
                     const res = await lookupIsbnFn({ isbn: cleanedIsbn });
-                    const data = res.data as { success: boolean; book?: any; error?: string };
+                    const data = res.data as { success: boolean; book?: FallbackBookInfo; error?: string };
                     if (data.success && data.book) {
                         fallbackBookInfo = data.book;
                         source = 'isbnsearch';
@@ -240,7 +241,7 @@ export default function EditBook() {
                 if (bookData.title) setTitle(bookData.title);
                 
                 if (bookData.authors && bookData.authors.length > 0) {
-                    setAuthors(bookData.authors.map((a: any) => a.name).join(', '));
+                    setAuthors(bookData.authors.map((a: NamedEntry) => a.name).join(', '));
                 }
                 
                 if (bookData.publishers && bookData.publishers.length > 0) {
@@ -293,7 +294,7 @@ export default function EditBook() {
                 }
 
                 if (bookData.subjects && bookData.subjects.length > 0) {
-                    setSubjects(bookData.subjects.slice(0, 5).map((s: any) => s.name).join(', '));
+                    setSubjects(bookData.subjects.slice(0, 5).map((s: NamedEntry) => s.name).join(', '));
                 }
             } else if (source === 'googlebooks' && googleBookInfo) {
                 // Populate form fields using Google Books schema
@@ -350,7 +351,10 @@ export default function EditBook() {
                 }
                 
                 if (fallbackBookInfo.publishYear) {
-                    setPublishYear(fallbackBookInfo.publishYear);
+                    // isbnsearch sometimes returns the year as a number. publishYear
+                    // is a string state backing a text input, so `any` was quietly
+                    // putting a number where a string was declared.
+                    setPublishYear(String(fallbackBookInfo.publishYear));
                 }
 
                 if (fallbackBookInfo.coverUrl) {
@@ -584,7 +588,7 @@ export default function EditBook() {
                                 <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Lending Status</label>
                                 <select
                                     value={status}
-                                    onChange={(e) => setStatus(e.target.value as any)}
+                                    onChange={(e) => setStatus(e.target.value as BookStatus)}
                                     className="w-full px-3 py-2 bg-cream/20 border border-tan-light/50 rounded-lg outline-none focus:border-tan text-sm font-semibold text-charcoal"
                                 >
                                     <option value="Available">Available</option>
@@ -598,7 +602,7 @@ export default function EditBook() {
                                 <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Book Condition</label>
                                 <select
                                     value={condition}
-                                    onChange={(e) => setCondition(e.target.value as any)}
+                                    onChange={(e) => setCondition(e.target.value as BookCondition)}
                                     className="w-full px-3 py-2 bg-cream/20 border border-tan-light/50 rounded-lg outline-none focus:border-tan text-sm font-semibold text-charcoal"
                                 >
                                     <option value="Excellent">Excellent</option>

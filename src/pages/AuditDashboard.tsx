@@ -27,6 +27,27 @@ import { Link } from 'react-router-dom';
 import { OptimizedImage } from '../components/OptimizedImage';
 
 type AuditIssue = 'no-image' | 'no-date' | 'no-id' | 'no-desc' | 'no-location';
+
+/** The three back-reference arrays the relationship repair pass writes. */
+type RelationField = 'related_organizations' | 'related_figures' | 'related_documents';
+
+/**
+ * The fields auto-repair is allowed to write back to an item.
+ *
+ * Narrower than Partial<ArchiveItem> on purpose: this names the five fields the
+ * pass actually touches, so a typo in the dynamic `currentUpdates[targetField]`
+ * indexing is a compile error rather than a stray key written to Firestore.
+ */
+// A type alias rather than an interface, deliberately: only aliases get an
+// implicit index signature, and updateDoc's UpdateData parameter requires one.
+// An interface here fails to compile at the write call.
+type ItemRepairs = {
+    related_organizations?: string[];
+    related_figures?: string[];
+    related_documents?: string[];
+    historical_address?: string;
+    coordinates?: ArchiveItem['coordinates'];
+};
 type SortOption = 'health-asc' | 'health-desc' | 'newest';
 
 interface AuditStats {
@@ -231,22 +252,27 @@ export function AuditDashboard() {
             const snap = await getDocs(query(allItemsRef));
             const allItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
 
-            const updates = new Map<string, any>(); // Map of id -> updates
+            // id -> the fields this pass wants to merge into that item. A subset
+            // of ArchiveItem rather than a free-form record, so a typo in a field
+            // name is caught here instead of writing a stray key to Firestore.
+            const updates = new Map<string, ItemRepairs>();
             
             // Build the graph
             for (const item of allItems) {
                 const id = item.id;
                 const type = item.item_type?.trim();
                 
-                const processArray = (arr: string[] | undefined, targetField: string) => {
+                const processArray = (arr: string[] | undefined, targetField: RelationField) => {
                     if (!arr) return;
                     for (const targetId of arr) {
-                        if (!updates.has(targetId)) updates.set(targetId, {});
-                        const currentUpdates = updates.get(targetId);
-                        if (!currentUpdates[targetField]) currentUpdates[targetField] = [];
-                        if (!currentUpdates[targetField].includes(id)) {
-                            currentUpdates[targetField].push(id);
-                        }
+                        // get-or-create rather than has()/get(): the old form left
+                        // TypeScript unable to see that the entry exists, and the
+                        // effect is identical.
+                        const currentUpdates = updates.get(targetId) ?? {};
+                        updates.set(targetId, currentUpdates);
+                        const list = currentUpdates[targetField] ?? [];
+                        if (!list.includes(id)) list.push(id);
+                        currentUpdates[targetField] = list;
                     }
                 };
 
@@ -299,8 +325,8 @@ export function AuditDashboard() {
                     }
                     
                     if (newAddress) {
-                        if (!updates.has(item.id)) updates.set(item.id, {});
-                        const currentUpdates = updates.get(item.id);
+                        const currentUpdates = updates.get(item.id) ?? {};
+                        updates.set(item.id, currentUpdates);
                         currentUpdates.historical_address = newAddress;
                         currentUpdates.coordinates = newCoords;
                     }
@@ -313,7 +339,7 @@ export function AuditDashboard() {
                 const originalItem = allItems.find(i => i.id === docId);
                 if (!originalItem) continue;
                 
-                const finalPayload: any = {};
+                const finalPayload: ItemRepairs = {};
                 let changed = false;
                 
                 if (updateData.related_organizations) {
@@ -447,7 +473,7 @@ export function AuditDashboard() {
                 ].map((stat, i) => (
                     <button 
                         key={i}
-                        onClick={() => setActiveIssue(activeIssue === stat.id ? 'all' : stat.id as any)}
+                        onClick={() => setActiveIssue(activeIssue === stat.id ? 'all' : stat.id as AuditIssue)}
                         className={`p-7 rounded-3xl border transition-all text-left flex flex-col justify-between group h-52 relative overflow-hidden ${activeIssue === stat.id ? 'bg-white border-tan shadow-xl ring-8 ring-tan/5' : 'bg-white border-tan-light hover:border-tan shadow-sm'}`}
                     >
                         <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full ${stat.bg} opacity-20 group-hover:scale-150 transition-transform duration-700`} />
@@ -537,7 +563,7 @@ export function AuditDashboard() {
                             <select 
                                 className="w-full bg-white border border-tan-light rounded-2xl pl-12 pr-4 py-3 text-sm font-medium outline-none appearance-none cursor-pointer focus:border-tan focus:ring-8 focus:ring-tan/5 transition-all shadow-sm"
                                 value={selectedType}
-                                onChange={(e) => setSelectedType(e.target.value as any)}
+                                onChange={(e) => setSelectedType(e.target.value as ItemType | 'All Types')}
                             >
                                 <option value="All Types text-charcoal/40">Filter by Category...</option>
                                 <option value="All Types">All Categories</option>

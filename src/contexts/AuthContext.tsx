@@ -126,11 +126,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
             console.log("🛠️ Auth simulation bypass activated!");
+            // A stand-in for a Firebase User carrying only the three fields the
+            // app reads. `as unknown as User` rather than `as any` because it is
+            // the same assertion either way and this spelling says so: the object
+            // genuinely is not a User, and the double step is what TypeScript
+            // makes you write when you know that.
             setUser({
                 uid: 'mock_simulation_user_id',
                 email: 'curator@senoiahistory.com',
                 displayName: 'Mock Simulation Curator',
-            } as any);
+            } as unknown as User);
             setIsAdmin(true);
             setIsCurator(false);
             setIsSetupComplete(true);

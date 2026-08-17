@@ -25,7 +25,16 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-const createClusterCustomIcon = (cluster: any) => {
+/**
+ * Only what the icon factory reads. @types/leaflet.markercluster is not
+ * installed, and the plugin's real MarkerCluster carries far more surface than
+ * this callback touches.
+ */
+interface MarkerClusterLike {
+    getChildCount(): number;
+}
+
+const createClusterCustomIcon = (cluster: MarkerClusterLike) => {
     return L.divIcon({
         html: `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-charcoal/90 text-white font-black text-xs shadow-xl border-2 border-tan-light ring-2 ring-charcoal/10 backdrop-blur-sm transition-transform hover:scale-110">
                  <span>${cluster.getChildCount()}</span>
