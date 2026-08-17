@@ -27,7 +27,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.575.0",
     "node-fetch": "^3.3.2",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.2.108",
     "pdfkit": "^0.19.1",
     "puppeteer-core": "^25.1.0",
     "qrcode": "^1.5.4",
