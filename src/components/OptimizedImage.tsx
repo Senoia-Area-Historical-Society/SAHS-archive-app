@@ -60,6 +60,8 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
     // list has already failed.
     const [extra, setExtra] = useState<string[]>([]);
     const [failed, setFailed] = useState(0);
+    // The authorised-URL call is made at most once per src.
+    const [requested, setRequested] = useState(false);
 
     // Reset when the image changes, by comparing against the previous render rather
     // than resetting from an effect.
@@ -76,6 +78,7 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
         setSeenSrc(src);
         setExtra([]);
         setFailed(0);
+        setRequested(false);
     }
 
     if (!src) return null;
@@ -96,7 +99,14 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
      */
     const requestAuthorisedUrl = async () => {
         const url = await resolveRestrictedMedia(src);
-        if (url) setExtra((prev) => (prev.includes(url) ? prev : [...prev, url]));
+        if (!url) return;
+        // Advancing the counter alongside appending is the point: index is derived
+        // from `failed`, so adding a candidate without it left the element pinned to
+        // the exhausted stored URL while the working one sat unused at the end of
+        // the list. The audio player had no chain to get wrong, which is why it
+        // recovered and this did not.
+        setExtra((prev) => (prev.includes(url) ? prev : [...prev, url]));
+        setFailed((prev) => prev + 1);
     };
 
     return (
@@ -104,9 +114,10 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
             src={sources[index] ?? src}
             alt={alt}
             onError={() => {
-                if (failed < derived.length - 1 + extra.length) {
+                if (index < sources.length - 1) {
                     setFailed(failed + 1);
-                } else {
+                } else if (!requested) {
+                    setRequested(true);
                     void requestAuthorisedUrl();
                 }
             }}
