@@ -1,3 +1,8 @@
+/* eslint-disable react-refresh/only-export-components --
+ * Same reasoning as AppearanceContext: provider plus its own hook is the
+ * standard React shape, this rule is Fast Refresh only, and useAuth is imported
+ * by 32 files. See the fuller note there.
+ */
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';

@@ -1,3 +1,15 @@
+/* eslint-disable react-refresh/only-export-components --
+ * A provider and its own useContext hook in one file is the standard React
+ * shape, and this rule only affects Fast Refresh: editing this file does a full
+ * reload instead of a hot swap. Splitting the hook out would mean rewriting the
+ * import in 28 files, and re-exporting it from here would not satisfy the rule
+ * anyway — it checks what a file exports, not where the value was defined.
+ *
+ * Disabled at file level rather than lowered in eslint.config.js so it still
+ * fires for genuine mistakes elsewhere. Note this is a development-convenience
+ * rule; the no-explicit-any work in #28 deliberately took no such escape hatch,
+ * because that one is about type safety and this one is about HMR.
+ */
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
