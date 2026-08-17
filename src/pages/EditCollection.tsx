@@ -104,7 +104,7 @@ export function EditCollection() {
 
         try {
             const formData = new FormData(e.target as HTMLFormElement);
-            let fileUrls = [...existingFileUrls];
+            const fileUrls = [...existingFileUrls];
 
             if (selectedFiles.length > 0) {
                 const totalFiles = selectedFiles.length;

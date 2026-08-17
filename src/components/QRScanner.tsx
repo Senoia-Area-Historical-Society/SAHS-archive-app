@@ -23,7 +23,7 @@ export function QRScanner({ onScan, onClose, active = true }: QRScannerProps) {
     // Completely forces the hardware camera light to go off by stopping tracks we intercepted
     const forceKillVideoTracks = () => {
         activeTracksRef.current.forEach(track => {
-            try { track.stop(); } catch (e) { /* ignore */ }
+            try { track.stop(); } catch { /* already stopped */ }
         });
         activeTracksRef.current = [];
         

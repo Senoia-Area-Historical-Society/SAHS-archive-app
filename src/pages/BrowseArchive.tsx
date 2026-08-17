@@ -217,7 +217,10 @@ export function BrowseArchive() {
                 <div className="flex-1 relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={20} />
                     <input
-                        type="text"
+                        type="search"
+                        id="archive-search"
+                        name="q"
+                        aria-label={headerText.placeholder}
                         placeholder={headerText.placeholder}
                         className="w-full bg-cream pl-12 pr-4 py-3.5 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
                         value={localSearch}
@@ -228,6 +231,9 @@ export function BrowseArchive() {
                 <div className="relative min-w-[220px]">
                     <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
                     <select
+                        id="archive-type"
+                        name="type"
+                        aria-label="Filter by category"
                         className="w-full bg-cream pl-10 pr-10 py-3.5 rounded-lg border border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal"
                         value={selectedType}
                         onChange={(e) => updateParam('type', e.target.value, 'All Items')}
@@ -249,6 +255,9 @@ export function BrowseArchive() {
                 <div className="relative min-w-[200px]">
                     <ArrowUpDown className="absolute left-4 top-1/2 -translate-y-1/2 text-charcoal/40" size={18} />
                     <select
+                        id="archive-sort"
+                        name="sort"
+                        aria-label="Sort results"
                         className="w-full bg-cream/50 pl-10 pr-10 py-3 rounded-lg outline-none appearance-none cursor-pointer focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-medium text-charcoal font-sans"
                         value={sortBy}
                         onChange={(e) => updateParam('sort', e.target.value, 'created_desc')}

@@ -1325,7 +1325,7 @@ export function ItemDetail() {
                         </h3>
 
                         {item.item_type === 'Historic Figure' ? (
-                            <div className={`grid grid-cols-1 ${!!(item.artifact_id || item.archive_reference || item.identifier) ? "md:grid-cols-2" : ""} gap-x-16 gap-y-12`}>
+                            <div className={`grid grid-cols-1 ${item.artifact_id || item.archive_reference || item.identifier ? "md:grid-cols-2" : ""} gap-x-16 gap-y-12`}>
                                 {/* Column 1: Identity & Life */}
                                 <div className="space-y-8">
                                     <div>

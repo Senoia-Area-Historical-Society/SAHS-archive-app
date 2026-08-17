@@ -157,6 +157,7 @@ export function AddItem() {
                 setCollections(prev => [...prev, newColl].sort((a, b) => a.title.localeCompare(b.title)));
                 setSelectedCollectionIds(prev => [...prev, docRef.id]);
             } catch (err) {
+                console.error("Failed to create collection", err);
                 alert("Failed to create collection.");
             }
         }
@@ -362,7 +363,7 @@ export function AddItem() {
                 coordinates = await getCoordinatesFromAddress(historical_address);
             }
             
-            let fileUrls: string[] = [];
+            const fileUrls: string[] = [];
 
             if (selectedFiles.length > 0) {
                 const totalFiles = selectedFiles.length;

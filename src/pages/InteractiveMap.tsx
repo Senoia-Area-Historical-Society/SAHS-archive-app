@@ -178,8 +178,9 @@ function InteractiveMapEditor() {
     const [hoveredBlock, setHoveredBlock] = useState<{ roomId: string, index: number } | null>(null);
     const [resizingRoomId, setResizingRoomId] = useState<string | null>(null);
     const [activeDimensions, setActiveDimensions] = useState<{ width: number, height: number } | null>(null);
-    // @ts-ignore
-    const [draggingId, setDraggingId] = useState<string | null>(null);
+    // Only the setter is used — the value is never read. Elided rather than suppressed with
+    // a ts-ignore directive, matching setSelectionTick above.
+    const [, setDraggingId] = useState<string | null>(null);
 
     // Canvas Grid Dimensions State (Expandable Canvas)
     const [canvasDimensions, setCanvasDimensions] = useState<{ width: number; height: number }>({
@@ -532,7 +533,7 @@ function InteractiveMapEditor() {
 
             // NEW: Fetch rooms from the collection instead of settings
             const roomSnapshot = await getDocs(collection(db, 'rooms'));
-            let roomData = roomSnapshot.docs.map(doc => ({
+            const roomData = roomSnapshot.docs.map(doc => ({
                 docId: doc.id,
                 ...doc.data()
             })) as Room[];
@@ -1715,7 +1716,7 @@ function InteractiveMapEditor() {
             const c = prev[id];
             if (!c) return prev;
 
-            let updatedFields: any = { [property]: pixels };
+            const updatedFields: any = { [property]: pixels };
             
             // Enforce circle properties
             if (property === 'shape' && pixels === 'circle') {
@@ -1789,7 +1790,7 @@ function InteractiveMapEditor() {
                 const updateCoords = (c: any, i: number) => {
                     if (index !== undefined && i !== index) return c;
                     
-                    let updatedFields: any = { [property]: pixels };
+                    const updatedFields: any = { [property]: pixels };
                     
                     // Enforce circle properties
                     if (property === 'shape' && pixels === 'circle') {

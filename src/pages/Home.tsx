@@ -132,8 +132,11 @@ export function Home() {
                             className="relative group"
                         >
                             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-tan transition-colors group-focus-within:text-charcoal" size={28} />
-                            <input 
-                                type="text"
+                            <input
+                                type="search"
+                                id="hero-search"
+                                name="q"
+                                aria-label="Search the archives"
                                 placeholder="Search the archives..."
                                 className="w-full bg-cream/95 backdrop-blur-sm pl-16 pr-32 py-6 rounded-2xl border-4 border-transparent focus:border-tan outline-none transition-all font-sans text-charcoal text-2xl shadow-2xl placeholder:text-charcoal/40"
                                 value={searchQuery}
