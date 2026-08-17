@@ -296,6 +296,12 @@ exports.lookupIsbnFallback = onCall({
 
 
 
+// Short-lived signed URLs for media the public may not read. Restricted objects
+// have no download token by design, and getDownloadURL() cannot mint one, so the
+// client has no other way to display them to an authorised curator.
+exports.restrictedMediaUrl = require("./restrictedMedia").restrictedMediaUrl;
+
+
 // Server-rendered <head> for archive detail pages. Social scrapers don't execute
 // JavaScript, so without this every shared link previews as the generic site title.
 exports.renderMeta = require("./renderMeta").renderMeta;

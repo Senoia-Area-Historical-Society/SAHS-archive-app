@@ -2,6 +2,7 @@ import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Edit2, Trash2, FileText, ZoomIn, ZoomOut, X, MapPin, Info, Users, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Lock, QrCode, Link2, Download, User, Clock, XCircle, Calendar, Award, Check, Play, Pause, Volume2, Video, Search, Mic, Pin, CornerUpLeft } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { resolveRestrictedMedia } from '../lib/restrictedMedia';
 import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
@@ -1998,6 +1999,18 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
 
+    // Audio on a private item cannot be loaded from its stored URL: restricted
+    // objects have no download token, so that URL 403s even for staff, and unlike
+    // <img> there is no fallback chain here — the player just sat at 0:00. Ask the
+    // Cloud Function for a signed URL when the element reports an error.
+    const [audioSrc, setAudioSrc] = useState<string | undefined>(item.audio_url || undefined);
+    useEffect(() => { setAudioSrc(item.audio_url || undefined); }, [item.audio_url]);
+    const recoverAudio = async () => {
+        if (!item.audio_url) return;
+        const url = await resolveRestrictedMedia(item.audio_url);
+        if (url && url !== audioSrc) setAudioSrc(url);
+    };
+
     // Track audio events
     useEffect(() => {
         const audio = audioRef.current;
@@ -2016,7 +2029,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
             audio.removeEventListener('loadedmetadata', onLoadedMetadata);
             audio.removeEventListener('ended', onEnded);
         };
-    }, [item.audio_url]);
+    }, [audioSrc]);
 
     const togglePlay = () => {
         if (!audioRef.current) return;
@@ -2400,7 +2413,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
             <div className="w-full lg:w-[480px] shrink-0 space-y-8">
                 {/* Audio Element */}
                 {item.audio_url && (
-                    <audio ref={audioRef} src={item.audio_url} preload="metadata" />
+                    <audio ref={audioRef} src={audioSrc} preload="metadata" onError={() => { void recoverAudio(); }} />
                 )}
 
                 {/* Narrator Display Panel */}

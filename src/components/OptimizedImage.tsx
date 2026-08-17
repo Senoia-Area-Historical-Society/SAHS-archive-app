@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
-import { ref, getDownloadURL } from 'firebase/storage';
-import { storage } from '../lib/firebase';
-import { thumbnailUrl, publicMediaUrl, storageObjectPath } from '../lib/imageThumbs';
+import { thumbnailUrl, publicMediaUrl } from '../lib/imageThumbs';
+import { resolveRestrictedMedia } from '../lib/restrictedMedia';
 
 interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
     src: string;
@@ -85,25 +84,19 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
     const index = Math.min(failed, sources.length - 1);
 
     /**
-     * Last resort for restricted media. The reconcile script strips the download
-     * token from anything non-public, so the stored URL 403s even for staff. This
-     * asks Storage for a URL now, which is checked against storage.rules for the
-     * signed-in user — so it succeeds for a curator and fails for everyone else.
+     * Last resort for restricted media. Restricted objects have no public ACL and
+     * no download token, so every candidate above 403s even for staff.
      *
-     * It does mint a fresh token on the object. That token is never written to
-     * Firestore, and the next reconcile run revokes it: mint on demand, revoke on
-     * reconcile.
+     * This previously called getDownloadURL(), which cannot work: that reads
+     * `downloadTokens` from the object's metadata and throws when the field is
+     * absent — it does not mint one. Revoking the token is exactly what made it
+     * absent, so a curator got a broken image and the error was swallowed here.
+     * A Cloud Function checks the caller is staff and returns a signed URL that
+     * expires.
      */
     const requestAuthorisedUrl = async () => {
-        const objectPath = storageObjectPath(src);
-        if (!objectPath) return;
-        try {
-            const url = await getDownloadURL(ref(storage, objectPath));
-            setExtra((prev) => (prev.includes(url) ? prev : [...prev, url]));
-        } catch {
-            // Not signed in, or not a curator. Leave the broken image; the caller's
-            // own placeholder handling applies.
-        }
+        const url = await resolveRestrictedMedia(src);
+        if (url) setExtra((prev) => (prev.includes(url) ? prev : [...prev, url]));
     };
 
     return (
