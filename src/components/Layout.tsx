@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { QRScanner } from './QRScanner';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { MemberSetupWizard } from './MemberSetupWizard';
+import { RouteErrorBoundary } from './ErrorBoundary';
 
 const parseQRData = (data: string): { type: 'item' | 'location' | 'room' | 'book' | 'unknown', id: string } => {
     const trimmed = data.trim();
@@ -208,8 +209,15 @@ export default function Layout() {
                     </div>
                 </header>
 
+                {/*
+                  * Inside the layout rather than around it, so a page that throws
+                  * leaves the header and sidebar standing and the user can navigate
+                  * away instead of being stranded on a reload.
+                  */}
                 <div className="flex-1 w-full flex flex-col">
-                    <Outlet />
+                    <RouteErrorBoundary>
+                        <Outlet />
+                    </RouteErrorBoundary>
                 </div>
             </main>
 

@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppearanceProvider } from './contexts/AppearanceContext';
 import AnalyticsTracker from './components/AnalyticsTracker';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy load pages for better initial bundle size
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
@@ -142,6 +143,11 @@ export default function App() {
   }, []);
 
   return (
+    // Backstop for anything that throws above the layout — a provider failing to
+    // initialise, or the router itself. RouteErrorBoundary inside Layout handles
+    // page crashes and keeps the chrome; this one is all that is left if the
+    // chrome is what broke, so it deliberately has no reset key.
+    <ErrorBoundary label="the archive">
     <BrowserRouter>
       <AnalyticsTracker />
       <AppearanceProvider>
@@ -207,5 +213,6 @@ export default function App() {
         </AuthProvider>
       </AppearanceProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
