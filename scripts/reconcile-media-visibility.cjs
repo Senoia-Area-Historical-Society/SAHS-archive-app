@@ -217,49 +217,64 @@ async function desiredVisibility() {
     return want;
 }
 
-async function applyTo(bucket, objectPath, visibility, presentPaths) {
-    if (!presentPaths.has(objectPath)) { stats.missing += 1; return; }
-
-    const file = bucket.file(objectPath);
-    const [meta] = await file.getMetadata();
+/**
+ * Brings one object into line with its desired visibility.
+ *
+ * Takes the File from the bucket listing rather than a path, because that listing
+ * is requested with projection=full and therefore already carries the ACL and the
+ * custom metadata. Fetching them per object cost two round trips each, which at
+ * ~16,000 objects ran past ten minutes and timed out — the same shape of mistake
+ * as the backfill's silent exists() checks, and the same fix: the listing already
+ * had the answer.
+ */
+async function applyTo(file, visibility) {
+    const meta = file.metadata || {};
     const hasToken = Boolean(meta.metadata && meta.metadata.firebaseStorageDownloadTokens);
-
-    // A public ACL shows up as an allUsers:READER entry.
-    let isPublic = false;
-    try {
-        const [acls] = await file.acl.get();
-        isPublic = (Array.isArray(acls) ? acls : [acls])
-            .some((a) => a.entity === 'allUsers' && String(a.role).toUpperCase() === 'READER');
-    } catch {
-        isPublic = false;
-    }
+    const isPublic = (meta.acl || []).some(
+        (entry) => entry.entity === 'allUsers' && String(entry.role).toUpperCase() === 'READER'
+    );
 
     if (visibility === 'public') {
         if (isPublic) { stats.alreadyCorrect += 1; return; }
-        if (VERBOSE) console.log(`  public   ${objectPath}`);
+        if (VERBOSE) console.log(`  public   ${file.name}`);
         if (!DRY_RUN) await file.makePublic();
         stats.madePublic += 1;
         return;
     }
 
     // Restricted: strip the public ACL and the token. Either alone is a hole.
-    const needsAcl = isPublic;
-    const needsToken = hasToken;
-    if (!needsAcl && !needsToken) { stats.alreadyCorrect += 1; return; }
+    if (!isPublic && !hasToken) { stats.alreadyCorrect += 1; return; }
 
-    if (VERBOSE || needsToken) {
-        console.log(`  restrict ${objectPath}${needsToken ? '  (revoking download token)' : ''}`);
+    if (VERBOSE || hasToken) {
+        console.log(`  restrict ${file.name}${hasToken ? '  (revoking download token)' : ''}`);
     }
     if (!DRY_RUN) {
-        if (needsAcl) await file.makePrivate();
-        if (needsToken) {
+        if (isPublic) await file.makePrivate();
+        if (hasToken) {
             // Removing the key is what invalidates the token; the Firebase
             // download endpoint then falls through to the security rules.
             await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: null } });
         }
     }
-    if (needsAcl) stats.restricted += 1;
-    if (needsToken) stats.tokensRevoked += 1;
+    if (isPublic) stats.restricted += 1;
+    if (hasToken) stats.tokensRevoked += 1;
+}
+
+/** Bounded pool so a write-heavy run isn't strictly sequential. */
+async function runPool(items, concurrency, worker) {
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+        for (;;) {
+            const i = next++;
+            if (i >= items.length) return;
+            try {
+                await worker(items[i]);
+            } catch (err) {
+                stats.failed += 1;
+                console.error(`  FAILED ${items[i][0].name}: ${err.message}`);
+            }
+        }
+    }));
 }
 
 async function main() {
@@ -284,9 +299,12 @@ async function main() {
     }
     console.log(`${stats.docsRead} docs -> ${want.size} objects (${stats.shouldBePublic} public, ${stats.shouldBeRestricted} restricted)\n`);
 
+    // projection=full returns each object's ACL and custom metadata inline, so the
+    // whole run needs no per-object reads at all.
     process.stdout.write('listing bucket... ');
-    const [allFiles] = await bucket.getFiles();
-    const presentPaths = new Set(allFiles.map((f) => f.name));
+    const [allFiles] = await bucket.getFiles({ projection: 'full' });
+    const filesByPath = new Map(allFiles.map((f) => [f.name, f]));
+    const presentPaths = new Set(filesByPath.keys());
     console.log(`${presentPaths.size} objects\n`);
 
     // Objects no Firestore document points at. Mostly not touched — deciding their
@@ -325,16 +343,15 @@ async function main() {
         stats.unattributed += 1;
     }
 
-    const entries = [...want.entries()];
-    console.log(`checking ${entries.length} objects...`);
-    for (const [path, visibility] of entries) {
-        try {
-            await applyTo(bucket, path, visibility, presentPaths);
-        } catch (err) {
-            stats.failed += 1;
-            console.error(`  FAILED ${path}: ${err.message}`);
-        }
+    const entries = [];
+    for (const [path, visibility] of want) {
+        const file = filesByPath.get(path);
+        if (!file) { stats.missing += 1; continue; }
+        entries.push([file, visibility]);
     }
+
+    console.log(`checking ${entries.length} objects...`);
+    await runPool(entries, 8, ([file, visibility]) => applyTo(file, visibility));
 
     console.log('\n--- summary ---');
     console.log(`  firestore docs read     ${stats.docsRead}`);
