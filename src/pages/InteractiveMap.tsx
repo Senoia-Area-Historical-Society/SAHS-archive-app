@@ -7,6 +7,7 @@ import type { MuseumLocation, Room, MapFloor } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ModuleDisabled } from '../components/ModuleDisabled';
 
 type LayoutHistoryState = {
     rooms: Room[];
@@ -107,18 +108,21 @@ const DimensionInput = ({
 };
 
 export function InteractiveMap() {
-    const { isSAHSUser } = useAuth();
-    const { settings } = useAppearance();
-    const [searchParams] = useSearchParams();
+    const { settings, loading } = useAppearance();
 
-    if (settings.featureToggles?.enableMap === false) {
-        return (
-            <div className="flex-1 p-8 font-sans text-center flex flex-col justify-center items-center min-h-[400px]">
-                <h1 className="text-3xl font-serif font-bold text-charcoal mb-4">Module Disabled</h1>
-                <p className="text-charcoal/60 max-w-md">The Map Discovery module is not active for this archive site.</p>
-            </div>
-        );
+    // Gate lives in this wrapper so the hook count above it never varies — see
+    // ModuleDisabled. This page declares ~50 hooks below, all of which used to sit
+    // under the early return.
+    if (!loading && settings.featureToggles?.enableMap === false) {
+        return <ModuleDisabled module="Map Discovery" />;
     }
+
+    return <InteractiveMapEditor />;
+}
+
+function InteractiveMapEditor() {
+    const { isSAHSUser } = useAuth();
+    const [searchParams] = useSearchParams();
 
     const highlightTargetId = searchParams.get('highlight');
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
