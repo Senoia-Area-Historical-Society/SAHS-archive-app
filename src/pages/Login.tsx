@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { LogIn, AlertCircle } from 'lucide-react';
+import { errorMessage, errorCode } from '../lib/errors';
 
 export function Login() {
     const { loginWithGoogle } = useAuth();
@@ -19,9 +20,11 @@ export function Login() {
         try {
             await loginWithGoogle();
             navigate(from, { replace: true });
-        } catch (err: any) {
+        } catch (err) {
             console.error("Login error details:", err);
-            setError(err.code ? `${err.message} (${err.code})` : err.message || "Failed to log in.");
+            const code = errorCode(err);
+            const message = errorMessage(err);
+            setError(code ? `${message} (${code})` : message || "Failed to log in.");
             setIsLoading(false);
         }
     };

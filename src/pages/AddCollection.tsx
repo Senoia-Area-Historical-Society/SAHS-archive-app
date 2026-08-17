@@ -3,6 +3,7 @@ import { FolderPlus, Image as ImageIcon, CheckCircle, AlertCircle, X, Lock, User
 import { db, storage } from '../lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { errorMessage } from '../lib/errors';
 
 export function AddCollection() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,9 +104,9 @@ export function AddCollection() {
 
             await addDoc(collection(db, 'collections'), collectionData);
             setSuccess(true);
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error creating collection: ", err);
-            setError(err.message || "Failed to create collection. Please check your Firebase configuration.");
+            setError(errorMessage(err) || "Failed to create collection. Please check your Firebase configuration.");
         } finally {
             setIsSubmitting(false);
         }

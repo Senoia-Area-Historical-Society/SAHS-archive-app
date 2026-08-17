@@ -11,6 +11,7 @@ import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
 import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
+import { errorMessage } from '../lib/errors';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
     useEffect(() => {
@@ -592,9 +593,9 @@ export function AddItem() {
 
             setCreatedItemId(docRef.id);
             setSuccess(true);
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error adding item: ", err);
-            setError(err.message || "Failed to add item. Please check your Firebase configuration.");
+            setError(errorMessage(err) || "Failed to add item. Please check your Firebase configuration.");
         } finally {
             setIsSubmitting(false);
             setUploadProgress(null);

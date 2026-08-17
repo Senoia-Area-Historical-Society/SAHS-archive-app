@@ -129,7 +129,9 @@ export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, p
             }}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
-            {...(priority ? ({ fetchpriority: 'high' } as any) : {})}
+            // React 19 types fetchPriority as a real prop, so the lowercase
+            // spread-with-cast that predated it is no longer needed.
+            fetchPriority={priority ? 'high' : undefined}
             {...props}
         />
     );

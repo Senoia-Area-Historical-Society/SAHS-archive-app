@@ -71,7 +71,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
       if (croppedBlob) {
         onCropComplete(croppedBlob)
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e)
       setError("The server security (CORS) blocked the rotation. Please re-upload this photo from your computer to rotate it.")
     } finally {

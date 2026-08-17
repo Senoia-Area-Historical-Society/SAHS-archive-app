@@ -16,6 +16,7 @@ import { useSeo } from '../hooks/useSeo';
 import { buildItemSeo } from '../lib/seo';
 import { useJsonLd } from '../hooks/useJsonLd';
 import { buildItemJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
+import { errorMessage, errorCode } from '../lib/errors';
 
 export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
@@ -642,13 +643,13 @@ export function ItemDetail() {
             setComments(prev => [...prev, payload]);
             setNewCommentText('');
             showToast("Comment posted successfully!");
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error posting comment:", err);
-            const errMsg = err?.message || '';
-            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+            const errMsg = errorMessage(err);
+            if (errMsg.toLowerCase().includes('permission-denied') || errorCode(err) === 'permission-denied') {
                 showToast("Failed: Permission Denied. Check that firestore.rules are published and your account is added.");
             } else {
-                showToast(`Failed to post comment: ${err?.code || err?.message || 'Unknown Error'}`);
+                showToast(`Failed to post comment: ${errorCode(err) || errMsg || 'Unknown Error'}`);
             }
         } finally {
             setIsPostingComment(false);
@@ -664,13 +665,13 @@ export function ItemDetail() {
             await deleteDoc(commentRef);
             setComments(prev => prev.filter(c => c.id !== commentId));
             showToast("Comment successfully moderated.");
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error deleting comment:", err);
-            const errMsg = err?.message || '';
-            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+            const errMsg = errorMessage(err);
+            if (errMsg.toLowerCase().includes('permission-denied') || errorCode(err) === 'permission-denied') {
                 showToast("Failed: Permission Denied. You do not have curator/admin rights to moderate this comment.");
             } else {
-                showToast(`Failed to moderate comment: ${err?.code || err?.message || 'Unknown Error'}`);
+                showToast(`Failed to moderate comment: ${errorCode(err) || errMsg || 'Unknown Error'}`);
             }
         }
     };
@@ -719,13 +720,13 @@ export function ItemDetail() {
             setReplyText('');
             setReplyingToCommentId(null);
             showToast("Reply posted successfully!");
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error posting reply:", err);
-            const errMsg = err?.message || '';
-            if (errMsg.toLowerCase().includes('permission-denied') || err?.code === 'permission-denied') {
+            const errMsg = errorMessage(err);
+            if (errMsg.toLowerCase().includes('permission-denied') || errorCode(err) === 'permission-denied') {
                 showToast("Failed: Permission Denied. Check your rules and account status.");
             } else {
-                showToast(`Failed to post reply: ${err?.code || 'Unknown Error'}`);
+                showToast(`Failed to post reply: ${errorCode(err) || 'Unknown Error'}`);
             }
         } finally {
             setIsPostingReply(false);

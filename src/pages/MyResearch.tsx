@@ -8,6 +8,7 @@ import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem, Member } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
 import { OptimizedImage } from '../components/OptimizedImage';
+import { errorMessage } from '../lib/errors';
 
 interface ResearchFolder {
     id: string;
@@ -221,9 +222,9 @@ export function MyResearch() {
                     setSelectedFolder(null);
                 }
             }
-        } catch (err: any) {
+        } catch (err) {
             console.error("Error loading research workspace:", err);
-            showToast(`Failed to load research folders: ${err?.message || err}`);
+            showToast(`Failed to load research folders: ${errorMessage(err) || String(err)}`);
         } finally {
             setLoading(false);
         }
@@ -265,9 +266,9 @@ export function MyResearch() {
                 })) as ArchiveItem[];
                 
                 setFolderItems(itemsList);
-            } catch (err: any) {
+            } catch (err) {
                 console.error("Error loading folder contents:", err);
-                showToast(`Failed to load historical items: ${err?.message || err}`);
+                showToast(`Failed to load historical items: ${errorMessage(err) || String(err)}`);
             } finally {
                 setLoadingItems(false);
             }

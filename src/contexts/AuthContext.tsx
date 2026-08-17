@@ -7,6 +7,29 @@ import { useLocation } from 'react-router-dom';
 import { useAppearance } from './AppearanceContext';
 import type { Member } from '../types/database';
 
+/** The roles an admin can preview the site as. */
+export type SimulatedRole = 'admin' | 'curator' | 'member' | 'visitor';
+
+const SIMULATED_ROLES: readonly SimulatedRole[] = ['admin', 'curator', 'member', 'visitor'];
+
+/**
+ * Reads the simulated role back out of localStorage.
+ *
+ * This value crosses a trust boundary: localStorage is the browser owner's to
+ * edit, so anything at all can be in that key. The previous `as any` asserted it
+ * into the union without looking, which is what a cast does — it states a fact
+ * rather than checking one. Everything downstream then treated an arbitrary
+ * string as a role.
+ *
+ * Firestore rules are still the real gate and always were, so this is
+ * correctness rather than a hole being closed. Unrecognised values now fall back
+ * to no simulation instead of propagating.
+ */
+function storedSimulatedRole(): SimulatedRole | null {
+    const stored = localStorage.getItem('sahs_simulated_role');
+    return SIMULATED_ROLES.find((role) => role === stored) ?? null;
+}
+
 interface AuthContextType {
     user: User | null;
     loading: boolean;
@@ -17,8 +40,8 @@ interface AuthContextType {
     isCurator: boolean;  // Effective role
     realIsAdmin: boolean; // Actual database role
     realIsCurator: boolean; // Actual database role
-    simulatedRole: 'admin' | 'curator' | 'member' | 'visitor' | null;
-    setSimulatedRole: (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => void;
+    simulatedRole: SimulatedRole | null;
+    setSimulatedRole: (role: SimulatedRole | null) => void;
     isEditingMode: boolean;
     setIsEditingMode: (value: boolean) => void;
     lastSearchPath: string;
@@ -42,9 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isCurator, setIsCurator] = useState(false);
     const [isEditingMode, setIsEditingMode] = useState(false);
     const [lastSearchPath, setLastSearchPath] = useState('/archive');
-    const [simulatedRole, setSimulatedRole] = useState<'admin' | 'curator' | 'member' | 'visitor' | null>(() => {
-        return localStorage.getItem('sahs_simulated_role') as any || null;
-    });
+    const [simulatedRole, setSimulatedRole] = useState<SimulatedRole | null>(storedSimulatedRole);
     const [isMember, setIsMember] = useState(false);
     const [isExpiredMember, setIsExpiredMember] = useState(false);
     const [memberData, setMemberData] = useState<Member | null>(null);
@@ -60,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const location = useLocation();
 
-    const handleSetSimulatedRole = (role: 'admin' | 'curator' | 'member' | 'visitor' | null) => {
+    const handleSetSimulatedRole = (role: SimulatedRole | null) => {
         if (!isAdmin) return; // Only real admins can simulate roles
         setSimulatedRole(role);
         if (role) {
