@@ -48,6 +48,7 @@ export function AddItem() {
     const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
+    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -268,7 +269,9 @@ export function AddItem() {
                     file = await compressImage(file);
                     setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
+                    setIsOptimizingImage(true);
                     file = await compressImage(file);
+                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -291,6 +294,7 @@ export function AddItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
+            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -920,6 +924,12 @@ export function AddItem() {
                                         <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                             <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                         </div>
+                                    </div>
+                                ) : isOptimizingImage ? (
+                                    <div className="flex flex-col items-center gap-3 mt-4">
+                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="font-bold text-charcoal">Optimizing Image...</p>
+                                        <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                     </div>
                                 ) : selectedFiles.length > 0 ? (
                                     <div className="grid grid-cols-4 gap-2 w-full max-w-sm mt-4">

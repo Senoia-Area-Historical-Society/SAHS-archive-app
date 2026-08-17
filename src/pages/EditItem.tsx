@@ -177,6 +177,7 @@ export default function EditItem() {
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
+    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -587,7 +588,9 @@ export default function EditItem() {
                     file = await compressImage(file);
                     setIsConvertingHeic(false);
                 } else if (file.type.startsWith('image/')) {
+                    setIsOptimizingImage(true);
                     file = await compressImage(file);
+                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -609,6 +612,7 @@ export default function EditItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
+            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -1335,6 +1339,14 @@ export default function EditItem() {
                                     <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                         <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                     </div>
+                                </div>
+                            )}
+
+                            {isOptimizingImage && (
+                                <div className="flex flex-col items-center gap-3 mb-6">
+                                    <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="font-bold text-charcoal">Optimizing Image...</p>
+                                    <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                 </div>
                             )}
 
