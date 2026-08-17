@@ -15,6 +15,8 @@
   "hosting": {
     "target": "archives",
     "public": "dist",
+    "//cleanUrls": "Lets /archive resolve to dist/archive.html, the pre-rendered head that scripts/generate-static-pages.cjs writes for the list pages. Without it Hosting would only find those files as a directory index and 301 to /archive/, contradicting the canonical they declare. Every indexed URL on this site is extensionless, so the only other effect — redirecting a .html URL to its clean form — touches nothing that is linked or in the sitemap.",
+    "cleanUrls": true,
     "ignore": [
       "firebase.json",
       "**/.*",
