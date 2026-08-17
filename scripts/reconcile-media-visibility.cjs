@@ -65,6 +65,7 @@ const stats = {
     missing: 0,
     unattributed: 0,
     orphanRestricted: 0,
+    orphanThumbs: 0,
     failed: 0,
 };
 
@@ -125,6 +126,19 @@ const RESTRICTED_FIELDS = new Set(['accession_paperwork_urls']);
  * token, and revoking those would break that site.
  */
 const RESTRICTED_PREFIXES = ['accession_paperwork/'];
+
+/**
+ * A thumbnail's originating object path, or null if this is not a thumbnail.
+ *
+ * The inverse of thumbPathsFor. It cannot recover the original's extension —
+ * scan.png and scan.jpg both produce scan_400x400.webp — so it returns the stem
+ * and the caller matches it against paths it already holds.
+ */
+function originStemFor(thumbPath) {
+    const match = thumbPath.match(new RegExp(`^(.*)/${RESIZED_DIR}/(.+)_(\\d+)x\\3\\.webp$`));
+    if (!match) return null;
+    return `${match[1]}/${match[2]}`;
+}
 
 /**
  * Every Storage URL reachable from a document, found structurally rather than by
@@ -278,14 +292,37 @@ async function main() {
     // Objects no Firestore document points at. Mostly not touched — deciding their
     // visibility would be guessing — but anything under a never-public prefix is
     // restricted regardless, since that needs no attribution to decide.
+    // Stems of every original Firestore references, so an orphaned thumbnail can be
+    // told from one whose original is simply pending.
+    const referencedStems = new Set();
+    for (const path of want.keys()) {
+        if (path.includes(`/${RESIZED_DIR}/`)) continue;
+        const dot = path.lastIndexOf('.');
+        referencedStems.add(dot === -1 ? path : path.slice(0, dot));
+    }
+
     for (const name of presentPaths) {
         if (want.has(name)) continue;
+
         if (RESTRICTED_PREFIXES.some((prefix) => name.startsWith(prefix))) {
             want.set(name, 'restricted');
             stats.orphanRestricted += 1;
-        } else {
-            stats.unattributed += 1;
+            continue;
         }
+
+        // A thumbnail whose original no document references. The backfill calls
+        // makePublic() on every variant it writes, and it skips media belonging to
+        // non-public items — but an orphan belongs to no item at all, so it sails
+        // through and gets a public 400px and 1000px rendering of an original that
+        // is itself not public. Same invariant, opposite direction.
+        const stem = originStemFor(name);
+        if (stem && !referencedStems.has(stem)) {
+            want.set(name, 'restricted');
+            stats.orphanThumbs += 1;
+            continue;
+        }
+
+        stats.unattributed += 1;
     }
 
     const entries = [...want.entries()];
@@ -311,6 +348,7 @@ async function main() {
     console.log(`  referenced but absent   ${stats.missing}`);
     console.log(`  in bucket, unreferenced ${stats.unattributed}`);
     console.log(`  orphans in restricted prefixes ${stats.orphanRestricted}`);
+    console.log(`  thumbnails of unreferenced originals ${stats.orphanThumbs}`);
     console.log(`  failed                  ${stats.failed}`);
 
     process.exit(stats.failed > 0 ? 1 : 0);
