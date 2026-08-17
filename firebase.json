@@ -1,4 +1,7 @@
 {
+  "extensions": {
+    "storage-resize-images": "firebase/storage-resize-images@0.2.13"
+  },
   "firestore": [
     {
       "database": "sahs-archives",

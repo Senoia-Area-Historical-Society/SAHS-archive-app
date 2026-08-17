@@ -199,9 +199,12 @@ export function BrowseArchive() {
         settings.museumName
     ));
 
-    if (loading) {
-        return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading archive...</div>;
-    }
+    // NOTE: there is deliberately no early return for `loading` here. Returning a
+    // placeholder for the whole page meant the header, filter bar and grid all
+    // appeared at once when Firestore responded, measured as a 0.14 layout shift
+    // — a failing Core Web Vital, against 0.00 on the homepage. The header and
+    // filters derive from the URL rather than from Firestore, so they render
+    // immediately and only the results region below shows a skeleton.
 
     return (
         <div className="max-w-full mx-auto h-full flex flex-col">
@@ -286,7 +289,27 @@ export function BrowseArchive() {
             </div>
 
             <div className="flex-1">
-                {sortedItems.length > 0 ? (
+                {loading ? (
+                    // Only the results region depends on Firestore. Rendering the
+                    // real header and filter bar immediately, and skeletoning just
+                    // this part, keeps everything above it from moving when data
+                    // lands — which is what the layout shift was.
+                    <div
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max animate-pulse"
+                        aria-busy="true"
+                        aria-label="Loading archive records"
+                    >
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div key={i} className="rounded-xl border border-tan-light overflow-hidden bg-white">
+                                <div className="aspect-[4/3] bg-tan-light/30" />
+                                <div className="p-4">
+                                    <div className="h-4 bg-tan-light/40 rounded w-4/5 mb-2" />
+                                    <div className="h-3 bg-tan-light/25 rounded w-2/5" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : sortedItems.length > 0 ? (
                     viewMode === 'grid' ? (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
