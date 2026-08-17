@@ -17,6 +17,7 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 // Fix for default Leaflet icon inclusion in build environments
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { OptimizedImage } from './OptimizedImage';
 
 const DefaultIcon = L.icon({
     iconUrl: markerIcon,
@@ -520,11 +521,11 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
                                 <Popup>
                                     <div className="p-1 max-w-[210px] text-left">
                                         {item.featured_image_url && (
-                                            <img 
+                                            <OptimizedImage 
                                                 src={item.featured_image_url} 
                                                 alt={item.title} 
                                                 className="w-full h-24 object-cover rounded-lg mb-2 border border-tan-light/30"
-                                            />
+                                            optimizedWidth={400} />
                                         )}
                                         <h4 className="font-serif font-bold text-charcoal mb-0.5 text-xs leading-snug break-words">
                                             {item.title}

@@ -24,6 +24,7 @@ import {
     Eye
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { OptimizedImage } from '../components/OptimizedImage';
 
 type AuditIssue = 'no-image' | 'no-date' | 'no-id' | 'no-desc' | 'no-location';
 type SortOption = 'health-asc' | 'health-desc' | 'newest';
@@ -590,11 +591,11 @@ export function AuditDashboard() {
                                         <div className="flex items-center gap-5">
                                             {(item.featured_image_url || (item.file_urls && item.file_urls.length > 0)) ? (
                                                 <div className="relative shrink-0">
-                                                    <img 
+                                                    <OptimizedImage 
                                                         src={item.featured_image_url || item.file_urls[0]} 
                                                         className="w-16 h-16 rounded-[1.25rem] object-cover border-2 border-tan-light shadow-md" 
                                                         alt="" 
-                                                    />
+                                                    optimizedWidth={400} />
                                                     <div className={`absolute -top-2 -right-2 w-6 h-6 ${item.featured_image_url ? 'bg-green-500' : 'bg-tan'} rounded-full border-4 border-white flex items-center justify-center`}>
                                                         {item.featured_image_url ? <CheckCircle2 size={10} className="text-white" /> : <Info size={10} className="text-white" />}
                                                     </div>

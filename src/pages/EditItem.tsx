@@ -12,6 +12,7 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
 import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
+import { OptimizedImage } from '../components/OptimizedImage';
 
 function useClickOutside(ref: React.RefObject<any>, handler: () => void) {
     useEffect(() => {
@@ -1360,7 +1361,7 @@ export default function EditItem() {
                                                 return (
                                                     <div key={item.id} className="flex flex-col gap-1">
                                                         <div className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all group/thumb ${featuredImageUrl === url ? 'border-tan ring-2 ring-tan/20 shadow-md' : 'border-tan-light/30'}`}>
-                                                            <img src={url} className="w-full h-full object-cover" alt="existing" />
+                                                            <OptimizedImage src={url} className="w-full h-full object-cover" alt="existing" optimizedWidth={400} />
                                                             <div className="absolute inset-0 bg-charcoal/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                                                                     <button
                                                                         type="button"

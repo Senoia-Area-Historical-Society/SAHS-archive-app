@@ -12,6 +12,7 @@ import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUni
 import { DocumentCard } from '../components/DocumentCard';
 import { CollectionGridImage } from '../components/CollectionGridImage';
 import type { Collection, ArchiveItem } from '../types/database';
+import { OptimizedImage } from '../components/OptimizedImage';
 
 export function CollectionDetail() {
     const { id } = useParams();
@@ -412,7 +413,7 @@ export function CollectionDetail() {
                                                     {isSelected && <CheckCircle size={14} className="stroke-[3]" />}
                                                 </div>
                                                 {item.featured_image_url || (item.file_urls && item.file_urls.length > 0) ? (
-                                                    <img src={item.featured_image_url || item.file_urls![0]} alt={item.title} className="w-10 h-10 object-cover rounded shadow-sm" />
+                                                    <OptimizedImage src={item.featured_image_url || item.file_urls![0]} alt={item.title} optimizedWidth={400} className="w-10 h-10 object-cover rounded shadow-sm" />
                                                 ) : (
                                                     <div className="w-10 h-10 bg-cream flex items-center justify-center rounded text-tan shadow-sm"><ImageIcon size={16} /></div>
                                                 )}

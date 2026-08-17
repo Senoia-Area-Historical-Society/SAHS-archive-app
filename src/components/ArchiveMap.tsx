@@ -13,6 +13,7 @@ import 'react-leaflet-cluster/dist/assets/MarkerCluster.Default.css';
 // Fix for default Leaflet icon inclusion in build environments
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { OptimizedImage } from './OptimizedImage';
 
 const DefaultIcon = L.icon({
     iconUrl: markerIcon,
@@ -83,11 +84,11 @@ export function ArchiveMap({ items }: ArchiveMapProps) {
                             <Popup>
                                 <div className="p-1 max-w-[200px]">
                                     {item.featured_image_url && (
-                                        <img 
+                                        <OptimizedImage 
                                             src={item.featured_image_url} 
                                             alt={item.title} 
                                             className="w-full h-24 object-cover rounded-lg mb-2 border border-tan-light/50"
-                                        />
+                                        optimizedWidth={400} />
                                     )}
                                     <h4 className="font-serif font-bold text-charcoal mb-1 text-sm leading-tight">{item.title || item.org_name}</h4>
                                     <p className="text-[10px] text-charcoal/60 mb-2 line-clamp-2 leading-snug">{item.description}</p>

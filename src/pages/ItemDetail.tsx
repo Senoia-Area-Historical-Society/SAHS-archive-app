@@ -1040,9 +1040,10 @@ export function ItemDetail() {
                             }}
                             onTouchEnd={() => setIsDragging(false)}
                         >
-                            <img
+                            <OptimizedImage
                                 src={file_urls[currentImageIndex]}
                                 alt="High Resolution View"
+                                optimizedWidth={0}
                                 className="shadow-2xl rounded-lg transition-all duration-300 ring-4 ring-white/5"
                                 style={{
                                     maxWidth: 'min(75vw, 1200px)',
@@ -2422,9 +2423,10 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                         {/* Portrait Image or Pulsing Microphone */}
                         <div className="relative w-32 h-32 rounded-full overflow-hidden shrink-0 border-2 border-tan bg-tan-light/10 flex items-center justify-center shadow-inner">
                             {portraitUrl ? (
-                                <img 
-                                    src={portraitUrl} 
-                                    alt={item.title} 
+                                <OptimizedImage
+                                    src={portraitUrl}
+                                    alt={item.title}
+                                    optimizedWidth={400}
                                     className="w-full h-full object-cover transition-transform duration-500 hover:scale-110 cursor-zoom-in"
                                     onClick={() => setZoomedImage(portraitUrl)}
                                 />

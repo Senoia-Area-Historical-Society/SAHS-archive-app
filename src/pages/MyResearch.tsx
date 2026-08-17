@@ -7,6 +7,7 @@ import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem, Member } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
+import { OptimizedImage } from '../components/OptimizedImage';
 
 interface ResearchFolder {
     id: string;
@@ -1222,11 +1223,11 @@ export function MyResearch() {
                                             <div key={item.id} className="flex items-center justify-between p-3 bg-white border border-tan-light/20 rounded-xl hover:shadow-xs transition-shadow">
                                                 <div className="flex items-center gap-3 min-w-0 pr-4">
                                                     {item.featured_image_url || (item.file_urls && item.file_urls.length > 0) ? (
-                                                        <img 
+                                                        <OptimizedImage 
                                                             src={item.featured_image_url || item.file_urls[0]} 
                                                             alt={item.title} 
                                                             className="w-10 h-10 rounded-lg object-cover shrink-0 border border-tan-light/20"
-                                                        />
+                                                        optimizedWidth={400} />
                                                     ) : (
                                                         <div className="w-10 h-10 rounded-lg bg-charcoal/5 text-tan flex items-center justify-center text-xs font-serif shrink-0 border border-tan-light/20">
                                                             {item.title.charAt(0)}
