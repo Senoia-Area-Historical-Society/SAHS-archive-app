@@ -1,33 +1,46 @@
+/**
+ * A vertex of a polygon outline on the floor plan.
+ *
+ * `curve` is the control point for a quadratic curve from this vertex to the
+ * next, so a room wall can be rounded. Absent means a straight segment.
+ */
+export interface MapPoint {
+    x: number;
+    y: number;
+    curve?: { cx: number; cy: number };
+}
+
+/**
+ * A shape placed on the museum floor plan.
+ *
+ * This was written out three times below — once for a Room's map_coordinates,
+ * once for each entry in its geometries array, once for a MuseumLocation. The
+ * editor in InteractiveMap treats all three interchangeably, which is why every
+ * function that moves or resizes one used to take `any`: there was no name to
+ * put on the parameter.
+ */
+export interface MapGeometry {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation?: number;
+    skewX?: number;
+    shape?: 'rectangle' | 'circle' | 'polygon';
+    points?: MapPoint[];
+    z_index?: number;
+    display_type?: 'pin' | 'block';
+}
+
 export interface Room {
     id: string;      // Unique slug/ID
     docId?: string;  // Firebase Document ID
     name: string;    // Display name
     description?: string;
     created_at: string;
-    map_coordinates?: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        rotation?: number;
-        skewX?: number;
-        shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
-        z_index?: number;
-        display_type?: 'pin' | 'block';
-    } | null;
-    geometries?: Array<{
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        rotation?: number;
-        skewX?: number;
-        shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
-        z_index?: number;
-        display_type?: 'pin' | 'block';
-    }>;
+    map_coordinates?: MapGeometry | null;
+    /** A room can be drawn as several disjoint shapes — an L-shaped gallery. */
+    geometries?: MapGeometry[];
     group_id?: string;
     floor_id?: string;
 }
@@ -58,18 +71,7 @@ export interface MuseumLocation {
     room_id?: string;
     parent_location_id?: string; // Links a Box to a parent Shelf/Case Location
     display_type?: 'pin' | 'block';
-    map_coordinates?: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        rotation?: number;
-        skewX?: number;
-        shape?: 'rectangle' | 'circle' | 'polygon';
-        points?: Array<{ x: number; y: number; curve?: { cx: number; cy: number } }>;
-        z_index?: number;
-        display_type?: 'pin' | 'block';
-    } | null;
+    map_coordinates?: MapGeometry | null;
     floor_id?: string;
 }
 

@@ -3,7 +3,28 @@ import { Rnd } from 'react-rnd';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, getDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { Plus, MapPin, Square, ZoomIn, ZoomOut, Maximize, Edit3, X, BoxSelect, Maximize2, RotateCw, LayoutGrid, Compass, Layers, HelpCircle } from 'lucide-react';
-import type { MuseumLocation, Room, MapFloor } from '../types/database';
+import type { MuseumLocation, Room, MapFloor, MapGeometry, MapPoint } from '../types/database';
+import type { RndDragEvent, DraggableData, ResizableDelta, Position } from 'react-rnd';
+import type { ResizeDirection } from 're-resizable';
+
+/**
+ * Rooms as they were stored before they got their own collection, plus the
+ * several coordinate spellings that shape went through. Read once by the
+ * legacy-sync pass below and never written, so it stays local to this file.
+ */
+interface LegacyRoom {
+    id: string | number;
+    name: string;
+    map_coordinates?: MapGeometry;
+    map_coords?: MapGeometry;
+    coords?: MapGeometry;
+    coordinates?: MapGeometry;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    rotation?: number;
+}
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -17,13 +38,23 @@ type LayoutHistoryState = {
     floors?: MapFloor[];
 };
 
+/**
+ * What a single editable property of a shape can hold.
+ *
+ * The two handlers below take a property name and a value, and the value's type
+ * genuinely depends on the name: dimensions arrive as strings from number inputs,
+ * `shape` is one of three literals, and `points` is a polygon outline. Spelling
+ * the union out is what lets the narrowing inside those handlers be checked.
+ */
+type MapPropertyValue = string | number | MapPoint[];
+
 const DEFAULT_CANVAS_WIDTH = 2400;
 const DEFAULT_CANVAS_HEIGHT = 1600;
 const PIXELS_PER_FOOT = 24; // 1 foot = 24 pixels (1 inch = 2 pixels)
 
-const getSmartBorders = (current: any, all: any[], isSelected: boolean) => {
+const getSmartBorders = (current: MapGeometry, all: MapGeometry[], isSelected: boolean) => {
     const borderStyle = isSelected ? '2px solid #3b82f6' : '2px solid rgba(139, 115, 85, 0.3)';
-    const style: any = {
+    const style: React.CSSProperties = {
         borderTop: borderStyle,
         borderBottom: borderStyle,
         borderLeft: borderStyle,
@@ -524,7 +555,7 @@ function InteractiveMapEditor() {
             const data = rawData.filter(loc => !loc.parent_location_id);
             setLocations(data);
             
-            const coords: Record<string, any> = {};
+            const coords: Record<string, MapGeometry> = {};
             data.forEach(loc => {
                 if (loc.map_coordinates) {
                     coords[loc.id] = loc.map_coordinates;
@@ -552,12 +583,12 @@ function InteractiveMapEditor() {
                     const batch = writeBatch(db);
                     let syncCount = 0;
                     
-                    legacyRooms.forEach((r: any) => {
+                    legacyRooms.forEach((r: LegacyRoom) => {
                         const existing = roomData.find(ex => ex.name === r.name);
                         
                         // Smart Coordinate Discovery
                         const coords = r.map_coordinates || r.map_coords || r.coords || r.coordinates || 
-                                     (r.x !== undefined ? { x: r.x, y: r.y, width: r.width || 360, height: r.height || 360, rotation: r.rotation ?? 0 } : null);
+                                     (r.x !== undefined ? { x: r.x, y: r.y ?? 0, width: r.width || 360, height: r.height || 360, rotation: r.rotation ?? 0 } : null);
 
                         if (existing) {
                             // Update existing room if it's missing coordinates
@@ -674,7 +705,9 @@ function InteractiveMapEditor() {
     const handleSaveLayout = async () => {
         setIsSaving(true);
         try {
-            const stripUndefined = (obj: any) => JSON.parse(JSON.stringify(obj));
+            // Generic rather than any: the round-trip drops undefined-valued keys but
+            // returns the same shape, so callers keep their type.
+            const stripUndefined = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
             const updates = Array.from(dirtyIdsRef.current);
             console.log("Initiating Direct Commit for IDs:", updates);
@@ -1039,7 +1072,7 @@ function InteractiveMapEditor() {
             const subRooms = selectedRooms.slice(1);
             
             // Collect all geometries
-            const allGeometries: Array<any> = [];
+            const allGeometries: MapGeometry[] = [];
             selectedRooms.forEach(room => {
                 if (room.geometries && room.geometries.length > 0) {
                     allGeometries.push(...room.geometries);
@@ -1055,7 +1088,7 @@ function InteractiveMapEditor() {
             });
 
             // 2. Reconcile Locations: Find all locations pointing to sub-rooms and point them to master room
-            const locReconcilePromises: Promise<any>[] = [];
+            const locReconcilePromises: Promise<void>[] = [];
             subRooms.forEach(sub => {
                 locations.filter(l => l.room_id === sub.docId).forEach(loc => {
                     locReconcilePromises.push(updateDoc(doc(db, 'locations', loc.docId!), {
@@ -1122,7 +1155,7 @@ function InteractiveMapEditor() {
                     map_coordinates: geom
                 };
                 await setDoc(newRoomRef, newData);
-                newRooms.push({ ...newData, docId: newRoomRef.id } as any);
+                newRooms.push({ ...newData, docId: newRoomRef.id } as Room);
             }
 
             // 3. Update UI
@@ -1168,7 +1201,7 @@ function InteractiveMapEditor() {
             setRooms(prev => prev.map(r => {
                 const rid = r.docId || r.id;
                 if (rid === id) {
-                    const updateCoords = (c: any) => {
+                    const updateCoords = (c: MapGeometry | null | undefined): MapGeometry | null => {
                         if (!c) return null;
                         if (!isSwapping) return { ...c, rotation: deg };
                         
@@ -1191,7 +1224,11 @@ function InteractiveMapEditor() {
                     return {
                         ...r,
                         map_coordinates: updateCoords(r.map_coordinates),
-                        geometries: r.geometries ? r.geometries.map(updateCoords) : undefined
+                        // updateCoords returns null for an absent shape; geometries entries
+                        // are never absent, so drop the nulls the signature allows.
+                        geometries: r.geometries
+                            ? r.geometries.map(updateCoords).filter((g): g is MapGeometry => g !== null)
+                            : undefined
                     };
                 }
                 return r;
@@ -1230,7 +1267,7 @@ function InteractiveMapEditor() {
         });
     };
 
-    const handleItemSelection = (id: string, e: any) => {
+    const handleItemSelection = (id: string, e: React.MouseEvent) => {
         if (!isEditMode) return;
         const isShift = e.shiftKey;
         
@@ -1358,7 +1395,7 @@ function InteractiveMapEditor() {
         setSelectionBox(null);
     };
 
-    const handleGroupDragStart = (draggedId: string, draggedIndex?: number, e?: any) => {
+    const handleGroupDragStart = (draggedId: string, draggedIndex?: number, e?: RndDragEvent) => {
         if (!isEditMode) return;
 
         // Safety: If dragging an unselected item without shift, force it to be the sole selection
@@ -1627,14 +1664,14 @@ function InteractiveMapEditor() {
                 if (r.geometries && r.geometries.length > 0) {
                     return {
                         ...r,
-                        geometries: r.geometries.map((gc: any, gi: number) => {
+                        geometries: r.geometries.map((gc: MapGeometry, gi: number) => {
                             const gStart = snapshotPositions[`${id}-geom-${gi}`] || snapshotPositions[`${r.id}-geom-${gi}`] || gc;
                             return {
                                 ...gc,
                                 x: absoluteSnap(gStart.x) + offsetX,
                                 y: absoluteSnap(gStart.y) + offsetY,
                                 ...(gc.shape === 'polygon' && gc.points ? {
-                                    points: gc.points.map((pt: any) => ({
+                                    points: gc.points.map((pt: MapPoint) => ({
                                         ...pt,
                                         x: pt.x + offsetX,
                                         y: pt.y + offsetY,
@@ -1655,7 +1692,7 @@ function InteractiveMapEditor() {
                             x: absoluteSnap(sStart.x) + offsetX,
                             y: absoluteSnap(sStart.y) + offsetY,
                             ...(r.map_coordinates.shape === 'polygon' && r.map_coordinates.points ? {
-                                points: r.map_coordinates.points.map((pt: any) => ({
+                                points: r.map_coordinates.points.map((pt: MapPoint) => ({
                                     ...pt,
                                     x: pt.x + offsetX,
                                     y: pt.y + offsetY,
@@ -1698,7 +1735,7 @@ function InteractiveMapEditor() {
         setSelectionTick(t => t + 1); // Finally sync selection UI
     };
 
-    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale' | 'skewX' | 'shape' | 'points', value: any) => {
+    const handleUpdateLocationProperty = (id: string, property: 'width' | 'height' | 'x' | 'y' | 'rotation' | 'scale' | 'skewX' | 'shape' | 'points', value: MapPropertyValue) => {
         saveSnapshot();
         markDirty(id);
         
@@ -1717,7 +1754,7 @@ function InteractiveMapEditor() {
             const c = prev[id];
             if (!c) return prev;
 
-            const updatedFields: any = { [property]: pixels };
+            const updatedFields: Record<string, unknown> = { [property]: pixels };
             
             // Enforce circle properties
             if (property === 'shape' && pixels === 'circle') {
@@ -1728,10 +1765,10 @@ function InteractiveMapEditor() {
 
             // Recalculate bounding box for polygon points
             if (property === 'points') {
-                const pts = pixels;
-                if (pts && pts.length > 0) {
+                const pts = Array.isArray(pixels) ? pixels : [];
+                if (pts.length > 0) {
                     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                    pts.forEach((pt: any) => {
+                    pts.forEach((pt: MapPoint) => {
                         minX = Math.min(minX, pt.x);
                         minY = Math.min(minY, pt.y);
                         maxX = Math.max(maxX, pt.x);
@@ -1768,7 +1805,7 @@ function InteractiveMapEditor() {
         });
     };
 
-    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation' | 'skewX' | 'shape' | 'points', value: any, index?: number) => {
+    const handleUpdateRoomProperty = (id: string, property: 'name' | 'width' | 'height' | 'x' | 'y' | 'rotation' | 'skewX' | 'shape' | 'points', value: MapPropertyValue, index?: number) => {
         // If it's a name update, don't snapshot every keystroke to avoid spam
         if (property !== 'name') saveSnapshot();
         
@@ -1788,10 +1825,10 @@ function InteractiveMapEditor() {
                 // Units conversion: feet to pixels for spatial properties
                 const pixels = (property === 'rotation' || property === 'skewX' || property === 'shape' || property === 'points') ? value : absoluteSnap(val * PIXELS_PER_FOOT);
 
-                const updateCoords = (c: any, i: number) => {
+                const updateCoords = (c: MapGeometry, i: number) => {
                     if (index !== undefined && i !== index) return c;
                     
-                    const updatedFields: any = { [property]: pixels };
+                    const updatedFields: Record<string, unknown> = { [property]: pixels };
                     
                     // Enforce circle properties
                     if (property === 'shape' && pixels === 'circle') {
@@ -1812,8 +1849,8 @@ function InteractiveMapEditor() {
 
                     // Recalculate bounding box for polygon points (including curve control points)
                     if (property === 'points') {
-                        const pts = pixels;
-                        if (pts && pts.length > 0) {
+                        const pts = Array.isArray(pixels) ? pixels : [];
+                        if (pts.length > 0) {
                             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                             pts.forEach((pt: { x: number; y: number; curve?: { cx: number; cy: number } }) => {
                                 minX = Math.min(minX, pt.x);
@@ -1847,7 +1884,7 @@ function InteractiveMapEditor() {
 
                 // If rotation makes it vertical/horizontal, swap dimensions to match the physical box
                 if (!isPolygon && property === 'rotation' && val % 180 !== (currentGeom?.rotation || 0) % 180 && val % 90 === 0) {
-                    const swapCoords = (c: any, i: number) => {
+                    const swapCoords = (c: MapGeometry, i: number) => {
                         if (index !== undefined && i !== index) return c;
                         const centerX = c.x + c.width / 2;
                         const centerY = c.y + c.height / 2;
@@ -2653,7 +2690,7 @@ function InteractiveMapEditor() {
                                  });
                                 const isSelected = selectedIdsRef.current.has(room.docId!);
 
-                                const renderBox = (c: any, index: number) => {
+                                const renderBox = (c: MapGeometry, index: number) => {
                                     const isCircle = c.shape === 'circle';
                                     const isPolygon = c.shape === 'polygon';
                                     const hasTransform = (c.rotation && c.rotation % 360 !== 0) || (c.skewX && c.skewX % 360 !== 0);
@@ -2724,7 +2761,7 @@ function InteractiveMapEditor() {
                                                     {isEditMode && isSelected && (
                                                          <>
                                                              {/* Curve control point handles and guide lines */}
-                                                             {points.map((pt: any, pIdx: number) => {
+                                                             {points.map((pt: MapPoint, pIdx: number) => {
                                                                  if (!pt.curve) return null;
                                                                  const nextPt = points[(pIdx + 1) % points.length];
                                                                  return (
@@ -2752,7 +2789,7 @@ function InteractiveMapEditor() {
                                                                                       roomId: room.docId!,
                                                                                       geomIndex: index,
                                                                                       pointIndex: pIdx,
-                                                                                      startPoints: [...points.map((p: any) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                                      startPoints: [...points.map((p: MapPoint) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
                                                                                       startX: e.clientX,
                                                                                       startY: e.clientY
                                                                                   });
@@ -2776,9 +2813,10 @@ function InteractiveMapEditor() {
                                                                  );
                                                              })}
                                                              {/* Midpoint '+' handles and '⌒' curve toggle buttons */}
-                                                             {points.map((pt: any, pIdx: number) => {
+                                                             {points.map((pt: MapPoint, pIdx: number) => {
                                                                  const nextPt = points[(pIdx + 1) % points.length];
-                                                                 const isCurved = !!pt.curve;
+                                                                 const curve = pt.curve;
+                                                                 const isCurved = !!curve;
                                                                  const chordMidX = (pt.x + nextPt.x) / 2;
                                                                  const chordMidY = (pt.y + nextPt.y) / 2;
 
@@ -2796,11 +2834,14 @@ function InteractiveMapEditor() {
                                                                  const outwardY = isClockwise ? (-edgeDx / edgeLen) : (edgeDx / edgeLen);
 
                                                                  // Calculate midpoint position (on curved arc if curved, otherwise on straight edge)
-                                                                 const midX = isCurved 
-                                                                     ? 0.25 * pt.x + 0.5 * pt.curve.cx + 0.25 * nextPt.x 
+                                                                 // `curve` rather than `isCurved` as the condition: an aliased
+                                                                 // boolean does not narrow the property, and this way the
+                                                                 // reads below are checked rather than asserted.
+                                                                 const midX = curve
+                                                                     ? 0.25 * pt.x + 0.5 * curve.cx + 0.25 * nextPt.x 
                                                                      : chordMidX;
-                                                                 const midY = isCurved 
-                                                                     ? 0.25 * pt.y + 0.5 * pt.curve.cy + 0.25 * nextPt.y 
+                                                                 const midY = curve
+                                                                     ? 0.25 * pt.y + 0.5 * curve.cy + 0.25 * nextPt.y 
                                                                      : chordMidY;
 
                                                                  // Toggle button: on straight edge, offset outward; on curved edge, offset inward from curve apex to follow curve without diamond overlap
@@ -2851,7 +2892,7 @@ function InteractiveMapEditor() {
                                                                                  e.stopPropagation();
                                                                                  if (isCurved) {
                                                                                      // Remove curve — set edge back to straight
-                                                                                     const updatedPoints = points.map((p: any, idx: number) =>
+                                                                                     const updatedPoints = points.map((p: MapPoint, idx: number) =>
                                                                                          idx === pIdx ? { x: p.x, y: p.y } : p
                                                                                      );
                                                                                      handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
@@ -2860,7 +2901,7 @@ function InteractiveMapEditor() {
                                                                                      const curveOffset = 55;
                                                                                      const cx = Math.round(chordMidX + outwardX * curveOffset);
                                                                                      const cy = Math.round(chordMidY + outwardY * curveOffset);
-                                                                                     const updatedPoints = points.map((p: any, idx: number) =>
+                                                                                     const updatedPoints = points.map((p: MapPoint, idx: number) =>
                                                                                          idx === pIdx ? { ...p, curve: { cx, cy } } : p
                                                                                      );
                                                                                      handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
@@ -2887,7 +2928,7 @@ function InteractiveMapEditor() {
                                                              })}
 
                                                              {/* Vertex corner dots */}
-                                                             {points.map((pt: any, pIdx: number) => (
+                                                             {points.map((pt: MapPoint, pIdx: number) => (
                                                                  <circle
                                                                      key={pIdx}
                                                                      cx={pt.x}
@@ -2903,7 +2944,7 @@ function InteractiveMapEditor() {
                                                                              roomId: room.docId!,
                                                                              geomIndex: index,
                                                                              pointIndex: pIdx,
-                                                                             startPoints: [...points.map((p: any) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
+                                                                             startPoints: [...points.map((p: MapPoint) => ({ ...p, curve: p.curve ? { ...p.curve } : undefined }))],
                                                                              startX: e.clientX,
                                                                              startY: e.clientY
                                                                          });
@@ -2911,7 +2952,7 @@ function InteractiveMapEditor() {
                                                                      onDoubleClick={(e) => {
                                                                          e.stopPropagation();
                                                                          if (points.length <= 3) return;
-                                                                         const updatedPoints = points.filter((_: any, idx: number) => idx !== pIdx);
+                                                                         const updatedPoints = points.filter((_: MapPoint, idx: number) => idx !== pIdx);
                                                                          handleUpdateRoomProperty(room.docId!, 'points', updatedPoints, index);
                                                                      }}
                                                                  />
@@ -2939,10 +2980,10 @@ function InteractiveMapEditor() {
                                             key={`${room.docId}-box-${index}-${isEditMode}`}
                                             id={index === 0 ? `rnd-node-${room.docId}` : `inner-rnd-${room.docId}-geom-${index}`}
                                             className={`absolute ${isEditMode ? 'cursor-move' : 'pointer-events-none'}`}
-                                            onMouseDownCapture={(e: any) => {
+                                            onMouseDownCapture={(e: React.MouseEvent) => {
                                                 if (isEditMode && e.shiftKey) handleItemSelection(room.docId!, e);
                                             }}
-                                            onClickCapture={(e: any) => {
+                                            onClickCapture={(e: React.MouseEvent) => {
                                                 if (isEditMode && !e.shiftKey) handleItemSelection(room.docId!, e);
                                             }}
                                             style={{ 
@@ -2979,20 +3020,20 @@ function InteractiveMapEditor() {
                                             resizeGrid={isSnapping && isEditMode ? [12, 12] : undefined}
                                             position={{ x: c.x, y: c.y }}
                                             size={{ width: c.width, height: c.height }}
-                                            onDragStart={(e: any) => handleGroupDragStart(room.docId!, index, e)}
-                                            onDrag={(_e: any, d: any) => handleGroupDrag(room.docId!, index, d)}
-                                            onDragStop={(_e: any, d: any) => handleGroupDragStopStateSync(room.docId!, index, d)}
+                                            onDragStart={(e: RndDragEvent) => handleGroupDragStart(room.docId!, index, e)}
+                                            onDrag={(_e: RndDragEvent, d: DraggableData) => handleGroupDrag(room.docId!, index, d)}
+                                            onDragStop={(_e: RndDragEvent, d: DraggableData) => handleGroupDragStopStateSync(room.docId!, index, d)}
                                             onResizeStart={() => {
                                                 setResizingRoomId(`${room.docId}-${index}`);
                                                 setActiveDimensions({ width: c.width, height: c.height });
                                             }}
-                                            onResize={(_e: any, _dir: any, ref: any) => {
+                                            onResize={(_e: MouseEvent | TouchEvent, _dir: ResizeDirection, ref: HTMLElement) => {
                                                 setActiveDimensions({ 
                                                     width: parseInt(ref.style.width, 10), 
                                                     height: parseInt(ref.style.height, 10) 
                                                 });
                                             }}
-                                            onResizeStop={(_e: any, _dir: any, ref: any, _delta: any, pos: any) => {
+                                            onResizeStop={(_e: MouseEvent | TouchEvent, _dir: ResizeDirection, ref: HTMLElement, _delta: ResizableDelta, pos: Position) => {
                                                 saveSnapshot();
                                                 markDirty(room.docId!);
                                                 setResizingRoomId(null);
@@ -3133,10 +3174,10 @@ function InteractiveMapEditor() {
                                         key={`${loc.id}-${isEditMode}`}
                                         id={`rnd-node-${loc.id}`}
                                         className={`absolute group ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
-                                        onMouseDownCapture={(e: any) => {
+                                        onMouseDownCapture={(e: React.MouseEvent) => {
                                             if (isEditMode && e.shiftKey) handleItemSelection(loc.id, e);
                                         }}
-                                        onClickCapture={(e: any) => {
+                                        onClickCapture={(e: React.MouseEvent) => {
                                             if (isEditMode && !e.shiftKey) handleItemSelection(loc.id, e);
                                         }}
                                         style={{ 
@@ -3173,13 +3214,13 @@ function InteractiveMapEditor() {
                                             width: c.display_type === 'pin' ? 60 : c.width, 
                                             height: c.display_type === 'pin' ? 60 : c.height 
                                         }}
-                                        onDragStart={(e: any) => handleGroupDragStart(loc.id, 0, e)}
-                                        onDrag={(_e: any, d: any) => {
+                                        onDragStart={(e: RndDragEvent) => handleGroupDragStart(loc.id, 0, e)}
+                                        onDrag={(_e: RndDragEvent, d: DraggableData) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
                                             const updatedY = c.display_type === 'pin' ? d.y + 50 : d.y;
                                             handleGroupDrag(loc.id, 0, { x: updatedX, y: updatedY });
                                         }}
-                                        onDragStop={(_e: any, d: any) => {
+                                        onDragStop={(_e: RndDragEvent, d: DraggableData) => {
                                             const updatedX = c.display_type === 'pin' ? d.x + 30 : d.x;
                                             const updatedY = c.display_type === 'pin' ? d.y + 50 : d.y;
                                             handleGroupDragStopStateSync(loc.id, 0, { x: updatedX, y: updatedY });
@@ -3188,7 +3229,7 @@ function InteractiveMapEditor() {
                                             setResizingRoomId(`${loc.id}-0`);
                                             setActiveDimensions({ width: c.width, height: c.height });
                                         }}
-                                        onResize={(_e: any, _dir: any, ref: any) => {
+                                        onResize={(_e: MouseEvent | TouchEvent, _dir: ResizeDirection, ref: HTMLElement) => {
                                             setActiveDimensions({ 
                                                 width: parseInt(ref.style.width, 10), 
                                                 height: parseInt(ref.style.height, 10) 
@@ -3241,7 +3282,7 @@ function InteractiveMapEditor() {
                                                     {isEditMode && (
                                                         <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/pin:opacity-100 flex gap-1 z-[60]">
                                                             <button 
-                                                                onClick={(e: any) => {
+                                                                onClick={(e: React.MouseEvent) => {
                                                                     e.stopPropagation();
                                                                     rotateItem(loc.id, 'location', c.rotation || 0, e);
                                                                 }} 
@@ -3250,7 +3291,7 @@ function InteractiveMapEditor() {
                                                                 <RotateCw size={12} className="text-blue-600"/>
                                                             </button>
                                                             <button 
-                                                                onClick={(e: any) => {
+                                                                onClick={(e: React.MouseEvent) => {
                                                                     e.stopPropagation();
                                                                     removeBlock(loc.id, e);
                                                                 }} 
@@ -3308,8 +3349,8 @@ function InteractiveMapEditor() {
                                             )}
                                             {isEditMode && c.display_type !== 'pin' && (
                                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 flex gap-1 pointer-events-auto">
-                                                    <button onClick={(e: any) => rotateItem(loc.id, 'location', c.rotation || 0, e)} className="bg-white border p-1 rounded"><RotateCw size={10}/></button>
-                                                    <button onClick={(e: any) => removeBlock(loc.id, e)} className="bg-red-400 text-white p-1 rounded"><X size={10}/></button>
+                                                    <button onClick={(e: React.MouseEvent) => rotateItem(loc.id, 'location', c.rotation || 0, e)} className="bg-white border p-1 rounded"><RotateCw size={10}/></button>
+                                                    <button onClick={(e: React.MouseEvent) => removeBlock(loc.id, e)} className="bg-red-400 text-white p-1 rounded"><X size={10}/></button>
                                                 </div>
                                             )}
                                         </div>
