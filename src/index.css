@@ -6,7 +6,11 @@
   --color-cream: #fcfaf6;
   --color-beige: #f1ede4;
   --color-tan-light: #e1d7c6;
-  --color-tan: #8b7355;
+  /* Must match THEME_PRESETS.classic.tan in AppearanceContext. This is the value
+     that applies on first paint, before the theme resolves from Firestore, so
+     leaving the old #8b7355 here meant white-on-tan rendered at a failing
+     4.49:1 until settings loaded — and stayed there if they never did. */
+  --color-tan: #846d4d;
   --color-tan-dark: #68543f;
   --color-charcoal: #3a2d1d;
   --color-charcoal-light: #746048;
