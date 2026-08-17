@@ -2,9 +2,15 @@
 /**
  * Generates thumbnail variants for images already in Cloud Storage.
  *
- * The storage-resize-images extension only processes new uploads — its backfill
- * parameters are commented out upstream and unavailable — so everything
- * uploaded before it was installed needs this one-off pass.
+ * The storage-resize-images extension can backfill natively (DO_BACKFILL in
+ * extensions/storage-resize-images.env), so this script is not a workaround for a
+ * missing feature. It exists because the native backfill resizes everything under
+ * INCLUDE_PATH_LIST with no way to consult Firestore, and archive_media/ holds the
+ * scans of non-public items. With MAKE_PUBLIC=true that would publish token-free
+ * copies of restricted material at derivable paths.
+ *
+ * This script reads item and collection privacy first and skips those objects. That
+ * is the one thing the extension cannot do.
  *
  * It produces exactly the paths src/lib/imageThumbs.ts derives, so a card can
  * construct a thumbnail URL without a lookup:
