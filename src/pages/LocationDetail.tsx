@@ -8,6 +8,7 @@ import { DocumentCard } from '../components/DocumentCard';
 import { Search, Loader2, Check, Box, Plus, MapPin, Printer, ChevronLeft, Tag, X, AlertCircle, Trash2, BookOpen, Edit2 } from 'lucide-react';
 import type { MuseumLocation, ArchiveItem, LibraryBook, Room } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { OptimizedImage } from '../components/OptimizedImage';
 
 export function LocationDetail() {
     const { id } = useParams();
@@ -1384,7 +1385,7 @@ export function LocationDetail() {
                                             <div className="flex items-center gap-4">
                                                 <div className="w-12 h-12 rounded-lg bg-tan-light/10 flex items-center justify-center overflow-hidden shrink-0 border border-tan-light/20">
                                                     {result.file_urls?.[0] ? (
-                                                        <img src={result.file_urls[0]} alt={result.title} className="w-full h-full object-cover" />
+                                                        <OptimizedImage src={result.file_urls[0]} alt={result.title} optimizedWidth={400} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <Box size={20} className="text-tan/30" />
                                                     )}

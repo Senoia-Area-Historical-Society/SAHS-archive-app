@@ -15,8 +15,10 @@ interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> 
  *
  * Each step exists for a reason:
  *
- *  1. The resized variant. A grid cell rendering at ~260px used to download the
- *     full archival scan — up to 33 MB. Missing until the backfill reaches it.
+ *  1. The resized variant, unless optimizedWidth is 0. A grid cell rendering at
+ *     ~260px used to download the full archival scan — up to 33 MB. Missing until
+ *     the backfill reaches it. Pass 0 for a lightbox or hi-res viewer, where
+ *     substituting a 400px or 1000px variant would defeat the point.
  *  2. The original by object ACL. This is the form that reflects whether the
  *     object is actually public, because visibility now lives in the ACL rather
  *     than in a blanket storage.rules `allow read: if true`.
@@ -32,7 +34,7 @@ interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> 
 function candidateSources(src: string, optimizedWidth: number, quality: number): string[] {
     if (!src) return [];
 
-    const thumb = thumbnailUrl(src, optimizedWidth);
+    const thumb = optimizedWidth > 0 ? thumbnailUrl(src, optimizedWidth) : null;
     if (thumb) {
         const original = publicMediaUrl(src);
         return original ? [thumb, original, src] : [thumb, src];
@@ -47,7 +49,11 @@ function candidateSources(src: string, optimizedWidth: number, quality: number):
     if (src.startsWith('http') && !src.includes('images.weserv.nl') && !isGoogleHosted) {
         return [`https://images.weserv.nl/?url=${encodeURIComponent(src)}&w=${optimizedWidth}&q=${quality}&output=webp&fit=cover`, src];
     }
-    return [src];
+
+    // Ours, but no thumbnail wanted. Still prefer the ACL form over the stored
+    // token URL so the restricted case reaches requestAuthorisedUrl.
+    const original = publicMediaUrl(src);
+    return original ? [original, src] : [src];
 }
 
 export function OptimizedImage({ src, alt, optimizedWidth = 400, quality = 80, priority = false, ...props }: OptimizedImageProps) {
