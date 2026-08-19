@@ -219,6 +219,10 @@ exports.renderMeta = onRequest(
         // Metadata is derived entirely from publicly readable documents.
         invoker: 'public',
         concurrency: 80,
+        // Public and crawler-facing (no auth gate), so cap the ceiling a crawl
+        // storm can scale to. 20 instances * 80 concurrency is still 1600
+        // concurrent requests before this ever throttles legitimate traffic.
+        maxInstances: 20,
     },
     async (req, res) => {
         const shell = loadShell();

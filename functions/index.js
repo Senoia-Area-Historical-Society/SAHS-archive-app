@@ -2,7 +2,6 @@ const { onDocumentWritten, onDocumentCreated } = require("firebase-functions/v2/
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { Client } = require("@googlemaps/google-maps-services-js");
 const { logger } = require("firebase-functions");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
 
@@ -13,85 +12,6 @@ const db = getFirestore("sahs-archives");
 const mapsClient = new Client({});
 
 /**
- * Cloud Function to extract metadata from an image or PDF using Gemini.
- * Uses the Gemini 2.5 Flash model for fast, accurate extraction.
- */
-exports.extractMetadata = onCall({
-    memory: "512MiB",
-    timeoutSeconds: 60,
-    secrets: ["GEMINI_API_KEY"] // Best practice: Use Secret Manager
-}, async (request) => {
-    // 1. Verify Authentication (Only SAHS users can call this)
-    if (!request.auth || !request.auth.token.email.endsWith('@senoiahistory.com')) {
-        throw new HttpsError("unauthenticated", "Unauthorized. You must be an @senoiahistory.com user.");
-    }
-
-    let { base64Payload, mimeType, url } = request.data;
-
-    if (url && !base64Payload) {
-        try {
-            logger.info(`Fetching image from URL: ${url}`);
-            const fetchResponse = await fetch(url);
-            if (!fetchResponse.ok) {
-                throw new Error(`Failed to fetch image from URL: ${fetchResponse.statusText}`);
-            }
-            const arrayBuffer = await fetchResponse.arrayBuffer();
-            base64Payload = Buffer.from(arrayBuffer).toString('base64');
-            mimeType = fetchResponse.headers.get('content-type') || 'image/jpeg';
-        } catch (error) {
-            logger.error("Error fetching image from URL:", error);
-            throw new HttpsError("internal", `Failed to download image from the provided URL: ${error.message}`);
-        }
-    }
-
-    if (!base64Payload || !mimeType) {
-        throw new HttpsError("invalid-argument", "Missing base64Payload, mimeType, or url.");
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-        throw new HttpsError("failed-precondition", "GEMINI_API_KEY secret is not configured.");
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
-        generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2,
-        },
-    });
-
-    const prompt = `Analyze this archival document or photograph. Please extract all available Dublin Core metadata elements and generate a comprehensive historical description. 
-    CRITICAL: If there is legible text, extract it verbatim into the 'transcription' field. DO NOT put the transcription in the 'description' field.
-    Also specifically look for formal archive reference identification numbers or labels, and put them in the 'archive_reference' field.`;
-
-    try {
-        const result = await model.generateContent([
-            prompt,
-            {
-                inlineData: {
-                    data: base64Payload,
-                    mimeType: mimeType
-                }
-            }
-        ]);
-
-        const response = await result.response;
-        const text = response.text();
-
-        if (!text) {
-            throw new HttpsError("internal", "Received empty response from Gemini.");
-        }
-
-        return JSON.parse(text);
-    } catch (error) {
-        logger.error("Error in extractMetadata:", error);
-        throw new HttpsError("internal", "Failed to extract metadata from Gemini.");
-    }
-});
-
-/**
  * Cloud Function to automatically geocode the "historical_address" field 
  * into a "coordinates" object on the archive_items collection.
  * 
@@ -99,7 +19,8 @@ exports.extractMetadata = onCall({
  */
 exports.geocodeArchiveItemAddress = onDocumentWritten({
     document: "archive_items/{itemId}",
-    database: "sahs-archives"
+    database: "sahs-archives",
+    maxInstances: 10
 }, async (event) => {
     const change = event.data;
     if (!change) return;
@@ -171,7 +92,8 @@ exports.geocodeArchiveItemAddress = onDocumentWritten({
  */
 exports.onCommentCreated = onDocumentCreated({
     document: "archive_items/{itemId}/comments/{commentId}",
-    database: "sahs-archives"
+    database: "sahs-archives",
+    maxInstances: 10
 }, async (event) => {
     const snapshot = event.data;
     if (!snapshot) return;
@@ -257,7 +179,8 @@ function parseIsbnSearchHtml(html) {
  */
 exports.lookupIsbnFallback = onCall({
     memory: "256MiB",
-    timeoutSeconds: 30
+    timeoutSeconds: 30,
+    maxInstances: 10
 }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "Unauthorized. You must be logged in.");
