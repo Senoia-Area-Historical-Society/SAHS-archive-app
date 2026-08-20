@@ -50,6 +50,7 @@ const MAX_AGE_MS = 15 * 60 * 1000;
 exports.restrictedMediaUrl = onCall({
     memory: "256MiB",
     timeoutSeconds: 30,
+    maxInstances: 10,
 }, async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "You must be signed in.");
