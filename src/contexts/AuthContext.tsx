@@ -3,14 +3,38 @@
  * standard React shape, this rule is Fast Refresh only, and useAuth is imported
  * by 32 files. See the fuller note there.
  */
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { auth, googleProvider, db } from '../lib/firebase';
+import { auth, googleProvider, db, functions } from '../lib/firebase';
 import { doc, getDoc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useLocation } from 'react-router-dom';
 import { useAppearance } from './AppearanceContext';
 import type { Member } from '../types/database';
+
+/**
+ * A curator/admin role granted in Admin Settings only reaches Storage Rules
+ * once it's mirrored onto this user's Auth token as a custom claim — Storage
+ * Rules can't read the user_roles Firestore doc directly. The Firestore
+ * trigger in functions/userRoles.js sets that claim as soon as the role is
+ * written, but for a role granted before this person's first-ever sign-in
+ * there's no Auth account yet for it to attach to. This call closes that gap:
+ * it re-checks user_roles for the current user and force-refreshes the ID
+ * token if the claim just changed, so upload permissions work immediately
+ * rather than after a sign-out/sign-in.
+ */
+async function syncRoleClaim(user: User) {
+    try {
+        const syncMyRoleClaim = httpsCallable<void, { updated: boolean }>(functions, 'syncMyRoleClaim');
+        const { data } = await syncMyRoleClaim();
+        if (data.updated) {
+            await user.getIdToken(true);
+        }
+    } catch (err) {
+        console.error('Failed to sync role claim:', err);
+    }
+}
 
 /** The roles an admin can preview the site as. */
 export type SimulatedRole = 'admin' | 'curator' | 'member' | 'visitor';
@@ -76,6 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [memberData, setMemberData] = useState<Member | null>(null);
     const [isSetupComplete, setIsSetupComplete] = useState(true); // Default true to prevent flash
     const [isMemberWizardOpen, setIsMemberWizardOpen] = useState(false);
+    // Tracks which uid syncRoleClaim has already run for, so it fires once per
+    // sign-in rather than on every hourly token refresh onAuthStateChanged also reports.
+    const roleClaimSyncedUid = useRef<string | null>(null);
 
     const openMemberWizard = () => setIsMemberWizardOpen(true);
     const closeMemberWizard = () => setIsMemberWizardOpen(false);
@@ -154,6 +181,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser && currentUser.email) {
+                if (roleClaimSyncedUid.current !== currentUser.uid) {
+                    roleClaimSyncedUid.current = currentUser.uid;
+                    syncRoleClaim(currentUser);
+                }
+
                 const email = currentUser.email.toLowerCase();
                 if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com') {
                     setIsAdmin(true);

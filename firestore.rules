@@ -2,12 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function for admin/curator roles
+    // Helper function for admin/curator roles.
+    //
+    // The role claim (set by functions/userRoles.js from this same user_roles
+    // collection) is checked first as a fast path that skips the get() below
+    // once a session has picked it up — it's also the only signal Storage
+    // Rules have, since they can't reach this named database the way this
+    // get()/exists() pair can.
     function isSAHSUser() {
-      return request.auth != null && 
+      return request.auth != null &&
         request.auth.token.email != null && (
-          request.auth.token.email.matches('(?i).*@senoiahistory\\.com') || 
-          request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') || 
+          request.auth.token.role in ['admin', 'curator'] ||
+          request.auth.token.email.matches('(?i).*@senoiahistory\\.com') ||
+          request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
           request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
            get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role in ['admin', 'curator'])

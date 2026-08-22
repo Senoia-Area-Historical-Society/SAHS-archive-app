@@ -27,6 +27,9 @@ const { randomUUID } = require("node:crypto");
 function isSAHSUser(auth) {
     const email = auth && auth.token && auth.token.email;
     if (!email) return false;
+    // A role granted via Admin Settings (mirrored onto the token by
+    // functions/userRoles.js) covers any email, not just the domain below.
+    if (auth.token.role === "admin" || auth.token.role === "curator") return true;
     if (auth.token.email_verified === false) return false;
     return /@senoiahistory\.com$/i.test(email);
 }
