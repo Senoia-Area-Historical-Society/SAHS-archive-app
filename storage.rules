@@ -2,11 +2,20 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Helper function for admin/curator roles
+    // Helper function for admin/curator roles.
+    //
+    // The role claim is the general case: it's set by a Cloud Function
+    // (functions/userRoles.js) from the user_roles Firestore collection,
+    // which is how Admin Settings grants curator/admin to any email — this
+    // is the only way Storage Rules can see that grant, since rules here
+    // cannot query a named Firestore database. The domain match and the two
+    // hardcoded emails predate that and stay on as a fallback that needs no
+    // token refresh.
     function isSAHSUser() {
       return request.auth != null &&
              request.auth.token != null &&
              request.auth.token.email != null && (
+               request.auth.token.role in ['admin', 'curator'] ||
                request.auth.token.email.matches('(?i).*@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||

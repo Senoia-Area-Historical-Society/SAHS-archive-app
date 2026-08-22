@@ -224,6 +224,12 @@ exports.lookupIsbnFallback = onCall({
 // client has no other way to display them to an authorised curator.
 exports.restrictedMediaUrl = require("./restrictedMedia").restrictedMediaUrl;
 
+// Mirrors user_roles onto Auth custom claims, so a role granted in Admin
+// Settings is visible to Storage Rules (which cannot query this named
+// Firestore database the way firestore.rules can).
+exports.syncUserRoleClaims = require("./userRoles").syncUserRoleClaims;
+exports.syncMyRoleClaim = require("./userRoles").syncMyRoleClaim;
+
 
 // Server-rendered <head> for archive detail pages. Social scrapers don't execute
 // JavaScript, so without this every shared link previews as the generic site title.
