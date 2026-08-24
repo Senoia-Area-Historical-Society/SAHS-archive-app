@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+version: "2"
+language: "en-US"
+tone_instructions: "Be direct, concise, and prioritize security, React 19 best practices, and Firebase rule safety."
+
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+  
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: true
+  
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/emulator-data/**"
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/public/assets/**"
+
+  instructions: |
+    - We use React 19, TypeScript, Tailwind CSS v4, and Firebase.
+    - Check for Firebase security rules, Firestore query efficiency, and permission leaks.
+    - Flag any accidental hardcoded API secrets or private config keys.
+    - Ensure accessibility (ARIA, semantic HTML) on all interactive UI components.
+    - Check for proper cleanup of listeners/unsubscribes in useEffect hooks.
+
+chat:
+  auto_reply: true
