@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { MuseumLocation, BookStatus, BookCondition } from '../types/database';
 import type { NamedEntry, GoogleBookInfo, FallbackBookInfo } from '../types/bookLookup';
 import { ImageCropper } from '../components/ImageCropper';
+import { errorMessage } from '../lib/errors';
 
 export function AddBook() {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -417,7 +418,7 @@ export function AddBook() {
             navigate(`/library/${docRef.id}`);
         } catch (err) {
             console.error("Error saving library book:", err);
-            setError("Failed to add book to catalog. Please check your network and try again.");
+            setError(errorMessage(err) || "Failed to add book to catalog. Please check your network and try again.");
             setIsSubmitting(false);
         }
     };

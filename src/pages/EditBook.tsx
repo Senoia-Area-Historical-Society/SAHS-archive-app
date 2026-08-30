@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { LibraryBook, MuseumLocation, BookStatus, BookCondition } from '../types/database';
 import type { NamedEntry, GoogleBookInfo, FallbackBookInfo } from '../types/bookLookup';
 import { ImageCropper } from '../components/ImageCropper';
+import { errorMessage } from '../lib/errors';
 
 export default function EditBook() {
     const { id } = useParams<{ id: string }>();
@@ -464,7 +465,7 @@ export default function EditBook() {
             navigate(`/library/${id}`);
         } catch (err) {
             console.error("Error saving library book edits:", err);
-            setError("Failed to update catalog record. Please try again.");
+            setError(errorMessage(err) || "Failed to update catalog record. Please try again.");
             setIsSubmitting(false);
         }
     };
