@@ -90,9 +90,30 @@ service cloud.firestore {
     }
 
     // archive_items collection: Anyone can read, only SAHS users can write
+    //
+    // The public read stays for now: privacy is still enforced client-side
+    // (BrowseArchive/SearchArchive download everything and filter), and closing
+    // it requires every public query to carry where('is_private','==',false).
+    // Firestore does not match documents where the field is absent, and only 231
+    // of 1,533 items have it — so that rule change must follow the backfill in
+    // scripts/migrate-item-privacy-and-paperwork.cjs, on its own branch.
     match /archive_items/{item} {
       allow read: if true;
       allow write: if isSAHSUser();
+
+      // Accession paperwork lives here rather than on the parent document.
+      //
+      // `accession_paperwork_urls` is "Admin/Curator only scans of paperwork"
+      // (src/types/database.ts:169) and is rendered in no public view — only
+      // EditItem reads it back, and that page is staff-only. On the parent it was
+      // world-readable, publishing the storage paths of donor and provenance
+      // scans to anyone. A path is inert while storage.rules is default-deny, but
+      // becomes a working download the moment the sibling app's blanket
+      // `allow read: if true` is the deployed Storage ruleset (see audit C1) —
+      // which is exactly the kind of coupling that should not exist.
+      match /provenance/{doc} {
+        allow read, write: if isSAHSUser();
+      }
     }
 
     // library_books collection: Anyone can read, only SAHS users can write

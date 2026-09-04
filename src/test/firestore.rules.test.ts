@@ -170,6 +170,61 @@ describe('user_roles bootstrap — self-granting admin during first-run setup', 
     });
 });
 
+/**
+ * `accession_paperwork_urls` was a field on the world-readable archive_items
+ * document, publishing the storage paths of donor and provenance scans. It moves
+ * to a subcollection so the rules can gate it — the parent stays public because
+ * the public archive is public.
+ */
+describe('archive_items/{id}/provenance — accession paperwork is staff-only', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'archive_items', 'item1'), { title: 'A Photograph', is_private: false });
+            await setDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork'), {
+                accession_paperwork_urls: ['accession_paperwork/deed.pdf'],
+            });
+        });
+    });
+
+    it('refuses an anonymous read of the paperwork', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork')));
+    });
+
+    it('refuses a signed-in stranger', async () => {
+        const db = stranger().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork')));
+    });
+
+    // An active member has research access, but provenance paperwork is not part
+    // of it — this is the one place members are deliberately outside the line.
+    it('refuses an active member', async () => {
+        const db = member().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork')));
+    });
+
+    it('lets staff read and write it', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork')));
+        await assertSucceeds(setDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork'), {
+            accession_paperwork_urls: ['accession_paperwork/deed.pdf', 'accession_paperwork/letter.pdf'],
+        }));
+    });
+
+    it('lets a role-granted curator read it', async () => {
+        const db = curator().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'item1', 'provenance', 'paperwork')));
+    });
+
+    // The parent item stays publicly readable — this is a public archive, and
+    // narrowing that is a separate change gated on the is_private backfill.
+    it('leaves the parent item publicly readable', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'item1')));
+    });
+});
+
 describe('site_settings — the documents that define isSetupComplete()', () => {
     it('refuses a stranger writing settings when setup is incomplete', async () => {
         await testEnv.withSecurityRulesDisabled(async (ctx) => {

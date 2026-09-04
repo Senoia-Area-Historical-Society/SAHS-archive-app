@@ -3,6 +3,7 @@ import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, 
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
+import { loadAccessionPaperwork, saveAccessionPaperwork } from '../lib/provenance';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection, ItemCondition, CollectionStatus } from '../types/database';
 
@@ -484,7 +485,11 @@ export default function EditItem() {
                         value: url,
                         caption: data.file_captions ? data.file_captions[idx] : ''
                     })));
-                    setExistingAccessionUrls(data.accession_paperwork_urls || []);
+                    // Prefers archive_items/{id}/provenance/paperwork and falls back
+                    // to the parent field for items not yet migrated. See
+                    // src/lib/provenance.ts and scripts/migrate-item-privacy-and-paperwork.cjs.
+                    loadAccessionPaperwork(id, data.accession_paperwork_urls)
+                        .then(setExistingAccessionUrls);
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
                     setIsPrivate(data.is_private || false);
                     setCollectionStatus(data.collection_status || 'permanent');
@@ -806,7 +811,6 @@ export default function EditItem() {
                 item_type: itemType,
                 file_urls: finalFileUrls,
                 file_captions: finalFileCaptions,
-                accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls],
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
                 featured_image_url: finalFeaturedUrl,
         collection_id: item.collection_id || null,
@@ -917,7 +921,18 @@ export default function EditItem() {
             updatedData.historical_address = final_historical_address;
             updatedData.coordinates = final_coordinates;
 
-            await updateDoc(doc(db, 'archive_items', id), updatedData);
+            // Paperwork goes to the staff-only subcollection; the returned patch is
+            // the transitional parent-document copy, merged here so the parent is
+            // written exactly once. Dropping the legacy write later is a one-line
+            // change in src/lib/provenance.ts.
+            const paperworkPatch = await saveAccessionPaperwork(
+                id, [...existingAccessionUrls, ...newAccessionUrls]
+            ).catch(e => {
+                console.error('Could not write provenance paperwork:', e);
+                return { accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls] };
+            });
+
+            await updateDoc(doc(db, 'archive_items', id), { ...updatedData, ...paperworkPatch });
 
             // --- Two-Way Linking Synchronization ---
             const oldOrgs = item.related_organizations || [];
