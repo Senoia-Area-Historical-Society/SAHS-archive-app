@@ -53,12 +53,39 @@ service cloud.firestore {
 
     // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles OR first user during setup
     match /user_roles/{email} {
-      allow get: if request.auth != null;
+      // `get` was `request.auth != null`, which let ANY Google account — a personal
+      // Gmail, anyone on the internet who signs in — read any role document by
+      // address and learn who holds admin or curator. Three callers actually need
+      // it, and each is covered below:
+      //   • AuthContext reads the signed-in user's own document (self).
+      //   • Admin Settings lists them (`list`, already isSAHSUser()).
+      //   • MyResearch checks a share target's role before adding a collaborator
+      //     (src/pages/MyResearch.tsx ~445) — hence isActiveMember(), since only
+      //     an active member can share a folder in the first place.
+      // Note get()/exists() inside rules are privileged reads and do NOT re-enter
+      // these rules, so isActiveMember() here is not recursive.
+      allow get: if isSAHSUser()
+                 || (request.auth != null && request.auth.token.email.lower() == email.lower())
+                 || isActiveMember();
       allow list: if isSAHSUser();
       allow write: if request.auth != null && (
         request.auth.token.email.lower() == 'catnolan@senoiahistory.com' ||
         request.auth.token.email.lower() == 'jeremywarren@senoiahistory.com' ||
-        (!isSetupComplete() && request.auth.token.email.lower() == email.lower() && request.resource.data.role == 'admin')
+        // First-run bootstrap: the initial admin grants themselves the role via
+        // SetupWizard (src/pages/SetupWizard.tsx:182) before any admin exists.
+        //
+        // The domain check is load-bearing and was absent: this clause is reachable
+        // by ANY authenticated account whenever isSetupComplete() is false, so
+        // without it anyone on the internet with a Google account could write
+        // user_roles/{their own email} = admin and take over the archive. The whole
+        // boundary is the existence of site_settings/setup or site_settings/appearance
+        // (see isSetupComplete), which is far too thin a thread for a self-service
+        // admin grant. Restricting it to the SAHS domain keeps first-run working
+        // while making the clause unreachable from an arbitrary account.
+        (!isSetupComplete()
+         && request.auth.token.email.lower() == email.lower()
+         && request.auth.token.email.matches('(?i).*@senoiahistory\\.com')
+         && request.resource.data.role == 'admin')
       );
     }
 
@@ -93,10 +120,17 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
-    // site_settings collection: Anyone can read, only SAHS users can write (or any user during initial setup)
+    // site_settings collection: Anyone can read, only SAHS users can write (or a SAHS account during initial setup)
     match /site_settings/{document} {
       allow read: if true;
-      allow write: if isSAHSUser() || (request.auth != null && !isSetupComplete());
+      // The setup clause carried the same defect as the user_roles one: while
+      // isSetupComplete() is false it was reachable by any authenticated account,
+      // and site_settings is where the setup/appearance documents that define
+      // isSetupComplete() themselves live. Domain-restricted for the same reason.
+      allow write: if isSAHSUser()
+                   || (request.auth != null
+                       && !isSetupComplete()
+                       && request.auth.token.email.matches('(?i).*@senoiahistory\\.com'));
     }
 
     // settings collection: Anyone can read, only SAHS users can write
@@ -119,7 +153,20 @@ service cloud.firestore {
 
     // members collection: SAHS curators/admins can manage all, individuals can read their own membership status
     match /members/{email} {
-      allow get: if request.auth != null;
+      // `get` was `request.auth != null`. Because documents are keyed by email
+      // address, that made this a membership oracle: any signed-in Google account
+      // could probe members/{anyone@example.com} and learn whether that person is a
+      // member, their status and their renewal date. `list` was already restricted,
+      // which is what disguised it — the collection could not be enumerated, but
+      // every individual record was directly addressable.
+      //
+      // The three real callers: AuthContext reads the signed-in user's own record
+      // (self); Admin Settings lists them (`list`); MyResearch validates a folder
+      // share target (src/pages/MyResearch.tsx:457) — hence isActiveMember(), which
+      // is already the precondition for sharing a folder at all.
+      allow get: if isSAHSUser()
+                 || (request.auth != null && request.auth.token.email.lower() == email.lower())
+                 || isActiveMember();
       allow list: if isSAHSUser();
       allow write: if isSAHSUser();
     }
