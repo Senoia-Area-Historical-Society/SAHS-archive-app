@@ -1,4 +1,86 @@
 {
-  "indexes": [],
+  "//": "Composite indexes for privacy-filtered public reads. Every public query on archive_items and collections now carries where('is_private','==',false) (see src/lib/privacyQuery.ts), and Firestore needs a composite index for each shape that combines it with another filter or an orderBy. NOTE: `firebase deploy --only firestore` deploys this file DECLARATIVELY and deletes any production index not listed here — so this file is the authority, and indexes must land here and deploy BEFORE any query depends on them.",
+  "indexes": [
+    {
+      "//": "BrowseArchive, SearchArchive, BrowseMap — the whole archive, newest first.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "//": "CollectionGridImage's three status tiles and CollectionDetail's status sections. The (is_private, item_type) prefix of this index also serves SenoiaStories and ItemDetail's 'explore more' fallback, so those need no entry of their own.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "item_type", "order": "ASCENDING" },
+        { "fieldPath": "collection_status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "CollectionDetail's legacy single-collection membership, and one disjunct of ItemDetail's explore query.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "collection_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "Multi-collection membership: array-contains in CollectionDetail, array-contains-any in ItemDetail's explore query. Both disjuncts of an or() need their own index.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "collection_ids", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "//": "ItemDetail backward references — items that link TO this one. One index per relation field, because fetchBackward() is called with each in turn.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "related_figures", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "related_documents", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "related_organizations", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "//": "Fetch-by-id batches: ItemDetail's forward references, MyResearch and MyResearchMap's saved items. where(documentId(),'in',[...]) combined with the privacy filter orders on __name__.",
+      "collectionGroup": "archive_items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "//": "Collections.tsx — the public collection list, newest first.",
+      "collectionGroup": "collections",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_private", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

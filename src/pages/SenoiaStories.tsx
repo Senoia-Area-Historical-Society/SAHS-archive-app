@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause, Mic, Search, Calendar, ArrowRight, Info, Sparkles, MessageSquare, Edit2, Plus, Lock, Upload } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, where, addDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { ArchiveItem } from '../types/database';
@@ -113,6 +114,7 @@ function StoriesBrowser() {
     useEffect(() => {
         const q = query(
             collection(db, 'archive_items'),
+            ...publicOnly(isSAHSUser),
             where('item_type', '==', 'Oral History')
         );
 
@@ -133,7 +135,7 @@ function StoriesBrowser() {
 
         // Clean up listener when the component unmounts
         return () => unsubscribe();
-    }, []);
+    }, [isSAHSUser]);
 
     // Auto-seed mock stories to Firestore if database is empty and curator is logged in
     useEffect(() => {
@@ -154,6 +156,7 @@ function StoriesBrowser() {
                     // Refetch
                     const q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Oral History')
                     );
                     const snapshot = await getDocs(q);

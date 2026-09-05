@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Info } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem } from '../types/database';
 import { ArchiveMap } from '../components/ArchiveMap';
@@ -38,7 +39,7 @@ function MapBrowser() {
         const fetchItems = async () => {
             try {
                 // Fetch items
-                const q = query(collection(db, 'archive_items'), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
                 const itemsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,

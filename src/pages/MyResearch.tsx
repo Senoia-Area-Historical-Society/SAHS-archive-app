@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { db, defaultDb } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
@@ -257,7 +258,7 @@ export function MyResearch() {
                 const itemsCol = collection(db, 'archive_items');
                 
                 const slicedIds = itemIds.slice(0, 30);
-                const q = query(itemsCol, where(documentId(), 'in', slicedIds));
+                const q = query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', slicedIds));
                 const snap = await getDocs(q);
                 
                 const itemsList = snap.docs.map(doc => ({
@@ -282,7 +283,7 @@ export function MyResearch() {
         if (allItems.length > 0 || !hasResearchAccess) return;
         setLoadingAllItems(true);
         try {
-            const q = query(collection(db, 'archive_items'));
+            const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser));
             const snap = await getDocs(q);
             const itemsList = snap.docs.map(doc => ({
                 id: doc.id,
