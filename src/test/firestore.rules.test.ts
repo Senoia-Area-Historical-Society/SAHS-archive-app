@@ -33,8 +33,18 @@ const stranger = () => testEnv.authenticatedContext('stranger', { email: 'strang
 const member = () => testEnv.authenticatedContext('member', { email: 'member@example.com' });
 /** A curator granted by role claim, with no SAHS email address. */
 const curator = () => testEnv.authenticatedContext('curator', { email: 'curator@example.com', role: 'curator' });
-/** A Workspace account, which isSAHSUser() accepts on the domain alone. */
-const staff = () => testEnv.authenticatedContext('staff', { email: 'staff@senoiahistory.com' });
+/**
+ * A Workspace account holding a role, via the claim userRoles.js mirrors onto the
+ * token. This is what staff access looks like now that the bare-domain grant is
+ * gone — the address alone no longer admits anyone.
+ */
+const staff = () => testEnv.authenticatedContext('staff', { email: 'staff@senoiahistory.com', role: 'admin' });
+
+/** A Workspace address with no role and no claim — admitted until this change. */
+const domainOnly = () => testEnv.authenticatedContext('domainonly', { email: 'newvolunteer@senoiahistory.com' });
+
+/** One of the two hardcoded permanent admins, who hold no role document. */
+const permanentAdmin = () => testEnv.authenticatedContext('perm', { email: 'jeremywarren@senoiahistory.com' });
 
 beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
@@ -329,6 +339,50 @@ describe('comments follow their item\'s privacy', () => {
     it('lets staff read comments on a private item', async () => {
         const db = staff().firestore();
         await assertSucceeds(getDoc(doc(db, 'archive_items', 'private1', 'comments', 'c2')));
+    });
+});
+
+/**
+ * Audit finding H2. `isSAHSUser()` admitted any @senoiahistory.com address, which
+ * meant a new volunteer, an intern, or someone mid-offboarding held
+ * curator-equivalent write across the archive the moment they first signed in —
+ * no role grant, no audit trail. The sibling sahs-website repo refuses to do this
+ * and says so in its own rules; the two apps share one Auth instance and had
+ * opposite policies on the same identities.
+ */
+describe('H2 — the email domain alone grants nothing', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'archive_items', 'public1'), { title: 'Public', is_private: false });
+        });
+    });
+
+    it('refuses a Workspace address with no role', async () => {
+        const db = domainOnly().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'new1'), { title: 'Should not write', is_private: false }));
+        await assertFails(getDocs(collection(db, 'archive_items')));
+        await assertFails(getDoc(doc(db, 'members', 'other@example.com')));
+    });
+
+    it('still admits a role holder, via the claim', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(setDoc(doc(db, 'archive_items', 'new2'), { title: 'Fine', is_private: false }));
+    });
+
+    /**
+     * The break-glass path. Both permanent admins are hardcoded in the rules and
+     * hold no user_roles document — jeremywarren@ has no role claim either, which
+     * is why functions/restrictedMedia.js had to gain the same hardcoded pair when
+     * its domain fallback went.
+     */
+    it('still admits a hardcoded permanent admin with no role document', async () => {
+        const db = permanentAdmin().firestore();
+        await assertSucceeds(setDoc(doc(db, 'archive_items', 'new3'), { title: 'Fine', is_private: false }));
+    });
+
+    it('leaves the public archive readable to everyone', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'public1')));
     });
 });
 

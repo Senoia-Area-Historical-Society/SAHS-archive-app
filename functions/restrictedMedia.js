@@ -23,15 +23,30 @@ const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const { randomUUID } = require("node:crypto");
 
-/** Mirrors isSAHSUser() in storage.rules and the app's AuthContext. */
+/**
+ * Mirrors isSAHSUser() in storage.rules — keep the two in step.
+ *
+ * The bare-domain fallback was removed alongside the rules' copy. Note this file
+ * needed the permanent admins spelled out first: storage.rules already listed
+ * them, this did not, so it was the domain that admitted
+ * jeremywarren@senoiahistory.com — who holds no user_roles document and therefore
+ * no role claim. Dropping the domain without adding them would have locked that
+ * account out of restricted media while leaving Storage itself working, which is
+ * exactly the kind of split-brain this function exists to avoid.
+ */
+const PERMANENT_ADMINS = [
+    "catnolan@senoiahistory.com",
+    "jeremywarren@senoiahistory.com",
+];
+
 function isSAHSUser(auth) {
     const email = auth && auth.token && auth.token.email;
     if (!email) return false;
-    // A role granted via Admin Settings (mirrored onto the token by
-    // functions/userRoles.js) covers any email, not just the domain below.
-    if (auth.token.role === "admin" || auth.token.role === "curator") return true;
     if (auth.token.email_verified === false) return false;
-    return /@senoiahistory\.com$/i.test(email);
+    // A role granted via Admin Settings, mirrored onto the token by
+    // functions/userRoles.js. This is the general case now.
+    if (auth.token.role === "admin" || auth.token.role === "curator") return true;
+    return PERMANENT_ADMINS.includes(email.toLowerCase());
 }
 
 /**
