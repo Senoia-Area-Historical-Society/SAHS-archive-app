@@ -110,6 +110,17 @@ export interface ArchiveItem {
     updated_by_email?: string | null;
     updated_by_name?: string | null;
     is_private?: boolean;
+    /**
+     * The curator's own privacy choice, as distinct from `is_private`, which is the
+     * *effective* value the rules and every public query read:
+     *
+     *     is_private = is_private_own || (any collection it belongs to is private)
+     *
+     * Maintained by functions/collectionPrivacy.js. Absent on documents that
+     * predate it, where it falls back to `is_private`. Do not write it from the
+     * client — set `is_private` and the trigger records the intent.
+     */
+    is_private_own?: boolean;
 
     // Figure specific
     full_name?: string | null;
