@@ -36,8 +36,9 @@ async function syncRoleClaim(user: User) {
     }
 }
 
-/** The roles an admin can preview the site as. */
-export type SimulatedRole = 'admin' | 'curator' | 'member' | 'visitor';
+import { deriveEffectiveRoles, type SimulatedRole } from '../lib/effectiveRoles';
+
+export type { SimulatedRole };
 
 const SIMULATED_ROLES: readonly SimulatedRole[] = ['admin', 'curator', 'member', 'visitor'];
 
@@ -335,11 +336,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await signOut(auth);
     };
 
-    const effectiveIsAdmin = isAdmin && (!simulatedRole || simulatedRole === 'admin');
-    const effectiveIsCurator = (isAdmin || isCurator) && (!simulatedRole || simulatedRole === 'admin' || simulatedRole === 'curator');
-    const effectiveIsSAHSUser = effectiveIsAdmin || effectiveIsCurator;
-    const effectiveIsMember = simulatedRole === 'member' || (isMember && !simulatedRole);
-    const hasResearchAccess = effectiveIsSAHSUser || effectiveIsMember;
+    // Derived in src/lib/effectiveRoles.ts so the rule is testable. The member
+    // line used to read `simulatedRole === 'member' || ...` with no reference to a
+    // real role, so any signed-in account could unlock the research UI by setting
+    // the localStorage key — see that module for the full account.
+    const effective = deriveEffectiveRoles({ isAdmin, isCurator, isMember }, simulatedRole);
+    const effectiveIsAdmin = effective.isAdmin;
+    const effectiveIsCurator = effective.isCurator;
+    const effectiveIsSAHSUser = effective.isSAHSUser;
+    // NB: the context deliberately continues to expose the *real* `isMember`;
+    // only `hasResearchAccess` consumed the effective value. Left as found.
+    const hasResearchAccess = effective.hasResearchAccess;
 
     const value = {
         user,
@@ -351,7 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isCurator: effectiveIsCurator,
         realIsAdmin: isAdmin,
         realIsCurator: isCurator,
-        simulatedRole,
+        simulatedRole: effective.simulatedRole,
         setSimulatedRole: handleSetSimulatedRole,
         isEditingMode,
         setIsEditingMode,
