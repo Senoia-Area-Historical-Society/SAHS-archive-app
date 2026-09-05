@@ -3,6 +3,7 @@ import { Upload, Image as ImageIcon, CheckCircle, AlertCircle, ChevronDown, Chev
 import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { saveAccessionPaperwork } from '../lib/provenance';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { ItemType, Collection, ArchiveItem, ItemCondition, CollectionStatus } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -559,6 +560,15 @@ export function AddItem() {
             };
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
+
+            // Accession paperwork also goes to the staff-only subcollection. The
+            // parent copy above is transitional — see src/lib/provenance.ts. Not
+            // fatal: the item is saved either way, and a curator can re-attach
+            // paperwork, whereas failing here would discard the whole upload.
+            if (accessionUrls.length > 0) {
+                await saveAccessionPaperwork(docRef.id, accessionUrls)
+                    .catch(e => console.error('Could not write provenance paperwork:', e));
+            }
 
             // --- Two-Way Linking Synchronization (Add Item) ---
             for (const org of selectedRelatedOrgs) {
