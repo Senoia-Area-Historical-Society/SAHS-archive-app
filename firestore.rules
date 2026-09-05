@@ -89,16 +89,38 @@ service cloud.firestore {
       );
     }
 
-    // archive_items collection: Anyone can read, only SAHS users can write
+    // archive_items collection: public items readable by anyone, staff read all
     //
-    // The public read stays for now: privacy is still enforced client-side
-    // (BrowseArchive/SearchArchive download everything and filter), and closing
-    // it requires every public query to carry where('is_private','==',false).
-    // Firestore does not match documents where the field is absent, and only 231
-    // of 1,533 items have it — so that rule change must follow the backfill in
-    // scripts/migrate-item-privacy-and-paperwork.cjs, on its own branch.
+    // Privacy used to be enforced only in the browser — BrowseArchive and
+    // SearchArchive downloaded the whole collection and filtered private items out
+    // in JavaScript — so anyone querying Firestore directly read everything.
+    //
+    // Two things had to land before this rule could: the backfill in
+    // scripts/migrate-item-privacy-and-paperwork.cjs (only 231 of 1,533 items
+    // carried `is_private`, and Firestore does not match documents where a field
+    // is absent), and the query filters in src/lib/privacyQuery.ts with their
+    // composite indexes. A list query that does not constrain `is_private` is now
+    // REJECTED — so any new public query must carry `...publicOnly(isSAHSUser)`
+    // and, if it combines that with an orderBy or array-contains, an index in
+    // firestore.indexes.json.
+    //
+    // A DIRECT field read, deliberately — `resource.data.get('is_private', false)`
+    // does not work here and the difference is not cosmetic. Firestore evaluates a
+    // list query against the constraints the query carries, not against the
+    // documents it would return; it can only tie a rule to a query when the rule
+    // compares a field directly. Behind a map `.get()` the analyser cannot make
+    // that link, so it stops requiring the query to filter at all — an unfiltered
+    // list is then ALLOWED and every private item comes back. The first version of
+    // this rule used `.get()` for leniency toward documents missing the field and
+    // silently defeated itself; `src/test/firestore.rules.test.ts` catches it.
+    //
+    // The cost is that a document with no `is_private` field is denied to the
+    // public rather than treated as public. That is the right direction for a
+    // privacy rule, and it is not hypothetical safety: all 1,533 items and 4
+    // collections carry the field after the backfill, and AddItem, AddCollection
+    // and EditCollection all write it. Staff are unaffected either way.
     match /archive_items/{item} {
-      allow read: if true;
+      allow read: if resource.data.is_private == false || isSAHSUser();
       allow write: if isSAHSUser();
 
       // Accession paperwork lives here rather than on the parent document.
@@ -122,9 +144,16 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
-    // comments subcollection under archive_items: Everyone can read, only active members and curators can post
+    // comments subcollection under archive_items: readable when the item is,
+    // only active members and curators can post
+    //
+    // Subcollections do not inherit the parent's rule, so this needed closing
+    // separately: a private item's comments were public, which discloses both the
+    // item's existence and the commenters' names. The get() is one document access
+    // per query (rules cache it within an evaluation), well inside the limit.
     match /archive_items/{itemId}/comments/{commentId} {
-      allow read: if true;
+      allow read: if isSAHSUser() ||
+        get(/databases/$(database)/documents/archive_items/$(itemId)).data.is_private == false;
       allow create: if request.auth != null && (
         isSAHSUser() || 
         isActiveMember()
@@ -135,9 +164,14 @@ service cloud.firestore {
       );
     }
 
-    // collections collection: Anyone can read, only SAHS users can write
+    // collections collection: public collections readable by anyone, staff read all
+    //
+    // Closed alongside archive_items. Leaving this open kept item privacy partly
+    // inferable — BrowseArchive reads the whole collection list to build its
+    // privacy map, so a private collection's title and membership were public even
+    // once its items were not.
     match /collections/{collection} {
-      allow read: if true;
+      allow read: if resource.data.is_private == false || isSAHSUser();
       allow write: if isSAHSUser();
     }
 
