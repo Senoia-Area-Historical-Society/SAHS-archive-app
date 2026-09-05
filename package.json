@@ -13,7 +13,8 @@
     "prepare:functions": "node scripts/prepare-functions.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore 'vitest run src/test/firestore.rules.test.ts'"
+    "test:rules": "firebase emulators:exec --only firestore 'vitest run src/test/firestore.rules.test.ts'",
+    "test": "vitest run --exclude '**/*.rules.test.ts'"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
