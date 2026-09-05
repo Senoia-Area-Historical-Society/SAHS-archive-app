@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FolderOpen, Plus, Trash2, Edit2, Lock } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -39,7 +40,7 @@ function CollectionsBrowser() {
     useEffect(() => {
         const fetchCollections = async () => {
             try {
-                const q = query(collection(db, 'collections'), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'collections'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
 
                 const collectionsData = querySnapshot.docs.map(doc => ({

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
+import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, limit, getDocs, or } from 'firebase/firestore';
 import { FolderOpen } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export function CollectionGridImage({ collectionId, fallbackImage, items: prefetchedItems, className = '' }: Props) {
+    const { isSAHSUser } = useAuth();
     const [images, setImages] = useState<string[]>([]);
     const [loading, setLoading] = useState(!prefetchedItems);
 
@@ -33,6 +36,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 if (collectionId === 'pending-acquisitions') {
                     q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'pending'),
                         limit(20)
@@ -40,6 +44,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 } else if (collectionId === 'deaccessioned-artifacts') {
                     q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'deaccessioned'),
                         limit(20)
@@ -47,6 +52,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 } else if (collectionId === 'on-loan') {
                     q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'loan'),
                         limit(20)
@@ -76,7 +82,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
         };
 
         fetchImages();
-    }, [collectionId, prefetchedItems]);
+    }, [collectionId, prefetchedItems, isSAHSUser]);
     const containerStyle = `absolute inset-0 w-full h-full overflow-hidden bg-tan-light/10 ${className}`;
 
     if (loading) {

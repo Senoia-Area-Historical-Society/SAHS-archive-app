@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, Calendar, MapPin, Tag, SlidersHorizontal, X, ChevronDown, Info } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import { db } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -156,7 +157,8 @@ export function SearchArchive() {
         const fetchItems = async () => {
             try {
                 // Fetch collections to determine privacy status
-                const collectionsSnapshot = await getDocs(collection(db, 'collections'));
+                const collectionsSnapshot = await getDocs(
+                    query(collection(db, 'collections'), ...publicOnly(isSAHSUser)));
                 const privacyMap: Record<string, boolean> = {};
                 collectionsSnapshot.docs.forEach(doc => {
                     const data = doc.data() as Collection;
@@ -166,7 +168,7 @@ export function SearchArchive() {
                 });
                 setCollectionPrivacyMap(privacyMap);
 
-                const q = query(collection(db, 'archive_items'), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
                 const itemsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
