@@ -16,6 +16,10 @@ export function SearchArchive() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [collectionPrivacyMap, setCollectionPrivacyMap] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(true);
+    // See the note in BrowseArchive: a swallowed fetch error renders as an empty
+    // result set, which is exactly how a mistake in the privacy filtering would
+    // present. Surface it instead.
+    const [loadError, setLoadError] = useState<string | null>(null);
     const { isSAHSUser } = useAuth();
 
     // Responsive local states for inputs
@@ -171,6 +175,7 @@ export function SearchArchive() {
                 setItems(itemsData);
             } catch (error) {
                 console.error("Error fetching items:", error);
+                setLoadError(error instanceof Error ? error.message : String(error));
             } finally {
                 setLoading(false);
             }
@@ -608,7 +613,13 @@ export function SearchArchive() {
                     <p className="text-charcoal-light font-medium">{filteredItems.length} {filteredItems.length === 1 ? 'result' : 'results'} found</p>
                 </div>
 
-                {filteredItems.length > 0 ? (
+                {loadError ? (
+                    <div className="text-center py-24 bg-white rounded-xl border border-red-200 shadow-sm">
+                        <p className="text-red-800 text-xl font-serif mb-2">The archive could not be searched.</p>
+                        <p className="text-charcoal-light/70 font-sans">This is an error, not an empty result. Please try again, and report it if it persists.</p>
+                        <p className="text-charcoal-light/50 font-sans text-xs mt-3">{loadError}</p>
+                    </div>
+                ) : filteredItems.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 auto-rows-max">
                         {filteredItems.map((item, index) => (
                             <DocumentCard key={item.id} item={item} priority={index < 8} />

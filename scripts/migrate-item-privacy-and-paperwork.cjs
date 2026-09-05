@@ -99,17 +99,10 @@ const stats = {
     paperworkAlreadyCopied: 0,
     paperworkLegacyDeleted: 0,
     itemsWithoutPaperwork: 0,
+    collectionsRead: 0,
+    collectionsAlreadySet: 0,
+    collectionsBackfilled: 0,
 };
-
-/** Every collection id marked private, for computing inherited item privacy. */
-async function loadPrivateCollectionIds() {
-    const snap = await db.collection('collections').get();
-    const ids = new Set();
-    snap.docs.forEach((d) => {
-        if (d.data().is_private === true) ids.add(d.id);
-    });
-    return ids;
-}
 
 /**
  * The collection ids an item belongs to.
@@ -147,8 +140,29 @@ async function run() {
     if (DELETE_LEGACY) console.log('Including: delete legacy accession_paperwork_urls field');
     console.log('');
 
-    const privateCollectionIds = await loadPrivateCollectionIds();
-    console.log(`Private collections: ${privateCollectionIds.size}`);
+    const collectionsSnap = await db.collection('collections').get();
+    const privateCollectionIds = new Set();
+    collectionsSnap.docs.forEach((d) => {
+        if (d.data().is_private === true) privateCollectionIds.add(d.id);
+    });
+    stats.collectionsRead = collectionsSnap.size;
+    console.log(`Collections: ${collectionsSnap.size} (private: ${privateCollectionIds.size})`);
+
+    // `collections` needs the same treatment as `archive_items`, for the same
+    // reason: closing its public read means public queries must filter on
+    // is_private, and Firestore does not match documents where the field is
+    // absent. Two of the four collections lack it. Same trap, smaller scale.
+    const collectionOps = [];
+    if (DO_PRIVACY) {
+        for (const d of collectionsSnap.docs) {
+            if (typeof d.data().is_private === 'boolean') {
+                stats.collectionsAlreadySet++;
+            } else {
+                stats.collectionsBackfilled++;
+                collectionOps.push((batch) => batch.update(d.ref, { is_private: false }));
+            }
+        }
+    }
 
     const snap = await db.collection('archive_items').get();
     stats.itemsRead = snap.size;
@@ -212,7 +226,7 @@ async function run() {
         }
     }
 
-    await commitAll(operations);
+    await commitAll([...collectionOps, ...operations]);
 
     console.log('');
     if (samples.length) {
@@ -221,6 +235,11 @@ async function run() {
         console.log('');
     }
     console.log('Results');
+    console.log(`  collections read                 ${stats.collectionsRead}`);
+    if (DO_PRIVACY) {
+        console.log(`    is_private already correct     ${stats.collectionsAlreadySet}`);
+        console.log(`    is_private -> false            ${stats.collectionsBackfilled}`);
+    }
     console.log(`  items read                       ${stats.itemsRead}`);
     if (DO_PRIVACY) {
         console.log(`  is_private already correct       ${stats.privacyAlreadySet}`);
@@ -234,7 +253,7 @@ async function run() {
         console.log(`  items with no paperwork          ${stats.itemsWithoutPaperwork}`);
         if (DELETE_LEGACY) console.log(`  legacy field deleted             ${stats.paperworkLegacyDeleted}`);
     }
-    console.log(`  writes ${PROD ? 'COMMITTED' : 'that WOULD be made'}      ${operations.length}`);
+    console.log(`  writes ${PROD ? 'COMMITTED' : 'that WOULD be made'}      ${collectionOps.length + operations.length}`);
     if (!PROD) console.log('\nDry run — nothing was written. Re-run with --prod to apply.');
 }
 
