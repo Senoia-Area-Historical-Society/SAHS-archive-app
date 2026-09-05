@@ -7,6 +7,7 @@ import { DocumentCard } from '../components/DocumentCard';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { db } from '../lib/firebase';
+import { publicOnly, publicOnlyWith } from '../lib/privacyQuery';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -393,7 +394,7 @@ export function ItemDetail() {
                         if (!ids || ids.length === 0) return [];
                         // Firestore 'in' has a 30 item limit
                         const chunkedIds = ids.slice(0, 30);
-                        const q = query(collection(db, 'archive_items'), where(documentId(), 'in', chunkedIds));
+                        const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), where(documentId(), 'in', chunkedIds));
                         const snap = await getDocs(q);
                         let results = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                         
@@ -406,7 +407,7 @@ export function ItemDetail() {
 
                     // 2) Backward references (items that link TO this item)
                     const fetchBackward = async (field: string) => {
-                        const q = query(collection(db, 'archive_items'), where(field, 'array-contains', id));
+                        const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), where(field, 'array-contains', id));
                         const snap = await getDocs(q);
                         let results = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                         
@@ -480,14 +481,15 @@ export function ItemDetail() {
                     const exploreQuery = cIds.length > 0
                         ? query(
                             collection(db, 'archive_items'), 
-                            or(
+                            publicOnlyWith(isSAHSUser, or(
                                 where('collection_ids', 'array-contains-any', cIds),
                                 where('collection_id', 'in', cIds)
-                            ),
+                            )),
                             limit(12)
                           )
                         : query(
                             collection(db, 'archive_items'), 
+                            ...publicOnly(isSAHSUser),
                             where('item_type', '==', data.item_type),
                             limit(12)
                           );

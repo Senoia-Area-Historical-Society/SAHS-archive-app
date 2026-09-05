@@ -36,7 +36,7 @@
  * admin pages need no edits.
  */
 
-import { where, type QueryConstraint } from 'firebase/firestore';
+import { and, where, type QueryCompositeFilterConstraint, type QueryConstraint } from 'firebase/firestore';
 
 /**
  * Spread into a `query(...)` call: `query(col, ...publicOnly(isSAHSUser), limit(20))`.
@@ -46,4 +46,19 @@ import { where, type QueryConstraint } from 'firebase/firestore';
  */
 export function publicOnly(isSAHSUser: boolean): QueryConstraint[] {
     return isSAHSUser ? [] : [where('is_private', '==', false)];
+}
+
+/**
+ * The same constraint, for a query already using an `or(...)` composite filter.
+ *
+ * `query()` will not take a loose `where()` alongside a composite filter — after
+ * one, only non-filter constraints (`orderBy`, `limit`) are allowed — so the
+ * privacy check has to be folded into the filter tree with `and()` rather than
+ * spread as a sibling. Returns the caller's filter untouched for staff.
+ */
+export function publicOnlyWith(
+    isSAHSUser: boolean,
+    filter: QueryCompositeFilterConstraint
+): QueryCompositeFilterConstraint {
+    return isSAHSUser ? filter : and(where('is_private', '==', false), filter);
 }

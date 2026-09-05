@@ -8,6 +8,7 @@ import { buildCollectionSeo } from '../lib/seo';
 import { useJsonLd } from '../hooks/useJsonLd';
 import { buildCollectionJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { db } from '../lib/firebase';
+import { publicOnly, publicOnlyWith } from '../lib/privacyQuery';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { DocumentCard } from '../components/DocumentCard';
 import { CollectionGridImage } from '../components/CollectionGridImage';
@@ -63,6 +64,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'pending')
                     );
@@ -79,6 +81,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'deaccessioned')
                     );
@@ -95,6 +98,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
+                        ...publicOnly(isSAHSUser),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'loan')
                     );
@@ -114,7 +118,7 @@ export function CollectionDetail() {
                     // Fetch items in this collection
                     const q = query(
                         collection(db, 'archive_items'), 
-                        or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
+                        publicOnlyWith(isSAHSUser, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
                     );
                     
                     const querySnapshot = await getDocs(q);
@@ -150,7 +154,7 @@ export function CollectionDetail() {
         
         try {
             // Fetch all items
-            const itemsSnap = await getDocs(query(collection(db, 'archive_items')));
+            const itemsSnap = await getDocs(query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser)));
             const allItems = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchiveItem));
             
             // Filter out items already in this collection
@@ -161,7 +165,7 @@ export function CollectionDetail() {
             }));
 
             // Fetch all collections for warning context
-            const colsSnap = await getDocs(query(collection(db, 'collections')));
+            const colsSnap = await getDocs(query(collection(db, 'collections'), ...publicOnly(isSAHSUser)));
             setAllCollections(colsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Collection)));
         } catch (error) {
             console.error("Failed to load items for modal", error);
@@ -194,7 +198,7 @@ export function CollectionDetail() {
             // Refresh current items
             const q = query(
                 collection(db, 'archive_items'), 
-                or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id))
+                publicOnlyWith(isSAHSUser, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
             );
             const querySnapshot = await getDocs(q);
             const itemsData = querySnapshot.docs.map(d => ({

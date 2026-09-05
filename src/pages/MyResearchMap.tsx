@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
+import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, where, or, documentId } from 'firebase/firestore';
 import { Sparkles, AlertCircle } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
@@ -8,7 +9,7 @@ import { FolderMapView } from '../components/FolderMapView';
 import { errorMessage } from '../lib/errors';
 
 export function MyResearchMap() {
-    const { user, hasResearchAccess } = useAuth();
+    const { user, hasResearchAccess, isSAHSUser } = useAuth();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [items, setItems] = useState<ArchiveItem[]>([]);
@@ -62,7 +63,7 @@ export function MyResearchMap() {
                 }
                 
                 const fetchPromises = chunks.map(chunk => {
-                    const q = query(itemsCol, where(documentId(), 'in', chunk));
+                    const q = query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', chunk));
                     return getDocs(q);
                 });
                 
