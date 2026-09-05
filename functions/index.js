@@ -227,6 +227,13 @@ exports.restrictedMediaUrl = require("./restrictedMedia").restrictedMediaUrl;
 // Mirrors user_roles onto Auth custom claims, so a role granted in Admin
 // Settings is visible to Storage Rules (which cannot query this named
 // Firestore database the way firestore.rules can).
+// Keeps archive_items.is_private in step with the privacy of the collections an
+// item belongs to. `is_private` is what firestore.rules and every public query
+// read, so it is a denormalised value with a sync obligation — see
+// functions/collectionPrivacy.js.
+exports.syncItemPrivacy = require("./collectionPrivacy").syncItemPrivacy;
+exports.syncCollectionPrivacy = require("./collectionPrivacy").syncCollectionPrivacy;
+
 exports.syncUserRoleClaims = require("./userRoles").syncUserRoleClaims;
 exports.syncMyRoleClaim = require("./userRoles").syncMyRoleClaim;
 
