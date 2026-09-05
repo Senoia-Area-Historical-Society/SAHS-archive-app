@@ -23,7 +23,7 @@ import {
     assertSucceeds,
     type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
 
 let testEnv: RulesTestEnvironment;
 
@@ -222,6 +222,113 @@ describe('archive_items/{id}/provenance — accession paperwork is staff-only', 
     it('leaves the parent item publicly readable', async () => {
         const db = testEnv.unauthenticatedContext().firestore();
         await assertSucceeds(getDoc(doc(db, 'archive_items', 'item1')));
+    });
+});
+
+/**
+ * The rule these exercise closes the last of audit finding C2: privacy was
+ * enforced only in the browser, so anyone querying Firestore directly read
+ * private items. The list-query cases matter most — a public query that does not
+ * constrain is_private is now REJECTED, and because the pages catch that, a
+ * missed query would render as an empty archive rather than an error.
+ */
+describe('archive_items — private items are not public', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'archive_items', 'public1'), { title: 'A Public Photo', is_private: false });
+            await setDoc(doc(db, 'archive_items', 'private1'), { title: 'A Private Deed', is_private: true });
+            // Pre-backfill shape. Denied to the public: the rule reads the field
+            // directly, which is what makes Firestore enforce the query filter, and
+            // the price is that a document without the field fails closed. No such
+            // document exists in production after the backfill.
+            await setDoc(doc(db, 'archive_items', 'legacy1'), { title: 'No Flag At All' });
+            await setDoc(doc(db, 'collections', 'pubcol'), { title: 'Public Collection', is_private: false });
+            await setDoc(doc(db, 'collections', 'privcol'), { title: 'Private Collection', is_private: true });
+        });
+    });
+
+    it('lets anyone read a public item', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'public1')));
+    });
+
+    it('refuses an anonymous read of a private item', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'private1')));
+    });
+
+    it('refuses a signed-in stranger too', async () => {
+        const db = stranger().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'private1')));
+    });
+
+    it('lets staff read a private item', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'private1')));
+    });
+
+    // Fails closed, and staff still reach it. See the rule's comment for why a
+    // direct field read (rather than a lenient `.get()` default) is required.
+    it('denies the public an item with no is_private field, but not staff', async () => {
+        await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'archive_items', 'legacy1')));
+        await assertSucceeds(getDoc(doc(staff().firestore(), 'archive_items', 'legacy1')));
+    });
+
+    /**
+     * The two that guard the archive itself. An unfiltered list is refused, and
+     * the filter publicOnly() adds is what makes it pass — if these ever invert,
+     * every browse page goes blank.
+     */
+    it('refuses an unfiltered list query from the public', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertFails(getDocs(collection(db, 'archive_items')));
+    });
+
+    it('allows the list query publicOnly() builds', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDocs(query(collection(db, 'archive_items'), where('is_private', '==', false))));
+    });
+
+    it('lets staff list everything unfiltered', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(getDocs(collection(db, 'archive_items')));
+    });
+
+    it('applies the same rule to collections', async () => {
+        const anon = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDoc(doc(anon, 'collections', 'pubcol')));
+        await assertFails(getDoc(doc(anon, 'collections', 'privcol')));
+        await assertFails(getDocs(collection(anon, 'collections')));
+        await assertSucceeds(getDocs(query(collection(anon, 'collections'), where('is_private', '==', false))));
+    });
+});
+
+/** Subcollections do not inherit the parent's rule, so comments needed closing separately. */
+describe('comments follow their item\'s privacy', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'archive_items', 'public1'), { title: 'Public', is_private: false });
+            await setDoc(doc(db, 'archive_items', 'private1'), { title: 'Private', is_private: true });
+            await setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'), { text: 'hi', authorEmail: 'a@b.com' });
+            await setDoc(doc(db, 'archive_items', 'private1', 'comments', 'c2'), { text: 'secret', authorEmail: 'a@b.com' });
+        });
+    });
+
+    it('lets anyone read comments on a public item', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1')));
+    });
+
+    it('refuses comments on a private item', async () => {
+        const db = testEnv.unauthenticatedContext().firestore();
+        await assertFails(getDoc(doc(db, 'archive_items', 'private1', 'comments', 'c2')));
+    });
+
+    it('lets staff read comments on a private item', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(getDoc(doc(db, 'archive_items', 'private1', 'comments', 'c2')));
     });
 });
 
