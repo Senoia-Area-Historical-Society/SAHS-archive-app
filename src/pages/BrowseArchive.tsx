@@ -23,6 +23,11 @@ export function BrowseArchive() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [collectionPrivacyMap, setCollectionPrivacyMap] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(true);
+    // A failed fetch used to leave `items` as [] and render "No items found",
+    // which is indistinguishable from an archive that genuinely has nothing. That
+    // is the failure mode any mistake in the privacy work would take, so the error
+    // has to reach the page before those queries change.
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [localSearch, setLocalSearch] = useState(search);
     const { isSAHSUser } = useAuth();
     const { settings } = useAppearance();
@@ -81,6 +86,7 @@ export function BrowseArchive() {
                 setItems(itemsData);
             } catch (error) {
                 console.error("Error fetching items: ", error);
+                setLoadError(error instanceof Error ? error.message : String(error));
             } finally {
                 setLoading(false);
             }
@@ -341,6 +347,12 @@ export function BrowseArchive() {
                     ) : (
                         <ArchiveMap items={sortedItems} />
                     )
+                ) : loadError ? (
+                    <div className="text-center py-24 bg-white rounded-xl border border-red-200 shadow-sm">
+                        <p className="text-red-800 text-xl font-serif mb-2">The archive could not be loaded.</p>
+                        <p className="text-charcoal-light/70 font-sans">This is an error, not an empty archive. Please try again, and report it if it persists.</p>
+                        <p className="text-charcoal-light/50 font-sans text-xs mt-3">{loadError}</p>
+                    </div>
                 ) : (
                     <div className="text-center py-24 bg-white rounded-xl border border-tan-light/50 shadow-sm">
                         <p className="text-charcoal-light text-xl font-serif italic mb-2">No items found.</p>
