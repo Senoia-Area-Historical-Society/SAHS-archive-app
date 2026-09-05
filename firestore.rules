@@ -13,7 +13,18 @@ service cloud.firestore {
       return request.auth != null &&
         request.auth.token.email != null && (
           request.auth.token.role in ['admin', 'curator'] ||
-          request.auth.token.email.matches('(?i).*@senoiahistory\\.com') ||
+          // The bare-domain clause was removed here. It granted curator-equivalent
+          // write on archive_items, collections, settings, members, rooms and
+          // locations to ANY @senoiahistory.com account the moment it signed in —
+          // a new volunteer, an intern, someone mid-offboarding — with no role
+          // grant and no audit trail. The sibling sahs-website repo refuses to do
+          // this and says so in its own rules; the two apps share one Auth instance
+          // and had opposite policies on the same identities.
+          //
+          // Safe to remove because every @senoiahistory.com account in Auth now
+          // holds a user_roles document or is one of the two hardcoded admins
+          // below (enumerated 2026-09-05), and the role claims those documents
+          // imply were backfilled by scripts/backfill-role-claims.cjs.
           request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
           request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&

@@ -16,7 +16,13 @@ service firebase.storage {
              request.auth.token != null &&
              request.auth.token.email != null && (
                request.auth.token.role in ['admin', 'curator'] ||
-               request.auth.token.email.matches('(?i).*@senoiahistory\\.com') ||
+               // Bare-domain clause removed — see the matching note in
+               // firestore.rules. It mattered more here than there: Storage Rules
+               // cannot read Firestore, so the domain was the ONLY thing admitting
+               // role holders whose claim had never been set. That is why
+               // scripts/backfill-role-claims.cjs had to run first — without it,
+               // removing this line would have taken media access away from
+               // shelleykiley@ and calebwalls@, who passed on the domain alone.
                request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
                request.auth.token.email.matches('(?i)sahsintern@senoiahistory\\.com')
