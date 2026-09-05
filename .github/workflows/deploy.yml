@@ -5,6 +5,27 @@ on:
     branches:
       - main
 
+# Serialize deploys: only one may touch the Firebase project at a time.
+#
+# Without this, two merges close together each start their own run and deploy
+# hosting, functions, storage and Firestore concurrently to the same project.
+# That happened on 2026-09-05 — PRs #50 and #51 merged nine seconds apart and
+# both runs were in flight together. The ordering between them is not
+# guaranteed: the older run can finish after the newer one and leave production
+# serving an earlier build, or leave functions and rules from different commits
+# live together.
+#
+# `cancel-in-progress: false` is the load-bearing half. Cancelling a running
+# deploy is worse than queueing behind it — `firebase deploy` interrupted partway
+# through would leave production half-applied with no automatic rollback. Queue
+# instead; a deploy takes a couple of minutes.
+#
+# The sibling sahs-website repo added the same guard after an identical incident
+# on 2026-08-24. This is that fix, brought across.
+concurrency:
+  group: deploy-firebase-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
