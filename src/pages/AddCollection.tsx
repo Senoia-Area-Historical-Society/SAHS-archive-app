@@ -157,7 +157,7 @@ export function AddCollection() {
                 <button
                     type="button"
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isPrivate ? 'bg-amber-500' : 'bg-tan/30'}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${isPrivate ? 'bg-amber-500' : 'bg-gray-400'}`}
                 >
                     <span
                         className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${isPrivate ? 'translate-x-6' : 'translate-x-1'}`}

@@ -1266,7 +1266,7 @@ export default function EditItem() {
                     type="button"
                     disabled={itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')}
                     onClick={() => setIsPrivate(!isPrivate)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-500' : 'bg-tan/30'} ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'bg-amber-500' : 'bg-gray-400'} ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <span
                         className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${(itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) || isPrivate ? 'translate-x-6' : 'translate-x-1'}`}
