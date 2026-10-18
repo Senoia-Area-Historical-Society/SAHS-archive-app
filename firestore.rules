@@ -22,13 +22,36 @@ service cloud.firestore {
           // and had opposite policies on the same identities.
           //
           // Safe to remove because every @senoiahistory.com account in Auth now
-          // holds a user_roles document or is one of the two hardcoded admins
-          // below (enumerated 2026-09-05), and the role claims those documents
-          // imply were backfilled by scripts/backfill-role-claims.cjs.
-          request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
-          request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
+          // holds a user_roles document or is a support admin (enumerated
+          // 2026-09-05), and the role claims those documents imply were
+          // backfilled by scripts/backfill-role-claims.cjs.
+          isSupportAdmin() ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
            get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role in ['admin', 'curator'])
+        );
+    }
+
+    // Helper function for support admins: the archive's developers, admitted as
+    // admins so they can help with support. An exact list of addresses in
+    // deployment_config/support, written by scripts/set-support-admins.cjs. It
+    // replaces two addresses that used to be hardcoded into this file, which no
+    // museum installing the code could see or remove. Admin Settings shows it.
+    function isSupportAdmin() {
+      return request.auth != null &&
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/deployment_config/support) &&
+        request.auth.token.email.lower() in
+          get(/databases/$(database)/documents/deployment_config/support).data.get('emails', []);
+    }
+
+    // Helper function for admins specifically — the people who may grant roles.
+    function isArchiveAdmin() {
+      return request.auth != null &&
+        request.auth.token.email != null && (
+          request.auth.token.role == 'admin' ||
+          isSupportAdmin() ||
+          (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
+           get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role == 'admin')
         );
     }
 
@@ -80,7 +103,7 @@ service cloud.firestore {
       );
     }
 
-    // user_roles collection: admins/curators can read, only catnolan/jeremywarren can write roles OR first user during setup
+    // user_roles collection: admins/curators can read, admins can write roles, OR first user during setup
     match /user_roles/{email} {
       // `get` was `request.auth != null`, which let ANY Google account — a personal
       // Gmail, anyone on the internet who signs in — read any role document by
@@ -97,9 +120,13 @@ service cloud.firestore {
                  || (request.auth != null && request.auth.token.email.lower() == email.lower())
                  || isActiveMember();
       allow list: if isSAHSUser();
-      allow write: if request.auth != null && (
-        request.auth.token.email.lower() == 'catnolan@senoiahistory.com' ||
-        request.auth.token.email.lower() == 'jeremywarren@senoiahistory.com' ||
+      // Only the two hardcoded addresses could write here, so a museum's own
+      // admins could not grant a curator role in Admin Settings, and a museum that
+      // removed support access could never grant a role again. Any admin may now,
+      // and only to the two roles that exist.
+      allow delete: if isArchiveAdmin();
+      allow create, update: if request.auth != null && (
+        (isArchiveAdmin() && request.resource.data.role in ['admin', 'curator']) ||
         // First-run bootstrap: the initial admin grants themselves the role via
         // SetupWizard (src/pages/SetupWizard.tsx:182) before any admin exists.
         //
@@ -217,11 +244,18 @@ service cloud.firestore {
     }
 
     // deployment_config: per-install settings that the app itself must not be
-    // able to change, such as who may run first-run setup. Written only by
-    // scripts with server credentials (scripts/set-setup-admins.cjs), which
-    // bypass these rules; the get() in isBootstrapAdmin() is privileged too.
+    // able to change — who may run first-run setup, and who the support admins
+    // are. Written only by scripts with server credentials
+    // (scripts/set-setup-admins.cjs, scripts/set-support-admins.cjs), which
+    // bypass these rules; the get()s in the helpers above are privileged too.
     match /deployment_config/{document} {
       allow read, write: if false;
+    }
+
+    // The support list is the exception on reads: a museum's staff must be able
+    // to see who outside it has admin access. Still never writable from the app.
+    match /deployment_config/support {
+      allow get: if isSAHSUser();
     }
 
     // settings collection: Anyone can read, only SAHS users can write

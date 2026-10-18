@@ -255,6 +255,24 @@ export function AdminSettings() {
 
 
 
+    // The support list (deployment_config/support): addresses outside this museum
+    // that hold admin access so the archive's developers can help with support.
+    // Shown so nobody here has to take that on trust; it can only be changed
+    // with scripts/set-support-admins.cjs, never from the app.
+    const [supportAdmins, setSupportAdmins] = useState<string[] | null>(null);
+
+    useEffect(() => {
+        getDoc(doc(db, 'deployment_config', 'support'))
+            .then(snap => {
+                const emails: unknown = snap.exists() ? snap.data().emails : [];
+                setSupportAdmins(Array.isArray(emails) ? emails.map(String) : []);
+            })
+            .catch(error => {
+                console.error('Error fetching support admins:', error);
+                setSupportAdmins(null);
+            });
+    }, []);
+
     const fetchRoles = async () => {
         try {
             const querySnapshot = await getDocs(collection(db, 'user_roles'));
@@ -567,7 +585,20 @@ export function AdminSettings() {
                             </div>
                             
                             <div className="bg-blue-50/50 rounded-xl border border-blue-100 p-6 text-sm text-blue-900/70 font-sans leading-relaxed">
-                                <strong>Permanent Admins:</strong> <code>catnolan@senoiahistory.com</code> and <code>jeremywarren@senoiahistory.com</code> are hardcoded as permanent system administrators. You cannot revoke their access here.
+                                <strong>Support access:</strong>{' '}
+                                {supportAdmins === null ? (
+                                    'Could not load the list of support administrators.'
+                                ) : supportAdmins.length === 0 ? (
+                                    'No support administrators have access to this archive.'
+                                ) : (
+                                    <>
+                                        {supportAdmins.map((email, i) => (
+                                            <span key={email}>{i > 0 && (i === supportAdmins.length - 1 ? ' and ' : ', ')}<code>{email}</code></span>
+                                        ))}{' '}
+                                        {supportAdmins.length === 1 ? 'has' : 'have'} administrator access so the archive's developers can help you with support.
+                                        They are not listed above and cannot be removed here; whoever installed the archive can remove them by running <code>node scripts/set-support-admins.cjs --none --prod</code>.
+                                    </>
+                                )}
                             </div>
                             <div className="bg-tan/10 rounded-xl border border-tan/30 p-6 text-sm text-charcoal/80 font-sans leading-relaxed mt-4">
                                 <h3 className="font-bold text-charcoal mb-2 flex items-center gap-2"><Settings size={16} /> Run Setup Wizard</h3>

@@ -21,32 +21,27 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
+const { getFirestore } = require("firebase-admin/firestore");
 const { randomUUID } = require("node:crypto");
+const { supportEmailsOf } = require("./roleResolution");
 
 /**
  * Mirrors isSAHSUser() in storage.rules — keep the two in step.
  *
- * The bare-domain fallback was removed alongside the rules' copy. Note this file
- * needed the permanent admins spelled out first: storage.rules already listed
- * them, this did not, so it was the domain that admitted
- * jeremywarren@senoiahistory.com — who holds no user_roles document and therefore
- * no role claim. Dropping the domain without adding them would have locked that
- * account out of restricted media while leaving Storage itself working, which is
- * exactly the kind of split-brain this function exists to avoid.
+ * The role claim covers everyone: museum-granted roles and support admins alike
+ * are mirrored onto it by functions/userRoles.js. The support list is also read
+ * directly as a fallback, because a support admin's claim lands only after
+ * syncMyRoleClaim runs, and support is exactly when nobody wants to be told to
+ * sign out and back in. This replaces the two addresses that used to be
+ * hardcoded here.
  */
-const PERMANENT_ADMINS = [
-    "catnolan@senoiahistory.com",
-    "jeremywarren@senoiahistory.com",
-];
-
-function isSAHSUser(auth) {
+async function isSAHSUser(auth) {
     const email = auth && auth.token && auth.token.email;
     if (!email) return false;
     if (auth.token.email_verified === false) return false;
-    // A role granted via Admin Settings, mirrored onto the token by
-    // functions/userRoles.js. This is the general case now.
     if (auth.token.role === "admin" || auth.token.role === "curator") return true;
-    return PERMANENT_ADMINS.includes(email.toLowerCase());
+    const support = await getFirestore("sahs-archives").collection("deployment_config").doc("support").get();
+    return supportEmailsOf(support.exists ? support.data() : null).includes(email.toLowerCase());
 }
 
 /**
@@ -73,7 +68,7 @@ exports.restrictedMediaUrl = onCall({
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "You must be signed in.");
     }
-    if (!isSAHSUser(request.auth)) {
+    if (!(await isSAHSUser(request.auth))) {
         throw new HttpsError("permission-denied", "Restricted media is available to archive staff only.");
     }
 

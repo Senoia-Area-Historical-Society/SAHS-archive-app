@@ -4,29 +4,22 @@ service firebase.storage {
 
     // Helper function for admin/curator roles.
     //
-    // The role claim is the general case: it's set by a Cloud Function
-    // (functions/userRoles.js) from the user_roles Firestore collection,
-    // which is how Admin Settings grants curator/admin to any email — this
-    // is the only way Storage Rules can see that grant, since rules here
-    // cannot query a named Firestore database. The domain match and the two
-    // hardcoded emails predate that and stay on as a fallback that needs no
-    // token refresh.
+    // The role claim is the only signal available here: it's set by Cloud
+    // Functions (functions/userRoles.js) from the user_roles Firestore
+    // collection and the support list in deployment_config/support, and rules
+    // here cannot query a named Firestore database at all.
+    //
+    // The bare-domain clause and three hardcoded addresses used to sit beside
+    // it. The domain went with the audit's H2 (see firestore.rules); the
+    // addresses went when they became the support list, which a museum
+    // installing this code can see and remove — no address is named here now.
+    // A support admin's claim is set on the list's write and on sign-in, so
+    // removing one from the list revokes their Storage access too.
     function isSAHSUser() {
       return request.auth != null &&
              request.auth.token != null &&
-             request.auth.token.email != null && (
-               request.auth.token.role in ['admin', 'curator'] ||
-               // Bare-domain clause removed — see the matching note in
-               // firestore.rules. It mattered more here than there: Storage Rules
-               // cannot read Firestore, so the domain was the ONLY thing admitting
-               // role holders whose claim had never been set. That is why
-               // scripts/backfill-role-claims.cjs had to run first — without it,
-               // removing this line would have taken media access away from
-               // shelleykiley@ and calebwalls@, who passed on the domain alone.
-               request.auth.token.email.matches('(?i)catnolan@senoiahistory\\.com') ||
-               request.auth.token.email.matches('(?i)jeremywarren@senoiahistory\\.com') ||
-               request.auth.token.email.matches('(?i)sahsintern@senoiahistory\\.com')
-             );
+             request.auth.token.email != null &&
+             request.auth.token.role in ['admin', 'curator'];
     }
 
     // ── How public read access works here ────────────────────────────────────

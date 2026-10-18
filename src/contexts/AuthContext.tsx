@@ -24,6 +24,22 @@ import type { Member } from '../types/database';
  * token if the claim just changed, so upload permissions work immediately
  * rather than after a sign-out/sign-in.
  */
+/**
+ * Whether `email` is on the support list in deployment_config/support.
+ *
+ * firestore.rules lets only staff read that document, and a support admin is
+ * staff, so a refusal simply means "not one" — as does a missing document.
+ */
+async function isSupportAdmin(email: string): Promise<boolean> {
+    try {
+        const snap = await getDoc(doc(db, 'deployment_config', 'support'));
+        const emails: unknown = snap.exists() ? snap.data().emails : [];
+        return Array.isArray(emails) && emails.map(e => String(e).toLowerCase()).includes(email);
+    } catch {
+        return false;
+    }
+}
+
 async function syncRoleClaim(user: User) {
     try {
         const syncMyRoleClaim = httpsCallable<void, { updated: boolean }>(functions, 'syncMyRoleClaim');
@@ -188,39 +204,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 const email = currentUser.email.toLowerCase();
-                if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com') {
+                // No address is special-cased here any more. The two that were
+                // hardcoded are now support admins, read from the list like anyone
+                // else, and the @senoiahistory.com fallback to curator went because
+                // firestore.rules stopped honouring the domain in #54 — it only
+                // showed curator screens whose every write the rules then refused.
+                if (await isSupportAdmin(email)) {
                     setIsAdmin(true);
                     setIsCurator(false);
                 } else {
                     try {
                         const roleDoc = await getDoc(doc(db, 'user_roles', email));
-                        if (roleDoc.exists()) {
-                            const role = roleDoc.data().role;
-                            if (role === 'admin') {
-                                setIsAdmin(true);
-                                setIsCurator(false);
-                            } else if (role === 'curator') {
-                                setIsAdmin(false);
-                                setIsCurator(true);
-                            } else {
-                                setIsAdmin(false);
-                                setIsCurator(false);
-                            }
-                        } else if (email.endsWith('@senoiahistory.com')) {
-                            setIsAdmin(false);
-                            setIsCurator(true);
-                        } else {
-                            setIsAdmin(false);
-                            setIsCurator(false);
-                        }
+                        const role = roleDoc.exists() ? roleDoc.data().role : null;
+                        setIsAdmin(role === 'admin');
+                        setIsCurator(role === 'curator');
                     } catch {
-                        if (email.endsWith('@senoiahistory.com')) {
-                            setIsAdmin(false);
-                            setIsCurator(true);
-                        } else {
-                            setIsAdmin(false);
-                            setIsCurator(false);
-                        }
+                        setIsAdmin(false);
+                        setIsCurator(false);
                     }
                 }
 
@@ -309,8 +309,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            // 1. Allow hardcoded admins/curators
-            if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com' || email.endsWith('@senoiahistory.com')) {
+            // 1. Allow support admins
+            if (await isSupportAdmin(email)) {
                 return;
             }
 

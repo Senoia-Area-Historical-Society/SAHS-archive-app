@@ -58,18 +58,24 @@ access bugs here.
 
 | Layer | Can it read `user_roles`? | What it accepts |
 |---|---|---|
-| `AuthContext` | yes | role document |
-| `firestore.rules` | yes, via `get()` | `role` claim, role document, 2 hardcoded admins |
-| `storage.rules` | **no** | `role` claim, 2 hardcoded admins |
-| `functions/restrictedMedia.js` | not used | `role` claim, 2 hardcoded admins |
+| `AuthContext` | yes | role document, support list |
+| `firestore.rules` | yes, via `get()` | `role` claim, role document, support list |
+| `storage.rules` | **no** | `role` claim only |
+| `functions/restrictedMedia.js` | not used | `role` claim, support list |
 
 Storage Rules cannot read Firestore *at all*, let alone a named database. That is
 why `functions/userRoles.js` mirrors each role onto the user's Auth **custom
-claim** — `syncUserRoleClaims` on write, `syncMyRoleClaim` on sign-in. A role
-holder with no claim is invisible to Storage.
+claim** — `syncUserRoleClaims` on a role write, `syncSupportAdminClaims` on a
+support-list write, `syncMyRoleClaim` on sign-in. A role holder with no claim is
+invisible to Storage. `functions/roleResolution.js` decides the role.
 
-Permanent admins, hardcoded in all three: `catnolan@senoiahistory.com`,
-`jeremywarren@senoiahistory.com`. Roles are `admin` and `curator` only.
+**Support admins** replace the two addresses that used to be hardcoded in every
+layer. They are the archive's developers — `catnolan@senoiahistory.com` and
+`jeremywarren@senoiahistory.com` for SAHS — admitted as admin in any install so
+they can help with support. The list lives in `deployment_config/support`, is set
+only by `scripts/set-support-admins.cjs`, is shown to the museum's staff in Admin
+Settings, and can be removed (`--none`). Any admin — support or museum-granted —
+may grant and revoke roles; roles are `admin` and `curator` only.
 
 `scripts/backfill-role-claims.cjs` reconciles claims against `user_roles`.
 
