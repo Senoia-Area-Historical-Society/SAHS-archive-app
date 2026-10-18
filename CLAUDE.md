@@ -73,6 +73,12 @@ Permanent admins, hardcoded in all three: `catnolan@senoiahistory.com`,
 
 `scripts/backfill-role-claims.cjs` reconciles claims against `user_roles`.
 
+**First-run setup** (the Setup Wizard's self-grant of admin on an empty archive)
+is open only to the exact addresses in `deployment_config/bootstrap`, set with
+`scripts/set-setup-admins.cjs` (`--emulator` for local demos). No document means
+nobody can bootstrap. The app can neither read nor write that collection, and the
+list stops mattering once `site_settings/setup` is complete.
+
 ## Privacy model
 
 The archive is public; individual items and collections can be private.

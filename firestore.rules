@@ -39,6 +39,24 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/site_settings/appearance);
     }
 
+    // Helper function for who may run first-run setup.
+    //
+    // An exact list of addresses in deployment_config/bootstrap, written by
+    // whoever installs the archive with scripts/set-setup-admins.cjs. It used to
+    // be a hardcoded @senoiahistory.com match, which tied first-run setup to this
+    // one society and made the code unusable for any other museum.
+    //
+    // A list of addresses rather than a domain on purpose: a museum on Gmail would
+    // otherwise have to allow gmail.com, i.e. everyone. With no config document,
+    // nobody can bootstrap — it fails closed.
+    function isBootstrapAdmin() {
+      return request.auth != null &&
+        request.auth.token.email != null &&
+        exists(/databases/$(database)/documents/deployment_config/bootstrap) &&
+        request.auth.token.email.lower() in
+          get(/databases/$(database)/documents/deployment_config/bootstrap).data.emails;
+    }
+
     // Helper function to check if user is an active member
     function isActiveMember() {
       return request.auth != null && 
@@ -85,17 +103,17 @@ service cloud.firestore {
         // First-run bootstrap: the initial admin grants themselves the role via
         // SetupWizard (src/pages/SetupWizard.tsx:182) before any admin exists.
         //
-        // The domain check is load-bearing and was absent: this clause is reachable
+        // The isBootstrapAdmin() check is load-bearing: this clause is reachable
         // by ANY authenticated account whenever isSetupComplete() is false, so
         // without it anyone on the internet with a Google account could write
         // user_roles/{their own email} = admin and take over the archive. The whole
         // boundary is the existence of site_settings/setup or site_settings/appearance
         // (see isSetupComplete), which is far too thin a thread for a self-service
-        // admin grant. Restricting it to the SAHS domain keeps first-run working
-        // while making the clause unreachable from an arbitrary account.
+        // admin grant. Restricting it to the installer's list keeps first-run
+        // working while making the clause unreachable from an arbitrary account.
         (!isSetupComplete()
          && request.auth.token.email.lower() == email.lower()
-         && request.auth.token.email.matches('(?i).*@senoiahistory\\.com')
+         && isBootstrapAdmin()
          && request.resource.data.role == 'admin')
       );
     }
@@ -186,17 +204,24 @@ service cloud.firestore {
       allow write: if isSAHSUser();
     }
 
-    // site_settings collection: Anyone can read, only SAHS users can write (or a SAHS account during initial setup)
+    // site_settings collection: Anyone can read, only SAHS users can write (or a listed setup admin during initial setup)
     match /site_settings/{document} {
       allow read: if true;
       // The setup clause carried the same defect as the user_roles one: while
       // isSetupComplete() is false it was reachable by any authenticated account,
       // and site_settings is where the setup/appearance documents that define
-      // isSetupComplete() themselves live. Domain-restricted for the same reason.
+      // isSetupComplete() themselves live. Restricted to isBootstrapAdmin() for
+      // the same reason.
       allow write: if isSAHSUser()
-                   || (request.auth != null
-                       && !isSetupComplete()
-                       && request.auth.token.email.matches('(?i).*@senoiahistory\\.com'));
+                   || (!isSetupComplete() && isBootstrapAdmin());
+    }
+
+    // deployment_config: per-install settings that the app itself must not be
+    // able to change, such as who may run first-run setup. Written only by
+    // scripts with server credentials (scripts/set-setup-admins.cjs), which
+    // bypass these rules; the get() in isBootstrapAdmin() is privileged too.
+    match /deployment_config/{document} {
+      allow read, write: if false;
     }
 
     // settings collection: Anyone can read, only SAHS users can write

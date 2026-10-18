@@ -185,7 +185,13 @@ export function SetupWizard() {
             setStep(2);
         } catch (err) {
             console.error("Error claiming admin:", err);
-            setError("Failed to set admin role. Check your database rules.");
+            // firestore.rules only lets an address listed in deployment_config/bootstrap
+            // claim the first admin role, so a refusal almost always means this one isn't.
+            if ((err as { code?: string }).code === 'permission-denied') {
+                setError(`${user.email} is not on this archive's list of setup administrators. Whoever installed the archive can add it with scripts/set-setup-admins.cjs, then try again.`);
+            } else {
+                setError("Failed to set admin role. Please try again.");
+            }
         } finally {
             setIsProcessing(false);
         }

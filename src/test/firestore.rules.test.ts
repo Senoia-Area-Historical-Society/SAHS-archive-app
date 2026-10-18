@@ -146,14 +146,21 @@ describe('user_roles — who holds admin is not public', () => {
  * whole boundary was the existence of two site_settings documents.
  */
 describe('user_roles bootstrap — self-granting admin during first-run setup', () => {
-    const clearSetup = () => testEnv.withSecurityRulesDisabled(async (ctx) => {
-        const db = ctx.firestore();
-        await setDoc(doc(db, 'site_settings', 'setup'), { isComplete: false });
-        // isSetupComplete() is an OR — the appearance document alone satisfies it,
-        // so a test that only flips isComplete would prove nothing.
-        await import('firebase/firestore').then(({ deleteDoc }) =>
-            deleteDoc(doc(db, 'site_settings', 'appearance')));
-    });
+    /** An address the installer put on the setup list, at a museum that isn't SAHS. */
+    const director = () => testEnv.authenticatedContext('director', { email: 'director@examplemuseum.org' });
+
+    const clearSetup = (setupAdmins: string[] | null = ['director@examplemuseum.org']) =>
+        testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            const { deleteDoc } = await import('firebase/firestore');
+            await setDoc(doc(db, 'site_settings', 'setup'), { isComplete: false });
+            // isSetupComplete() is an OR — the appearance document alone satisfies it,
+            // so a test that only flips isComplete would prove nothing.
+            await deleteDoc(doc(db, 'site_settings', 'appearance'));
+            if (setupAdmins) {
+                await setDoc(doc(db, 'deployment_config', 'bootstrap'), { emails: setupAdmins });
+            }
+        });
 
     it('refuses a stranger self-granting admin even when setup is incomplete', async () => {
         await clearSetup();
@@ -161,22 +168,77 @@ describe('user_roles bootstrap — self-granting admin during first-run setup', 
         await assertFails(setDoc(doc(db, 'user_roles', 'stranger@example.com'), { role: 'admin' }));
     });
 
-    it('still lets a SAHS account bootstrap the first admin', async () => {
+    it('lets a listed setup admin from any domain bootstrap the first admin', async () => {
         await clearSetup();
-        const db = staff().firestore();
-        await assertSucceeds(setDoc(doc(db, 'user_roles', 'staff@senoiahistory.com'), { role: 'admin' }));
+        const db = director().firestore();
+        await assertSucceeds(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
     });
 
-    it('refuses even a SAHS account once setup is complete', async () => {
+    it('matches the listed address case-insensitively', async () => {
+        await clearSetup();
+        const db = testEnv.authenticatedContext('director2', { email: 'Director@ExampleMuseum.org' }).firestore();
+        await assertSucceeds(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
+    });
+
+    it('no longer lets a SAHS address bootstrap on the domain alone', async () => {
+        await clearSetup();
+        const db = domainOnly().firestore();
+        await assertFails(setDoc(doc(db, 'user_roles', 'newvolunteer@senoiahistory.com'), { role: 'admin' }));
+    });
+
+    it('lets nobody bootstrap when no setup list has been written', async () => {
+        await clearSetup(null);
+        const db = director().firestore();
+        await assertFails(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
+    });
+
+    it('refuses a listed setup admin once setup is complete', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'deployment_config', 'bootstrap'), { emails: ['director@examplemuseum.org'] });
+        });
         // Fixtures already mark setup complete; only the permanent admins may write.
-        const db = staff().firestore();
-        await assertFails(setDoc(doc(db, 'user_roles', 'staff@senoiahistory.com'), { role: 'admin' }));
+        const db = director().firestore();
+        await assertFails(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
+    });
+
+    it('refuses a listed setup admin granting a role on someone else\'s document', async () => {
+        await clearSetup();
+        const db = director().firestore();
+        await assertFails(setDoc(doc(db, 'user_roles', 'stranger@example.com'), { role: 'admin' }));
     });
 
     it('refuses a stranger granting themselves admin on someone else\'s document', async () => {
         await clearSetup();
         const db = stranger().firestore();
-        await assertFails(setDoc(doc(db, 'user_roles', 'catnolan@senoiahistory.com'), { role: 'admin' }));
+        await assertFails(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
+    });
+
+    it('refuses a stranger adding themselves to the setup list', async () => {
+        await clearSetup();
+        const db = stranger().firestore();
+        await assertFails(setDoc(doc(db, 'deployment_config', 'bootstrap'), { emails: ['stranger@example.com'] }));
+    });
+
+    it('keeps the setup list unreadable and unwritable even to a listed setup admin', async () => {
+        await clearSetup();
+        const db = director().firestore();
+        await assertFails(getDoc(doc(db, 'deployment_config', 'bootstrap')));
+        await assertFails(setDoc(doc(db, 'deployment_config', 'bootstrap'), { emails: ['director@examplemuseum.org', 'friend@example.com'] }));
+    });
+
+    it('lets a listed setup admin write settings during setup', async () => {
+        await clearSetup();
+        const db = director().firestore();
+        await assertSucceeds(setDoc(doc(db, 'site_settings', 'appearance'), { museumName: 'Example Museum' }));
+    });
+
+    it('lets a listed setup admin complete the whole wizard in its real order', async () => {
+        // SetupWizard: claim admin (step 1), then write appearance, then setup.
+        await clearSetup();
+        const db = director().firestore();
+        await assertSucceeds(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
+        await assertSucceeds(setDoc(doc(db, 'site_settings', 'appearance'), { museumName: 'Example Museum' }));
+        await assertSucceeds(setDoc(doc(db, 'site_settings', 'setup'), { isComplete: true }));
     });
 });
 
