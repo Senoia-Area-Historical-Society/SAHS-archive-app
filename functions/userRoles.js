@@ -1,19 +1,21 @@
 /**
- * Mirrors the `user_roles` Firestore collection onto each user's Auth custom
- * claims, so a role granted in Admin Settings is visible somewhere Storage
- * Rules can actually see it.
+ * Mirrors each user's role onto their Auth custom claims, so a role is visible
+ * somewhere Storage Rules can actually see it.
  *
  * Storage Rules cannot query a *named* Firestore database — only the default
  * one — and this project's Firestore lives at "sahs-archives", not default.
- * That's why storage.rules and restrictedMedia.js's isSAHSUser() only ever
- * recognised the @senoiahistory.com domain plus a couple of hardcoded emails:
- * anyone granted curator/admin through user_roles with any other address was
- * invisible to them. Custom claims sidestep the problem entirely, because
- * they ride along on the ID token itself.
+ * Custom claims sidestep the problem entirely, because they ride along on the
+ * ID token itself.
  *
- * Two paths keep a role and its claim in sync:
+ * A role comes from user_roles/{email} or from the support list in
+ * deployment_config/support; roleResolution.js decides between them.
+ *
+ * Three paths keep a role and its claim in sync:
  *  - syncUserRoleClaims fires the moment a role is written or removed, for
  *    anyone who already has an Auth account.
+ *  - syncSupportAdminClaims does the same when the support list changes — in
+ *    particular, it is what actually revokes access when a museum removes
+ *    support admins, since Storage would otherwise go on honouring the claim.
  *  - syncMyRoleClaim covers the case Firestore triggers can't: a role granted
  *    to an email before that person has ever signed in. AuthContext calls it
  *    once per session; it's a no-op once the claim already matches.
@@ -24,9 +26,25 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
+const { supportEmailsOf, resolveRole, changedSupportEmails } = require("./roleResolution");
 
-const VALID_ROLES = ["admin", "curator"];
+const DATABASE = "sahs-archives";
 
+/** The role `email` should hold right now, read fresh from both sources. */
+async function currentRoleFor(email) {
+    const db = getFirestore(DATABASE);
+    const [supportDoc, roleDoc] = await Promise.all([
+        db.collection("deployment_config").doc("support").get(),
+        db.collection("user_roles").doc(email).get(),
+    ]);
+    return resolveRole(
+        email,
+        supportEmailsOf(supportDoc.exists ? supportDoc.data() : null),
+        roleDoc.exists ? roleDoc.data().role : undefined,
+    );
+}
+
+/** Sets or clears the `role` claim on `email`'s account, if it has one. */
 async function applyRoleClaim(email, role) {
     let user;
     try {
@@ -41,40 +59,43 @@ async function applyRoleClaim(email, role) {
         throw err;
     }
 
-    const currentClaims = user.customClaims || {};
-    if (currentClaims.role === role) return;
+    const { role: currentRole, ...rest } = user.customClaims || {};
+    if ((currentRole || null) === role) return;
 
-    await admin.auth().setCustomUserClaims(user.uid, { ...currentClaims, role });
-    logger.info(`Set role claim "${role}" for ${email} (uid ${user.uid}).`);
+    await admin.auth().setCustomUserClaims(user.uid, role ? { ...rest, role } : rest);
+    logger.info(role
+        ? `Set role claim "${role}" for ${email} (uid ${user.uid}).`
+        : `Revoked role claim for ${email} (uid ${user.uid}).`);
 }
 
 exports.syncUserRoleClaims = onDocumentWritten({
     document: "user_roles/{email}",
-    database: "sahs-archives",
+    database: DATABASE,
     maxInstances: 10
 }, async (event) => {
     const email = event.params.email.toLowerCase();
-    const after = event.data.after.exists ? event.data.after.data() : null;
-    const role = after && VALID_ROLES.includes(after.role) ? after.role : null;
-
     try {
-        if (role) {
-            await applyRoleClaim(email, role);
-        } else {
-            // Doc deleted, or role field cleared/invalid — revoke the claim.
-            const user = await admin.auth().getUserByEmail(email).catch((err) => {
-                if (err.code === "auth/user-not-found") return null;
-                throw err;
-            });
-            if (user && user.customClaims && user.customClaims.role) {
-                const { role: _dropped, ...rest } = user.customClaims;
-                await admin.auth().setCustomUserClaims(user.uid, rest);
-                logger.info(`Revoked role claim for ${email} (uid ${user.uid}).`);
-            }
-        }
+        await applyRoleClaim(email, await currentRoleFor(email));
     } catch (err) {
         logger.error(`Failed to sync role claim for ${email}:`, err);
         throw err;
+    }
+});
+
+exports.syncSupportAdminClaims = onDocumentWritten({
+    document: "deployment_config/support",
+    database: DATABASE,
+    maxInstances: 1
+}, async (event) => {
+    const before = event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data.after.exists ? event.data.after.data() : null;
+    for (const email of changedSupportEmails(before, after)) {
+        try {
+            await applyRoleClaim(email, await currentRoleFor(email));
+        } catch (err) {
+            logger.error(`Failed to sync support admin claim for ${email}:`, err);
+            throw err;
+        }
     }
 });
 
@@ -88,11 +109,9 @@ exports.syncMyRoleClaim = onCall({
     }
 
     const email = request.auth.token.email.toLowerCase();
-    const db = getFirestore("sahs-archives");
-    const roleDoc = await db.collection("user_roles").doc(email).get();
-    const role = roleDoc.exists && VALID_ROLES.includes(roleDoc.data().role) ? roleDoc.data().role : null;
+    const role = await currentRoleFor(email);
 
-    if (request.auth.token.role === role) {
+    if ((request.auth.token.role || null) === role) {
         return { updated: false, role };
     }
 
