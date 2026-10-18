@@ -300,7 +300,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const email = userEmail.toLowerCase();
-            
+
+            // 0. On an archive that hasn't been set up, nobody holds a role or a
+            // membership yet — the first admin signs in precisely to claim one in
+            // the Setup Wizard. Signing in grants nothing on its own; firestore.rules
+            // (isBootstrapAdmin) decides who may actually claim admin.
+            if (!isSetupComplete) {
+                return;
+            }
+
             // 1. Allow hardcoded admins/curators
             if (email === 'catnolan@senoiahistory.com' || email === 'jeremywarren@senoiahistory.com' || email.endsWith('@senoiahistory.com')) {
                 return;
