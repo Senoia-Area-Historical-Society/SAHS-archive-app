@@ -24,6 +24,7 @@ claims about *this* app are wrong.
 ```bash
 npm run dev              # Vite dev server
 npm run dev:emulators    # dev server pointed at the Firebase emulators
+npm run demo             # blank archive on all four emulators, for demos — see scripts/demo.cjs
 npm run build            # tsc -b && vite build
 npm run lint             # ESLint (44 pre-existing warnings, 0 errors)
 npm test                 # unit tests — no emulator needed
@@ -133,6 +134,11 @@ in *different databases* — granting a role in the website admin does nothing
 here, and vice versa); and that `extractMetadata` is a live Gemini function (it
 was deleted in `82f9d81` as part of cost control — there is no Gemini or Vertex
 code in this repo at all).
+
+**The emulators use the named `sahs-archives` database too**, not the default one,
+because the functions' Firestore triggers are bound to it. Run the functions
+emulator alongside auth, firestore and storage (`npm run demo` does): a function
+calling a service with no emulator running reaches production.
 
 **Two Firestore databases, one Auth instance.** `src/lib/firebase.ts` exports both
 `db` (named `sahs-archives`) and `defaultDb` (the website's). The only current use

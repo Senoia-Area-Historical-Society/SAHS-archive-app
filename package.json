@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:emulators": "VITE_USE_FIREBASE_EMULATOR=true vite",
+    "demo": "node scripts/demo.cjs",
     "emulators": "firebase emulators:start",
     "build": "tsc -b && vite build",
     "sitemap": "node scripts/generate-sitemap.cjs",

@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from "firebase/auth";
-import { getFunctions } from "firebase/functions";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
 
@@ -20,20 +20,26 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore, Storage, and Auth
+// The emulator gets the same named database as production, not the default one.
+// The Cloud Functions' Firestore triggers are bound to 'sahs-archives', so with
+// the default database they never fired locally — no role claims, so no uploads.
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
-export const db = useEmulator ? getFirestore(app) : getFirestore(app, 'sahs-archives');
+export const db = getFirestore(app, 'sahs-archives');
 export const defaultDb = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
 
-if (import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true') {
+if (useEmulator) {
   console.log("🔥 CONNECTING TO FIREBASE EMULATORS 🔥");
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   connectFirestoreEmulator(defaultDb, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099');
   connectStorageEmulator(storage, '127.0.0.1', 9199);
+  // Without this, callables such as syncMyRoleClaim went to the production
+  // functions with an emulator token and failed.
+  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
 }
 
 export const analytics = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && firebaseConfig.measurementId

@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { db, storage } from '../lib/firebase';
+import { db, storage, functions } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { httpsCallable } from 'firebase/functions';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { Loader2, ArrowRight, ShieldCheck, Palette, Building2, CheckCircle2, Link as LinkIcon, MapPin, Type, FileText, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
 
@@ -182,6 +183,18 @@ export function SetupWizard() {
             await setDoc(doc(db, 'user_roles', user.email!.toLowerCase()), {
                 role: 'admin'
             });
+            // Storage only sees a role through the token's claim, and this token
+            // was issued before the role existed — so without a refresh the logo
+            // and slideshow uploads two steps on are refused for up to an hour.
+            // syncMyRoleClaim sets the claim from the document just written
+            // rather than racing the syncUserRoleClaims trigger.
+            try {
+                await httpsCallable(functions, 'syncMyRoleClaim')();
+                await user.getIdToken(true);
+            } catch (claimErr) {
+                // Not fatal: the role is saved, and the claim lands on next sign-in.
+                console.error('Failed to refresh the admin claim:', claimErr);
+            }
             setStep(2);
         } catch (err) {
             console.error("Error claiming admin:", err);
