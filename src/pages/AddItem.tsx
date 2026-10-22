@@ -1383,7 +1383,8 @@ export function AddItem() {
                                             <div>
                                                 <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact Type</label>
                                                 <div className="relative">
-                                                    <select name="artifact_type" id="artifact_type" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <select required name="artifact_type" id="artifact_type" defaultValue="" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                        <option value="" disabled>Choose a type…</option>
                                                         {ARTIFACT_TYPES.map(t => (
                                                             <option key={t} value={t}>{artifactTypeLabel(t)}</option>
                                                         ))}
