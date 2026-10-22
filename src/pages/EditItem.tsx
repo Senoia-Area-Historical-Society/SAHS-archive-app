@@ -45,6 +45,7 @@ import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
+import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
 
 // RefObject<HTMLElement | null> rather than <any>: the hook only needs
 // contains(), and null is part of the type because a ref starts unattached.
@@ -1840,9 +1841,12 @@ export default function EditItem() {
                                                     <div>
                                                         <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact Type</label>
                                                         <div className="relative">
-                                                            <select name="artifact_type" id="artifact_type" defaultValue={item.artifact_type ?? undefined} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                                {["textile", "photo", "print", "award/trophy", "memorabilia", "furniture", "ceramics", "miscellaneous", "technology", "signs", "jewelry", "metal", "glass", "agriculture"].map(t => (
-                                                                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                                                            <select name="artifact_type" id="artifact_type" defaultValue={normalizeArtifactType(item.artifact_type) ?? item.artifact_type ?? undefined} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                                {item.artifact_type && !normalizeArtifactType(item.artifact_type) && (
+                                                                    <option value={item.artifact_type}>{item.artifact_type}</option>
+                                                                )}
+                                                                {ARTIFACT_TYPES.map(t => (
+                                                                    <option key={t} value={t}>{artifactTypeLabel(t)}</option>
                                                                 ))}
                                                             </select>
                                                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />

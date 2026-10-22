@@ -185,8 +185,8 @@ document id, so it indexes nothing.
 actually holds the role; the stored value alone grants nothing.
 
 **Scripts default to a dry run and take `--prod` to write.** That applies to
-`migrate-item-privacy-and-paperwork.cjs` and `backfill-role-claims.cjs`; both are
-idempotent. Under bare user ADC the Auth API needs
+`migrate-item-privacy-and-paperwork.cjs`, `backfill-role-claims.cjs` and
+`normalize-artifact-types.cjs`; all are idempotent. Under bare user ADC the Auth API needs
 `GOOGLE_CLOUD_QUOTA_PROJECT=sahs-archives` set **per command** — not via `gcloud
 auth application-default set-quota-project`, which changes it for every tool on the
 machine and is what routed the August 2026 Vertex AI spend.

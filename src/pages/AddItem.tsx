@@ -13,6 +13,7 @@ import { convertPdfToPngs } from '../lib/pdfUtils';
 import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { errorMessage } from '../lib/errors';
+import { ARTIFACT_TYPES, artifactTypeLabel } from '../lib/artifactTypes';
 
 /** A figure as the related-figures picker lists it. */
 interface FigureOption {
@@ -1383,8 +1384,8 @@ export function AddItem() {
                                                 <label htmlFor="artifact_type" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Artifact Type</label>
                                                 <div className="relative">
                                                     <select name="artifact_type" id="artifact_type" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                        {["textile", "photo", "print", "award/trophy", "memorabilia", "furniture", "ceramics", "miscellaneous", "technology", "signs", "jewelry", "metal", "glass", "agriculture"].map(t => (
-                                                            <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                                                        {ARTIFACT_TYPES.map(t => (
+                                                            <option key={t} value={t}>{artifactTypeLabel(t)}</option>
                                                         ))}
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
