@@ -300,7 +300,7 @@ export function SearchArchive() {
 
             return 0;
         });
-    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
+    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
 
     const resetFilters = () => {
         setLocalKeyword('');
