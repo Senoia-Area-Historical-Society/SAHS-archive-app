@@ -48,6 +48,22 @@ import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
 import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS, isUnlisted } from '../lib/itemFieldOptions';
 
+/**
+ * The Tags field's comma-separated text as a list: trimmed, blanks dropped, and
+ * repeats removed regardless of capitalization (the first spelling is kept).
+ */
+function parseTags(text: string | null): string[] {
+    const seen = new Set<string>();
+    const tags: string[] = [];
+    for (const raw of (text ?? '').split(',')) {
+        const tag = raw.trim().replace(/\s+/g, ' ');
+        if (!tag || seen.has(tag.toLowerCase())) continue;
+        seen.add(tag.toLowerCase());
+        tags.push(tag);
+    }
+    return tags;
+}
+
 // RefObject<HTMLElement | null> rather than <any>: the hook only needs
 // contains(), and null is part of the type because a ref starts unattached.
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
@@ -813,6 +829,9 @@ export default function EditItem() {
 
             const updatedData: Partial<ArchiveItem> = {
                 item_type: itemType,
+                // Only when the form shows the Tags field (the Oral History form
+                // doesn't), so a form without it never blanks the item's tags.
+                ...(formData.has('tags') ? { tags: parseTags(formData.get('tags') as string) } : {}),
                 file_urls: finalFileUrls,
                 file_captions: finalFileCaptions,
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
