@@ -1537,6 +1537,23 @@ export function ItemDetail() {
                                             <p className="text-lg font-serif text-charcoal">{item.creator}</p>
                                         </div>
                                     )}
+                                    {item.tags && item.tags.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Tags</p>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                {item.tags.map(tag => (
+                                                    <Link
+                                                        key={tag}
+                                                        to={`/search?tag=${encodeURIComponent(tag)}`}
+                                                        title={`Search the archive for "${tag}"`}
+                                                        className="inline-block bg-tan/10 text-tan px-2.5 py-0.5 rounded-full text-[12px] font-bold border border-tan/20 hover:bg-tan/20 transition-colors font-sans"
+                                                    >
+                                                        {tag}
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Column 2: Context / Donor Details */}
