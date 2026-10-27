@@ -15,6 +15,13 @@ export interface StagedTagItem {
     museum_location_ids?: string[];
 }
 
+type ConflictResolution = { itemId: string, mode: 'move' | 'both' };
+
+/** Every location an item is listed in, from both the current and the legacy field. */
+function locationsOf(item: StagedTagItem): string[] {
+    return Array.from(new Set([...(item.museum_location_ids || []), ...(item.museum_location_id ? [item.museum_location_id] : [])]));
+}
+
 export function TaggingHub() {
     const { user } = useAuth();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -32,6 +39,8 @@ export function TaggingHub() {
     // Conflict State
     const [conflictedItems, setConflictedItems] = useState<StagedTagItem[]>([]);
     const [currentConflictIndex, setCurrentConflictIndex] = useState(-1);
+    // The choices made so far, one per conflicted item, saved together after the last.
+    const [conflictResolutions, setConflictResolutions] = useState<ConflictResolution[]>([]);
 
     const parseIdFromData = (data: string): { type: 'item' | 'book' | 'loc' | 'unknown', id: string } => {
         // Handle full URLs (e.g. https://domain.com/items/ID or /library/ID)
@@ -236,7 +245,22 @@ export function TaggingHub() {
         setAlreadyHereItems(prev => prev.filter(aid => aid !== id));
     };
 
-    const performTagging = async (forceResolution?: { itemId: string, mode: 'move' | 'both' }[]) => {
+    /** Records the choice for the conflict on screen; after the last one, saves them all. */
+    const resolveConflict = (mode: 'move' | 'both') => {
+        const item = conflictedItems[currentConflictIndex];
+        const next = [...conflictResolutions, { itemId: item.id, mode }];
+        if (currentConflictIndex + 1 < conflictedItems.length) {
+            setConflictResolutions(next);
+            setCurrentConflictIndex(currentConflictIndex + 1);
+        } else {
+            setConflictedItems([]);
+            setConflictResolutions([]);
+            setCurrentConflictIndex(-1);
+            performTagging(next);
+        }
+    };
+
+    const performTagging = async (forceResolution?: ConflictResolution[]) => {
         if (selectedItems.length === 0 || !selectedLocation) return;
 
         // 1. Check for conflicts if not already resolving
@@ -249,14 +273,15 @@ export function TaggingHub() {
                 return;
             }
 
-            const conflicts = itemsToTag.filter(item => {
-                const hasExisting = (item.museum_location_id && item.museum_location_id !== selectedLocation.id) || 
-                                   (item.museum_location_ids && item.museum_location_ids.length > 0 && !item.museum_location_ids.includes(selectedLocation.id));
-                return hasExisting;
-            });
+            // Any item listed somewhere other than this location is a conflict,
+            // including one already listed here as well: saving it as "move"
+            // would silently drop its other locations.
+            const conflicts = selectedItems.filter(item =>
+                locationsOf(item).some(loc => loc !== selectedLocation.id));
 
             if (conflicts.length > 0) {
                 setConflictedItems(conflicts);
+                setConflictResolutions([]);
                 setCurrentConflictIndex(0);
                 return;
             }
@@ -273,9 +298,7 @@ export function TaggingHub() {
                 
                 let newLocationIds: string[] = [];
                 if (resolution?.mode === 'both') {
-                    const existing = item.museum_location_ids || [];
-                    const legacy = item.museum_location_id;
-                    newLocationIds = Array.from(new Set([...existing, ...(legacy ? [legacy] : []), selectedLocation.id]));
+                    newLocationIds = Array.from(new Set([...locationsOf(item), selectedLocation.id]));
                 } else {
                     newLocationIds = [selectedLocation.id];
                 }
@@ -342,34 +365,25 @@ export function TaggingHub() {
                         
                         <div className="p-8">
                             <p className="text-charcoal/80 mb-6 leading-relaxed">
-                                This artifact is currently listed in <span className="font-bold text-tan">{conflictedItems[currentConflictIndex].museum_location_id || conflictedItems[currentConflictIndex].museum_location_ids?.[0]}</span>. 
+                                {locationsOf(conflictedItems[currentConflictIndex]).includes(selectedLocation?.id ?? '') ? 'This item is already listed here, and also in ' : 'This item is currently listed in '}
+                                <span className="font-bold text-tan">{locationsOf(conflictedItems[currentConflictIndex]).filter(loc => loc !== selectedLocation?.id).join(', ')}</span>.
                                 How would you like to update its records?
+                                {conflictedItems.length > 1 && (
+                                    <span className="block mt-2 text-xs text-charcoal/50">Item {currentConflictIndex + 1} of {conflictedItems.length}. Your choices are saved together after the last one.</span>
+                                )}
                             </p>
                             
                             <div className="grid gap-3">
                                 <button 
-                                    onClick={() => {
-                                        if (currentConflictIndex + 1 < conflictedItems.length) {
-                                            setCurrentConflictIndex(currentConflictIndex + 1);
-                                        } else {
-                                            performTagging([]); // Proceed as default move
-                                        }
-                                    }}
+                                    onClick={() => resolveConflict('move')}
                                     className="w-full py-4 px-6 bg-tan text-white rounded-xl font-bold hover:bg-charcoal transition-all shadow-md flex items-center justify-between group"
                                 >
-                                    <span>Relocate to {selectedLocation?.name}</span>
+                                    <span>{locationsOf(conflictedItems[currentConflictIndex]).includes(selectedLocation?.id ?? '') ? `Keep only in ${selectedLocation?.name}` : `Relocate to ${selectedLocation?.name}`}</span>
                                     <ArrowRight size={18} className="opacity-40 group-hover:opacity-100" />
                                 </button>
                                 
                                 <button 
-                                    onClick={() => {
-                                        const resolutions = conflictedItems.map((item, idx) => ({
-                                            itemId: item.id!,
-                                            mode: idx === currentConflictIndex ? 'both' : 'move'
-                                        } as { itemId: string, mode: 'move' | 'both' }));
-                                        
-                                        performTagging(resolutions);
-                                    }}
+                                    onClick={() => resolveConflict('both')}
                                     className="w-full py-4 px-6 bg-white border-2 border-tan-light text-tan rounded-xl font-bold hover:bg-tan/5 transition-all flex items-center justify-between group"
                                 >
                                     <span>List in Both Locations</span>
@@ -379,6 +393,7 @@ export function TaggingHub() {
                                 <button 
                                     onClick={() => {
                                         setConflictedItems([]);
+                                        setConflictResolutions([]);
                                         setCurrentConflictIndex(-1);
                                         setIsLoading(false);
                                     }}
