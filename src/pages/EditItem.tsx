@@ -47,6 +47,7 @@ import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
 import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS, isUnlisted } from '../lib/itemFieldOptions';
+import { parseTranscriptString, serializeTranscriptLines } from '../lib/transcript';
 
 /**
  * The Tags field's comma-separated text as a list: trimmed, blanks dropped, and
@@ -827,6 +828,12 @@ export default function EditItem() {
             const newAdditionalUrls = additionalMediaFiles.length > 0 
                 ? await uploadToStorage(additionalMediaFiles, 'additional_media') : [];
 
+            // A field the current form doesn't show (a collapsed section, or one this
+            // item type's form leaves out) is absent from formData, and is left as
+            // stored rather than saved as blank.
+            const formText = (field: keyof ArchiveItem, name: string = field) =>
+                formData.has(name) ? { [field]: (formData.get(name) as string) || "" } : {};
+
             const updatedData: Partial<ArchiveItem> = {
                 item_type: itemType,
                 // Only when the form shows the Tags field (the Oral History form
@@ -843,69 +850,70 @@ export default function EditItem() {
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
                 // Core DC Elements
-                title: formData.get('title') as string || "",
-                description: formData.get('description') as string || "",
-                transcription: formData.get('transcription') as string || "",
-                archive_reference: formData.get('archive_reference') as string || "",
-                date: formData.get('date') as string || "",
-                creator: formData.get('creator') as string || "",
-                subject: formData.get('subject') as string || "",
+                ...formText('title'),
+                ...formText('description'),
+                ...formText('transcription'),
+                ...formText('archive_reference'),
+                ...formText('date'),
+                ...formText('creator'),
+                ...formText('subject'),
 
                 // Advanced DC Elements
-                publisher: formData.get('publisher') as string || "",
-                contributor: formData.get('contributor') as string || "",
-                rights: formData.get('rights') as string || "",
-                relation: formData.get('relation') as string || "",
-                format: formData.get('format') as string || "",
-                language: formData.get('language') as string || "",
-                type: formData.get('dc_type') as string || "",
-                identifier: formData.get('identifier') as string || "",
-                source: (formData.get('source') as string) || (formData.get('source_institution') as string) || "",
-                coverage: formData.get('coverage') as string || "",
+                ...formText('publisher'),
+                ...formText('contributor'),
+                ...formText('rights'),
+                ...formText('relation'),
+                ...formText('format'),
+                ...formText('language'),
+                ...formText('type', 'dc_type'),
+                ...formText('identifier'),
+                ...(formData.has('source') || formData.has('source_institution')
+                    ? { source: (formData.get('source') as string) || (formData.get('source_institution') as string) || "" } : {}),
+                ...formText('coverage'),
 
                 // SAHS Archival Tracking
-                condition: (formData.get('condition') as ItemCondition | null) || null,
-                physical_location: (formData.get('physical_location') as string | null) || null,
+                ...(formData.has('condition') ? { condition: (formData.get('condition') as ItemCondition | null) || null } : {}),
+                ...(formData.has('physical_location') ? { physical_location: (formData.get('physical_location') as string | null) || null } : {}),
                 historical_address: historical_address,
                 coordinates: coordinates,
-                category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
+                ...(itemType === 'Artifact' ? { category: 'Artifact' } : formText('category')),
 
                 // Linking
                 related_figures: selectedRelatedFigures.map(f => f.id),
                 related_documents: selectedRelatedDocs.map(d => d.id),
                 related_organizations: selectedRelatedOrgs.map(o => o.id),
 
-                donor: formData.get('donor') as string || "",
+                ...formText('donor'),
 
-                artifact_id: formData.get('artifact_id') as string || "",
-                artifact_type: formData.get('artifact_type') as string || "",
-                museum_location: formData.get('museum_location') as string || "",
-                accession_date: formData.get('accession_date') as string || "",
+                ...formText('artifact_id'),
+                ...formText('artifact_type'),
+                ...formText('museum_location'),
+                ...formText('accession_date'),
                 // Figure Specific Biographics
-                full_name: formData.get('full_name') as string || "",
-                also_known_as: formData.get('also_known_as') as string || "",
-                birth_date: formData.get('birth_date') as string || "",
-                death_date: formData.get('death_date') as string || "",
-                birthplace: formData.get('birthplace') as string || "",
-                occupation: formData.get('occupation') as string || "",
-                biography_sources: formData.get('biography_sources') as string || "",
+                ...formText('full_name'),
+                ...formText('also_known_as'),
+                ...formText('birth_date'),
+                ...formText('death_date'),
+                ...formText('birthplace'),
+                ...formText('occupation'),
+                ...formText('biography_sources'),
 
                 // Organization Specific Biographics
-                org_name: formData.get('org_name') as string || "",
-                alternative_names: formData.get('alternative_names') as string || "",
-                founding_date: formData.get('founding_date') as string || "",
-                dissolved_date: formData.get('dissolved_date') as string || "",
+                ...formText('org_name'),
+                ...formText('alternative_names'),
+                ...formText('founding_date'),
+                ...formText('dissolved_date'),
                 updated_at: new Date().toISOString(),
                 updated_by_email: user?.email || null,
                 updated_by_name: user?.displayName || null,
 
                 // Oral History specific
                 narrator_id: selectedRelatedFigures.length > 0 ? selectedRelatedFigures[0].id : null,
-                interviewer: formData.get('interviewer') as string || "",
-                interview_date: formData.get('interview_date') as string || "",
+                ...formText('interviewer'),
+                ...formText('interview_date'),
                 audio_url: [...existingAdditionalMediaUrls, ...newAdditionalUrls].length > 0 ? [...existingAdditionalMediaUrls, ...newAdditionalUrls][0] : (formData.get('youtube_video_id') ? null : ""),
-                youtube_video_id: formData.get('youtube_video_id') as string || "",
-                transcript: formData.get('transcription') as string || "",
+                ...formText('youtube_video_id'),
+                ...formText('transcript', 'transcription'),
             };
 
             let final_historical_address = historical_address;
@@ -2357,36 +2365,6 @@ export default function EditItem() {
 }
 
 // Synced Transcript Helper & Curation Suite for Oral Histories
-function parseTranscriptString(text: string) {
-    if (!text) return [];
-    return text.split('\n').filter(line => line.trim().length > 0).map((line, idx) => {
-        const match = line.match(/^\[?(\d{2}:\d{2}(?:\.\d{1,3})?)\]?\s*([^:]+):\s*(.*)$/);
-        if (match) {
-            return {
-                id: `line-${idx}-${Date.now()}-${Math.random()}`,
-                timestamp: match[1],
-                speaker: match[2].trim(),
-                text: match[3].trim()
-            };
-        }
-        const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
-        if (speakerMatch) {
-            return {
-                id: `line-${idx}-${Date.now()}-${Math.random()}`,
-                timestamp: '00:00',
-                speaker: speakerMatch[1].trim(),
-                text: speakerMatch[2].trim()
-            };
-        }
-        return {
-            id: `line-${idx}-${Date.now()}-${Math.random()}`,
-            timestamp: '00:00',
-            speaker: '',
-            text: line.trim()
-        };
-    });
-}
-
 function parseTimeToSeconds(timeStr: string): number {
     if (!timeStr) return 0;
     const parts = timeStr.split(':').map(Number);
@@ -2460,6 +2438,9 @@ export function OralHistoryEditForm({
 }: OralHistoryEditFormProps) {
     const { settings } = useAppearance();
     const [transcriptLines, setTranscriptLines] = useState<{ id: string; timestamp: string; speaker: string; text: string }[]>([]);
+    // The transcript as loaded. Until the rows are edited it is saved back exactly,
+    // so opening an oral history and saving another field can't reformat it.
+    const [loadedTranscript, setLoadedTranscript] = useState<{ text: string; lines: typeof transcriptLines } | null>(null);
     const [audioPlayerTime, setAudioPlayerTime] = useState(0);
     const [audioPlayerDuration, setAudioPlayerDuration] = useState(0);
     const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -2491,16 +2472,17 @@ export function OralHistoryEditForm({
     useEffect(() => {
         if (item) {
             const initialText = item.transcript || item.transcription || "";
-            setTranscriptLines(parseTranscriptString(initialText));
+            const lines = parseTranscriptString(initialText);
+            setTranscriptLines(lines);
+            setLoadedTranscript({ text: initialText, lines });
         }
     }, [item]);
 
     // Serialize transcript lines for form field
     const serializedTranscript = useMemo(() => {
-        return transcriptLines
-            .map(line => `[${line.timestamp}] ${line.speaker}: ${line.text}`)
-            .join('\n');
-    }, [transcriptLines]);
+        if (loadedTranscript && transcriptLines === loadedTranscript.lines) return loadedTranscript.text;
+        return serializeTranscriptLines(transcriptLines);
+    }, [transcriptLines, loadedTranscript]);
 
     // Clean up local blob URLs
     useEffect(() => {
