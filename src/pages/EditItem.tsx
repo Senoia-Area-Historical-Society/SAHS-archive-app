@@ -46,6 +46,7 @@ import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
+import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS, isUnlisted } from '../lib/itemFieldOptions';
 
 // RefObject<HTMLElement | null> rather than <any>: the hook only needs
 // contains(), and null is part of the type because a ref starts unattached.
@@ -1856,8 +1857,10 @@ export default function EditItem() {
                                                     <div>
                                                         <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
                                                         <div className="relative">
-                                                            <select name="category" id="category" defaultValue={item.category ?? undefined} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                                {["Manuscript", "Photograph", "Map", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                            <select name="category" id="category" defaultValue={item.category ?? ''} className="w-full bg-white border border-moderate-tan/30 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                                <option value="">Not recorded</option>
+                                                                {isUnlisted(item.category, DOCUMENT_CATEGORIES) && <option value={item.category}>{item.category}</option>}
+                                                                {DOCUMENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                                             </select>
                                                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                                         </div>
@@ -1869,8 +1872,10 @@ export default function EditItem() {
                                             <div>
                                                 <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
                                                 <div className="relative">
-                                                    <select name="condition" id="condition" defaultValue={item.condition ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                        {["Excellent", "Good", "Fair", "Poor", "Fragile", "Needs To Be Rescanned"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                    <select name="condition" id="condition" defaultValue={item.condition ?? ''} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                        <option value="">Not recorded</option>
+                                                        {isUnlisted(item.condition, ITEM_CONDITIONS) && <option value={item.condition}>{item.condition}</option>}
+                                                        {ITEM_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                                 </div>
@@ -1893,7 +1898,9 @@ export default function EditItem() {
                                             <div>
                                                 <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">File Location</label>
                                                 <div className="relative">
-                                                    <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? undefined} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? ''} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                        <option value="">Not recorded</option>
+                                                        {isUnlisted(item.physical_location, [`${settings.museumShortName || 'SAHS'} (Physical Archive)`, 'Digital Archive']) && <option value={item.physical_location}>{item.physical_location}</option>}
                                                         <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
                                                         <option value="Digital Archive">Digital Archive</option>
                                                     </select>

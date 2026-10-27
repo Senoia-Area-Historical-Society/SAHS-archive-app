@@ -14,6 +14,7 @@ import { convertHeicToPng, compressImage } from '../utils/imageUtils';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel } from '../lib/artifactTypes';
+import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS } from '../lib/itemFieldOptions';
 
 /** A figure as the related-figures picker lists it. */
 interface FigureOption {
@@ -1295,8 +1296,9 @@ export function AddItem() {
                                         <div>
                                             <label htmlFor="category" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Category</label>
                                             <div className="relative">
-                                                <select name="category" id="category" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    {["Manuscript", "Photograph", "Map", "Letter", "Newspaper", "Magazine", "Legal Document", "Other"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                <select required name="category" id="category" defaultValue="" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <option value="" disabled>Choose a category…</option>
+                                                    {DOCUMENT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                             </div>
@@ -1306,8 +1308,9 @@ export function AddItem() {
                                         <div>
                                             <label htmlFor="condition" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Condition</label>
                                             <div className="relative">
-                                                <select name="condition" id="condition" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
-                                                    {["Excellent", "Good", "Fair", "Poor", "Fragile", "Needs To Be Rescanned"].map(c => <option key={c} value={c}>{c}</option>)}
+                                                <select required name="condition" id="condition" defaultValue="" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                    <option value="" disabled>Choose a condition…</option>
+                                                    {ITEM_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                                                 </select>
                                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                             </div>
@@ -1398,7 +1401,8 @@ export function AddItem() {
                                                 <div>
                                                     <label htmlFor="physical_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Location</label>
                                                     <div className="relative">
-                                                        <select name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                        <select required name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
+                                                            <option value="" disabled>Choose a location…</option>
                                                             <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
                                                             <option value="Digital Archive">Digital Archive</option>
                                                         </select>
