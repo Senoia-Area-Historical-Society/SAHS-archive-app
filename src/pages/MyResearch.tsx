@@ -257,14 +257,23 @@ export function MyResearch() {
                 const itemIds = selectedFolder.itemIds;
                 const itemsCol = collection(db, 'archive_items');
                 
-                const slicedIds = itemIds.slice(0, 30);
-                const q = query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', slicedIds));
-                const snap = await getDocs(q);
+                // Firestore's 'in' filter takes at most 30 ids, so load in chunks of 30.
+                // Loading only the first chunk silently cut folders off at 30 items.
+                const chunks: string[][] = [];
+                for (let i = 0; i < itemIds.length; i += 30) {
+                    chunks.push(itemIds.slice(i, i + 30));
+                }
+                const snaps = await Promise.all(chunks.map(chunk =>
+                    getDocs(query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', chunk)))));
                 
-                const itemsList = snap.docs.map(doc => ({
+                const itemsList = snaps.flatMap(snap => snap.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
-                })) as ArchiveItem[];
+                }))) as ArchiveItem[];
+                // Keep the folder's own order; query results come back in id order.
+                // (A plain object, not a Map — `Map` here is the lucide icon.)
+                const position: Record<string, number> = Object.fromEntries(itemIds.map((id, i) => [id, i]));
+                itemsList.sort((a, b) => (position[a.id] ?? 0) - (position[b.id] ?? 0));
                 
                 setFolderItems(itemsList);
             } catch (err) {
@@ -276,7 +285,7 @@ export function MyResearch() {
         };
 
         fetchFolderItems();
-    }, [selectedFolder]);
+    }, [selectedFolder, isSAHSUser]);
 
     // Fetch all items from archive directory for in-context search
     const fetchAllItems = async () => {

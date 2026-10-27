@@ -88,7 +88,7 @@ export function MyResearchMap() {
         };
 
         loadAllResearchItems();
-    }, [user, hasResearchAccess]);
+    }, [user, hasResearchAccess, isSAHSUser]);
 
     return (
         <div className="flex flex-col min-h-screen animate-in fade-in duration-500 pb-16">
