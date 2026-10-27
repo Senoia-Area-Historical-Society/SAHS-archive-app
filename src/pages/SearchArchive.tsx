@@ -7,6 +7,7 @@ import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
+import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
 
 /** The sort orders the ?sort= parameter accepts — see the comparator below. */
 type SortOption = 'newest' | 'id_asc' | 'id_desc' | 'az' | 'za';
@@ -41,6 +42,7 @@ export function SearchArchive() {
 
     const selectedType = (searchParams.get('type') as ItemType | null) || 'All Items';
     const sortBy = (searchParams.get('sort') as SortOption | null) || 'newest';
+    const selectedArtifactType = searchParams.get('art_type') || '';
 
     // Debounce effects to sync local state to URL
     useEffect(() => {
@@ -228,6 +230,9 @@ export function SearchArchive() {
                 item.museum_location_id === localLocId || 
                 (item.museum_location_ids && item.museum_location_ids.includes(localLocId));
 
+            // Artifact type match — normalized, so a stray older spelling still matches
+            const matchesArtifactType = !selectedArtifactType || normalizeArtifactType(item.artifact_type) === selectedArtifactType;
+
             // Stage match
             const matchesStage = !localStage || item.stage === localStage;
 
@@ -264,7 +269,7 @@ export function SearchArchive() {
                 if (isItemPrivate || isCollectionPrivate) return false;
             }
 
-            return matchesKeyword && matchesType && matchesYear && matchesPlace && matchesTag && matchesArtifactId && matchesLocId && matchesStage && matchesMissingLoc &&
+            return matchesKeyword && matchesType && matchesYear && matchesPlace && matchesTag && matchesArtifactId && matchesArtifactType && matchesLocId && matchesStage && matchesMissingLoc &&
                    !isExcludedByKeyword && !isExcludedByTag && !isExcludedByType;
         }).sort((a, b) => {
             if (sortBy === 'newest') {
@@ -295,7 +300,7 @@ export function SearchArchive() {
 
             return 0;
         });
-    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, sortBy, isSAHSUser, collectionPrivacyMap]);
+    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
 
     const resetFilters = () => {
         setLocalKeyword('');
@@ -467,6 +472,25 @@ export function SearchArchive() {
 
                     {showAdvanced && (
                         <>
+
+                            {/* Filter: Artifact Type */}
+                            <div>
+                                <label className="block text-[10px] md:text-xs font-bold text-charcoal/50 uppercase tracking-[0.2em] mb-2">Artifact Type</label>
+                                <div className="relative group">
+                                    <Tag className="absolute left-5 top-1/2 -translate-y-1/2 text-tan transition-colors group-focus-within:text-charcoal" size={24} />
+                                    <select
+                                        className="w-full bg-cream pl-14 pr-10 py-6 rounded-xl border-2 border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal text-xl shadow-sm"
+                                        value={selectedArtifactType}
+                                        onChange={(e) => updateParam('art_type', e.target.value)}
+                                    >
+                                        <option value="">All Artifact Types</option>
+                                        {ARTIFACT_TYPES.map(t => (
+                                            <option key={t} value={t}>{artifactTypeLabel(t)}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-charcoal/30 pointer-events-none" size={20} />
+                                </div>
+                            </div>
 
                             {/* Filter: Processing Stage */}
                             <div>
