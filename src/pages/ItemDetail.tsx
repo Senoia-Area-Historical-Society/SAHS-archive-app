@@ -1497,9 +1497,9 @@ export function ItemDetail() {
                                         <div>
                                             <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
                                             <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
-                                            {item.category && item.item_type !== 'Artifact' && (
+                                            {(item.item_type === 'Artifact' ? item.artifact_type : item.category) && (
                                                 <span className="inline-block bg-tan/10 text-tan px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-tan/20 mt-2 capitalize font-sans">
-                                                    {item.category}
+                                                    {item.item_type === 'Artifact' ? item.artifact_type : item.category}
                                                 </span>
                                             )}
                                         </div>
