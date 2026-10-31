@@ -162,8 +162,9 @@ async function resizeOne(bucket, file, targets, index, total) {
             metadata: { cacheControl: 'public, max-age=31536000, immutable' },
         });
 
-        // imageThumbs.ts builds unsigned URLs, matching the extension's
-        // MAKE_PUBLIC setting, so these must be readable without a token.
+        // imageThumbs.ts builds unsigned URLs, so these must be readable without
+        // a token. Safe because non-public items' media was skipped above; the
+        // extension itself no longer makes variants public (MAKE_PUBLIC=false).
         await bucket.file(path).makePublic();
 
         stats.bytesOut += out.length;

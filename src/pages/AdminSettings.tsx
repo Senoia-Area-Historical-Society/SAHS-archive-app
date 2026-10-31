@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Settings, Shield, UserPlus, Trash2, Mail, Loader2, UserMinus, Save, Check, Users, UserCheck, CalendarClock, Search, Pencil, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, updateDoc, runTransaction } from 'firebase/firestore';
 import type { Member } from '../types/database';
+import { formatMemberDate, isMembershipDatePast, memberEditChanges, oneYearFromToday, renewedExpiry } from '../lib/memberDates';
 
 interface UserRole {
     id: string; // the email
@@ -32,21 +33,23 @@ export function AdminSettings() {
     const [newMemberName, setNewMemberName] = useState('');
     const [newMemberSecondaryEmail, setNewMemberSecondaryEmail] = useState('');
     const [newMemberSecondaryName, setNewMemberSecondaryName] = useState('');
-    const [newMemberExpiresAt, setNewMemberExpiresAt] = useState(() => {
-        const nextYear = new Date();
-        nextYear.setFullYear(nextYear.getFullYear() + 1);
-        return nextYear.toISOString().split('T')[0];
-    });
+    const [newMemberExpiresAt, setNewMemberExpiresAt] = useState(() => oneYearFromToday());
     const [newMemberIsLifetime, setNewMemberIsLifetime] = useState(false);
     const [newMemberIsRecurring, setNewMemberIsRecurring] = useState(false);
     const [newMemberIsFreeOneYear, setNewMemberIsFreeOneYear] = useState(false);
     const [newMemberNoEmail, setNewMemberNoEmail] = useState(false);
     const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+    // Set when Add Member finds the address already on the roll.
+    const [existingMemberMatch, setExistingMemberMatch] = useState<Member | null>(null);
     const [memberSearchQuery, setMemberSearchQuery] = useState('');
     const [showExpiredPanel, setShowExpiredPanel] = useState(false);
     
     // Editing Member State
     const [editingMember, setEditingMember] = useState<Member | null>(null);
+    // The record as it was when editing began, so a save writes only what changed.
+    const [editingMemberOriginal, setEditingMemberOriginal] = useState<Member | null>(null);
+    // Opened from "Mark Active" on a member whose expiry date has passed.
+    const [editingMemberReactivating, setEditingMemberReactivating] = useState(false);
     const [editingMemberNoEmail, setEditingMemberNoEmail] = useState(false);
     const [editingMemberIsLifetime, setEditingMemberIsLifetime] = useState(false);
     const [isSavingMember, setIsSavingMember] = useState(false);
@@ -73,47 +76,67 @@ export function AdminSettings() {
         }
     };
 
+    const resetAddMemberForm = () => {
+        setNewMemberEmail('');
+        setNewMemberName('');
+        setNewMemberSecondaryEmail('');
+        setNewMemberSecondaryName('');
+        setNewMemberIsLifetime(false);
+        setNewMemberIsRecurring(false);
+        setNewMemberIsFreeOneYear(false);
+        setNewMemberNoEmail(false);
+        setNewMemberExpiresAt(oneYearFromToday());
+    };
+
     const handleAddMember = async (e: React.FormEvent) => {
         e.preventDefault();
         const name = newMemberName.trim();
         const email = newMemberNoEmail ? '' : newMemberEmail.toLowerCase().trim();
-        
+
         if (!name || (!newMemberNoEmail && !email)) return;
-        
+
         setIsSubmittingMember(true);
+        setExistingMemberMatch(null);
         try {
             const joinedAt = new Date().toISOString();
-            const expiresAt = newMemberIsLifetime ? 'Never' : new Date(newMemberExpiresAt).toISOString().split('T')[0];
-            
-            const docRef = newMemberNoEmail 
+            // The date input already holds YYYY-MM-DD. Round-tripping it through
+            // new Date(...).toISOString() parsed it as UTC and could shift the day.
+            const expiresAt = newMemberIsLifetime ? 'Never' : newMemberExpiresAt;
+
+            const docRef = newMemberNoEmail
                 ? doc(collection(db, 'members'))
                 : doc(db, 'members', email);
 
-            await setDoc(docRef, {
-                email,
-                name,
-                secondaryEmail: newMemberSecondaryEmail.trim().toLowerCase() || null,
-                secondaryName: newMemberSecondaryName.trim() || null,
-                tier: 'Member',
-                status: 'active',
-                joinedAt,
-                expiresAt,
-                isRecurring: newMemberIsRecurring,
-                isFreeOneYear: newMemberIsFreeOneYear
+            // Members are keyed by email, so adding someone already on the roll used
+            // to setDoc straight over their record: joinedAt reset to today, a
+            // lifetime membership replaced by the form's default expiry, and
+            // hasCompletedMemberWizard and the secondary contact wiped. The
+            // transaction creates the record only if there is none, so an existing
+            // member is never overwritten — the admin is offered their record instead.
+            const existing = await runTransaction(db, async (tx) => {
+                const snap = await tx.get(docRef);
+                if (snap.exists()) return { id: snap.id, ...snap.data() } as Member;
+                tx.set(docRef, {
+                    email,
+                    name,
+                    secondaryEmail: newMemberSecondaryEmail.trim().toLowerCase() || null,
+                    secondaryName: newMemberSecondaryName.trim() || null,
+                    tier: 'Member',
+                    status: 'active',
+                    joinedAt,
+                    expiresAt,
+                    isRecurring: newMemberIsRecurring,
+                    isFreeOneYear: newMemberIsFreeOneYear
+                });
+                return null;
             });
-            
-            setNewMemberEmail('');
-            setNewMemberName('');
-            setNewMemberSecondaryEmail('');
-            setNewMemberSecondaryName('');
-            setNewMemberIsLifetime(false);
-            setNewMemberIsRecurring(false);
-            setNewMemberIsFreeOneYear(false);
-            setNewMemberNoEmail(false);
-            const nextYear = new Date();
-            nextYear.setFullYear(nextYear.getFullYear() + 1);
-            setNewMemberExpiresAt(nextYear.toISOString().split('T')[0]);
-            
+
+            if (existing) {
+                setExistingMemberMatch(existing);
+                return;
+            }
+
+            resetAddMemberForm();
             fetchMembers();
         } catch (error) {
             console.error('Error adding member', error);
@@ -123,9 +146,18 @@ export function AdminSettings() {
         }
     };
 
+    const openExistingMember = (member: Member) => {
+        setExistingMemberMatch(null);
+        resetAddMemberForm();
+        // Narrow the registry to this member so the edit form is on screen.
+        setMemberSearchQuery(member.email || member.name);
+        startEditingMember(member);
+        fetchMembers();
+    };
+
     const handleDeleteMember = async (id: string, name: string) => {
         if (!window.confirm(`Are you sure you want to revoke membership for ${name}?`)) return;
-        
+
         try {
             await deleteDoc(doc(db, 'members', id));
             fetchMembers();
@@ -135,13 +167,19 @@ export function AdminSettings() {
         }
     };
 
-    const handleToggleMemberStatus = async (member: Member) => {
-        const newStatus = member.status === 'active' ? 'expired' : 'active';
+    // The button's label follows the status shown on screen, which counts a
+    // passed expiry date as expired, but this used to flip the *stored* status.
+    // For a member stored as 'active' whose date had passed, "Mark Active" wrote
+    // 'expired'. It now does what the label says, and since a stored 'active'
+    // cannot make a member whose date has passed active again, that case opens
+    // the edit form to choose a new expiry date instead.
+    const handleSetMemberStatus = async (member: Member, status: 'active' | 'expired') => {
+        if (status === 'active' && isMembershipDatePast(member.expiresAt)) {
+            startEditingMember(member, { reactivate: true });
+            return;
+        }
         try {
-            await setDoc(doc(db, 'members', member.id), {
-                ...member,
-                status: newStatus
-            }, { merge: true });
+            await updateDoc(doc(db, 'members', member.id), { status });
             fetchMembers();
         } catch (error) {
             console.error('Error updating member status', error);
@@ -151,21 +189,14 @@ export function AdminSettings() {
 
     const handleRenewMember = async (member: Member) => {
         if (member.expiresAt === 'Never') return;
-        
-        const currentExp = new Date(member.expiresAt);
-        const today = new Date();
-        const baseDate = currentExp > today ? currentExp : today;
-        
-        const newExpDate = new Date(baseDate);
-        newExpDate.setFullYear(newExpDate.getFullYear() + 1);
-        const newExpiresAt = newExpDate.toISOString().split('T')[0];
-        
+
         try {
-            await setDoc(doc(db, 'members', member.id), {
-                ...member,
+            // updateDoc rather than setDoc({...member}): the spread wrote the
+            // list's possibly stale copy back, plus its `id`, over the record.
+            await updateDoc(doc(db, 'members', member.id), {
                 status: 'active',
-                expiresAt: newExpiresAt
-            }, { merge: true });
+                expiresAt: renewedExpiry(member.expiresAt)
+            });
             fetchMembers();
         } catch (error) {
             console.error('Error renewing membership', error);
@@ -173,77 +204,95 @@ export function AdminSettings() {
         }
     };
 
-    const startEditingMember = (member: Member) => {
-        setEditingMember({ ...member });
+    const startEditingMember = (member: Member, opts: { reactivate?: boolean } = {}) => {
+        if (opts.reactivate) {
+            // Reactivating a member whose date has passed: suggest a year from
+            // today and mark them active; the admin can change the date before saving.
+            setEditingMember({ ...member, status: 'active', expiresAt: oneYearFromToday() });
+        } else {
+            setEditingMember({ ...member });
+        }
+        setEditingMemberOriginal(member);
+        setEditingMemberReactivating(!!opts.reactivate);
         setEditingMemberNoEmail(!member.email);
         setEditingMemberIsLifetime(member.expiresAt === 'Never');
     };
 
+    const cancelEditingMember = () => {
+        setEditingMember(null);
+        setEditingMemberOriginal(null);
+        setEditingMemberReactivating(false);
+    };
+
     const handleSaveMemberEdit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!editingMember) return;
+        if (!editingMember || !editingMemberOriginal) return;
 
         const name = editingMember.name.trim();
         const email = editingMemberNoEmail ? '' : editingMember.email.toLowerCase().trim();
-        
+
         if (!name || (!editingMemberNoEmail && !email)) {
             alert('Please provide a name and email (or check No Email).');
             return;
         }
 
+        let expiresAt = editingMemberIsLifetime ? 'Never' : editingMember.expiresAt;
+        if (expiresAt === 'Never' && !editingMemberIsLifetime) {
+            expiresAt = oneYearFromToday();
+        }
+
+        if (editingMemberReactivating && isMembershipDatePast(expiresAt)) {
+            alert('Choose an expiration date that has not passed yet (or Lifetime Member) to make this membership active again.');
+            return;
+        }
+
+        const changes = memberEditChanges(editingMemberOriginal, {
+            ...editingMember,
+            name,
+            email,
+            expiresAt,
+        });
+
         setIsSavingMember(true);
         try {
-            let expiresAt = editingMemberIsLifetime ? 'Never' : editingMember.expiresAt;
-            if (expiresAt === 'Never' && !editingMemberIsLifetime) {
-                const nextYear = new Date();
-                nextYear.setFullYear(nextYear.getFullYear() + 1);
-                expiresAt = nextYear.toISOString().split('T')[0];
-            }
-
             const originalId = editingMember.id;
             const idNeedsToChange = email ? (originalId !== email) : originalId.includes('@');
 
             if (idNeedsToChange) {
-                if (email) {
-                    const existingDoc = await getDoc(doc(db, 'members', email));
-                    if (existingDoc.exists()) {
-                        alert('A member with this email already exists.');
-                        setIsSavingMember(false);
-                        return;
-                    }
+                // Members are keyed by email, so a new address means a new document.
+                // This used to delete the old record and then write the new one,
+                // rebuilt from the form's fields only — a failure between the two
+                // lost the member, and a success still dropped every field the form
+                // doesn't show. The transaction copies the stored record in full,
+                // applies the edits, and creates the new document and deletes the
+                // old one together, or not at all.
+                const oldRef = doc(db, 'members', originalId);
+                const newRef = email ? doc(db, 'members', email) : doc(collection(db, 'members'));
+                const outcome = await runTransaction(db, async (tx) => {
+                    const oldSnap = await tx.get(oldRef);
+                    if (!oldSnap.exists()) return 'missing' as const;
+                    if (email && (await tx.get(newRef)).exists()) return 'taken' as const;
+                    tx.set(newRef, { ...oldSnap.data(), ...changes, email });
+                    tx.delete(oldRef);
+                    return 'moved' as const;
+                });
+                if (outcome === 'taken') {
+                    alert('A member with this email already exists.');
+                    return;
                 }
-
-                await deleteDoc(doc(db, 'members', originalId));
-
-                const newDocRef = email ? doc(db, 'members', email) : doc(collection(db, 'members'));
-                await setDoc(newDocRef, {
-                    name,
-                    email,
-                    secondaryEmail: editingMember.secondaryEmail?.trim().toLowerCase() || null,
-                    secondaryName: editingMember.secondaryName?.trim() || null,
-                    tier: 'Member',
-                    status: editingMember.status,
-                    joinedAt: editingMember.joinedAt,
-                    expiresAt,
-                    isRecurring: editingMember.isRecurring || false,
-                    isFreeOneYear: editingMember.isFreeOneYear || false
-                });
-            } else {
-                await setDoc(doc(db, 'members', originalId), {
-                    name,
-                    email,
-                    secondaryEmail: editingMember.secondaryEmail?.trim().toLowerCase() || null,
-                    secondaryName: editingMember.secondaryName?.trim() || null,
-                    tier: 'Member',
-                    status: editingMember.status,
-                    joinedAt: editingMember.joinedAt,
-                    expiresAt,
-                    isRecurring: editingMember.isRecurring || false,
-                    isFreeOneYear: editingMember.isFreeOneYear || false
-                });
+                if (outcome === 'missing') {
+                    alert('This member no longer exists. The list has been refreshed.');
+                    cancelEditingMember();
+                    fetchMembers();
+                    return;
+                }
+            } else if (Object.keys(changes).length > 0) {
+                // Only the fields the admin changed; hasCompletedMemberWizard,
+                // joinedAt and anything else on the record are left as they are.
+                await updateDoc(doc(db, 'members', originalId), changes);
             }
 
-            setEditingMember(null);
+            cancelEditingMember();
             fetchMembers();
         } catch (error) {
             console.error('Error saving member edits:', error);
@@ -638,7 +687,7 @@ export function AdminSettings() {
                                 <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider font-sans">Active Members</p>
                                 <p className="text-3xl font-serif font-bold text-charcoal">
                                     {members.filter(m => {
-                                        const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
+                                        const isExpired = isMembershipDatePast(m.expiresAt);
                                         return m.status === 'active' && !isExpired;
                                     }).length}
                                 </p>
@@ -656,7 +705,7 @@ export function AdminSettings() {
                                 <p className="text-xs font-bold text-charcoal/50 uppercase tracking-wider font-sans">Expired Memberships</p>
                                 <p className="text-3xl font-serif font-bold text-charcoal">
                                     {members.filter(m => {
-                                        const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
+                                        const isExpired = isMembershipDatePast(m.expiresAt);
                                         return m.status === 'expired' || isExpired;
                                     }).length}
                                 </p>
@@ -670,7 +719,7 @@ export function AdminSettings() {
                     {/* Expired Members Panel */}
                     {showExpiredPanel && (() => {
                         const expiredMembers = members.filter(m => {
-                            const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
+                            const isExpired = isMembershipDatePast(m.expiresAt);
                             return m.status === 'expired' || isExpired;
                         });
                         return (
@@ -693,7 +742,7 @@ export function AdminSettings() {
                                 ) : (
                                     <div className="divide-y divide-red-50">
                                         {expiredMembers.map(m => {
-                                            const expiredDate = m.expiresAt !== 'Never' ? new Date(m.expiresAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Unknown';
+                                            const expiredDate = m.expiresAt !== 'Never' ? formatMemberDate(m.expiresAt, { year: 'numeric', month: 'short', day: 'numeric' }, 'Unknown') : 'Unknown';
                                             return (
                                                 <div key={m.id} className="px-6 py-3 flex items-center justify-between gap-4 hover:bg-red-50/30 transition-colors">
                                                     <div className="min-w-0">
@@ -839,6 +888,30 @@ export function AdminSettings() {
                                         </div>
                                     )}
                                     
+                                    {existingMemberMatch && (
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-4 text-sm leading-relaxed">
+                                            <p>
+                                                <strong>{existingMemberMatch.name}</strong> ({existingMemberMatch.email}) is already on the roll, so nothing was added or changed.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2 mt-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openExistingMember(existingMemberMatch)}
+                                                    className="flex items-center gap-1.5 bg-tan text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-charcoal transition-colors"
+                                                >
+                                                    <Pencil size={12} /> Edit this member
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExistingMemberMatch(null)}
+                                                    className="px-3 py-1.5 border border-amber-300 rounded text-xs font-bold hover:bg-amber-100 transition-colors"
+                                                >
+                                                    Dismiss
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <button
                                         type="submit"
                                         disabled={isSubmittingMember}
@@ -896,13 +969,19 @@ export function AdminSettings() {
                                     return (
                                         <div className="divide-y divide-tan-light/30 font-sans overflow-y-auto">
                                             {filteredMembers.map(m => {
-                                                const isExpired = m.expiresAt !== 'Never' && new Date(m.expiresAt) < new Date();
+                                                const isExpired = isMembershipDatePast(m.expiresAt);
                                                 const displayStatus = isExpired ? 'expired' : m.status;
                                                 
                                                 return (
                                                     <div key={m.id} className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-cream/20 transition-colors font-sans">
                                                         {editingMember?.id === m.id ? (
                                                             <form onSubmit={handleSaveMemberEdit} className="w-full space-y-4 py-2 font-sans">
+                                                                {editingMemberReactivating && (
+                                                                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg px-4 py-3 text-xs leading-relaxed">
+                                                                        This membership's expiration date ({formatMemberDate(m.expiresAt)}) has passed, so marking it active needs a new one.
+                                                                        A year from today is filled in below — change it if you need to, or tick Lifetime Member, then Save Changes.
+                                                                    </div>
+                                                                )}
                                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                                     <div>
                                                                         <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1">Name</label>
@@ -1015,7 +1094,7 @@ export function AdminSettings() {
                                                                 <div className="flex justify-end gap-2 pt-2">
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => setEditingMember(null)}
+                                                                        onClick={cancelEditingMember}
                                                                         className="px-4 py-2 border border-tan-light text-charcoal-light rounded-lg text-xs font-bold hover:bg-black/5 transition-all"
                                                                     >
                                                                         Cancel
@@ -1068,10 +1147,10 @@ export function AdminSettings() {
                                                                         </p>
                                                                     )}
                                                                     <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
-                                                                        <span>Joined: {new Date(m.joinedAt).toLocaleDateString()}</span>
+                                                                        <span>Joined: {formatMemberDate(m.joinedAt)}</span>
                                                                         <span>•</span>
                                                                         <span className={displayStatus === 'expired' ? 'text-red-500 font-semibold' : ''}>
-                                                                            Expires: {m.expiresAt === 'Never' ? 'Never (Lifetime)' : new Date(m.expiresAt).toLocaleDateString()}
+                                                                            Expires: {m.expiresAt === 'Never' ? 'Never (Lifetime)' : formatMemberDate(m.expiresAt)}
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -1087,7 +1166,12 @@ export function AdminSettings() {
                                                                         </button>
                                                                     )}
                                                                     <button
-                                                                        onClick={() => handleToggleMemberStatus(m)}
+                                                                        onClick={() => handleSetMemberStatus(m, displayStatus === 'active' ? 'expired' : 'active')}
+                                                                        title={displayStatus === 'active'
+                                                                            ? 'Mark this membership expired'
+                                                                            : isExpired
+                                                                                ? 'The expiration date has passed — choose a new one to make this membership active'
+                                                                                : 'Mark this membership active'}
                                                                         className={`px-3 py-1.5 border rounded text-xs font-bold transition-all ${
                                                                             displayStatus === 'active' 
                                                                                 ? 'border-red-200 text-red-600 hover:bg-red-50 font-sans' 

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ModuleDisabled } from '../components/ModuleDisabled';
+import { formatMemberDate } from '../lib/memberDates';
 
 export function MembershipStatus() {
     const { settings, loading } = useAppearance();
@@ -46,12 +47,12 @@ function MembershipCard() {
     const memberTier = displayAsSimulated ? 'Individual Member' : (memberData?.tier || 'Paying Member');
     const memberJoined = displayAsSimulated 
         ? 'May 28, 2026' 
-        : (memberData?.joinedAt ? new Date(memberData.joinedAt).toLocaleDateString() : 'N/A');
+        : formatMemberDate(memberData?.joinedAt);
     const memberExpires = displayAsSimulated 
         ? 'May 28, 2027' 
         : (memberData?.expiresAt === 'Never' 
             ? 'Never (Lifetime / No Expiration)' 
-            : (memberData?.expiresAt ? new Date(memberData.expiresAt).toLocaleDateString() : 'N/A'));
+            : formatMemberDate(memberData?.expiresAt));
 
 
     return (
@@ -261,7 +262,7 @@ function MembershipCard() {
                                     <div>
                                         <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Originally Joined</p>
                                         <p className="text-base font-serif font-bold text-charcoal leading-snug">
-                                            {memberData.joinedAt ? new Date(memberData.joinedAt).toLocaleDateString() : 'N/A'}
+                                            {formatMemberDate(memberData.joinedAt)}
                                         </p>
                                     </div>
                                 </div>

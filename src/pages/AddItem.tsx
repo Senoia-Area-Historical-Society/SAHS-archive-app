@@ -4,17 +4,19 @@ import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { saveAccessionPaperwork } from '../lib/provenance';
+import { effectivePrivacy, isForcedPrivate, privateCollectionIdSet, privateCollectionsOf } from '../lib/itemPrivacy';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { ItemType, Collection, ArchiveItem, ItemCondition, CollectionStatus } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
-import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { convertHeicToJpeg } from '../utils/imageUtils';
+import { featuredIndexAfterRemoval } from '../lib/featuredImage';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel } from '../lib/artifactTypes';
-import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS } from '../lib/itemFieldOptions';
+import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS, mergeLocationText } from '../lib/itemFieldOptions';
 
 /** A figure as the related-figures picker lists it. */
 interface FigureOption {
@@ -60,7 +62,6 @@ export function AddItem() {
     const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
-    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -143,15 +144,12 @@ export function AddItem() {
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(initialCollectionParam ? [initialCollectionParam] : []);
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
+    // The curator's own choice (`is_private_own`). A pending or deaccessioned
+    // artifact is forced private on top of it, and that force is kept out of this
+    // state so it never lands in `is_private_own`.
     const [isPrivate, setIsPrivate] = useState(false);
     const [isGraphic, setIsGraphic] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
-
-    useEffect(() => {
-        if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
-            setIsPrivate(true);
-        }
-    }, [collectionStatus, itemType]);
 
     const handleCollectionToggle = (collId: string) => {
         setSelectedCollectionIds(prev => prev.includes(collId) ? prev.filter(id => id !== collId) : [...prev, collId]);
@@ -275,16 +273,15 @@ export function AddItem() {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
 
-                // HEIC Conversion
+                // Images are uploaded as they are, at full resolution. They used to be
+                // redrawn at 1920px and JPEG quality 0.8, which cut a typical archival
+                // scan to a fraction of its pixels. Cards and grids load the resized
+                // variants instead (src/lib/imageThumbs.ts). Only HEIC is converted,
+                // because most browsers cannot display it.
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     setIsConvertingHeic(true);
-                    file = await convertHeicToPng(file);
-                    file = await compressImage(file);
+                    file = await convertHeicToJpeg(file);
                     setIsConvertingHeic(false);
-                } else if (file.type.startsWith('image/')) {
-                    setIsOptimizingImage(true);
-                    file = await compressImage(file);
-                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -307,7 +304,6 @@ export function AddItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
-            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -490,7 +486,6 @@ export function AddItem() {
                 file_urls: fileUrls,
                 file_captions: fileCaptions,
                 featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : null),
-                accession_paperwork_urls: accessionUrls,
                 additional_media_urls: additionalMediaUrls,
                 tags: currentTags,
                 collection_id: selectedCollectionIds.length > 0 ? selectedCollectionIds[0] : null,
@@ -498,7 +493,16 @@ export function AddItem() {
                 created_at: new Date().toISOString(),
                 uploaded_by_email: user?.email || null,
                 uploaded_by_name: user?.displayName || null,
-                is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                // Always both: the curator's choice, and the effective value the
+                // rules read — true up front when the item goes into a private
+                // collection, so it is never public before functions/collectionPrivacy.js
+                // runs. See src/lib/itemPrivacy.ts.
+                is_private_own: isPrivate,
+                is_private: effectivePrivacy(
+                    isPrivate,
+                    { collection_ids: selectedCollectionIds, item_type: itemType, collection_status: collectionStatus },
+                    privateCollectionIdSet(collections)
+                ),
                 is_graphic: isGraphic,
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
@@ -551,7 +555,8 @@ export function AddItem() {
 
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
-                museum_location: formData.get('museum_location') as string || "",
+                // "Specific Location in Archive" was never read; see mergeLocationText.
+                museum_location: mergeLocationText(formData.get('archive_specific_location'), formData.get('museum_location')),
                 accession_date: formData.get('accession_date') as string || "",
 
                 // Oral History specific
@@ -565,13 +570,16 @@ export function AddItem() {
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
 
-            // Accession paperwork also goes to the staff-only subcollection. The
-            // parent copy above is transitional — see src/lib/provenance.ts. Not
-            // fatal: the item is saved either way, and a curator can re-attach
-            // paperwork, whereas failing here would discard the whole upload.
+            // Accession paperwork goes only to the staff-only subcollection, never
+            // onto the world-readable item — see src/lib/provenance.ts. Not fatal:
+            // the item is saved either way, and a curator can re-attach paperwork,
+            // whereas failing here would discard the whole upload. But say so, since
+            // there is no longer a second copy to fall back on.
             if (accessionUrls.length > 0) {
-                await saveAccessionPaperwork(docRef.id, accessionUrls)
-                    .catch(e => console.error('Could not write provenance paperwork:', e));
+                await saveAccessionPaperwork(docRef.id, accessionUrls).catch(e => {
+                    console.error('Could not write provenance paperwork:', e);
+                    alert('The item was saved, but its accession paperwork could not be. Please re-attach it from Edit Item.');
+                });
             }
 
             // --- Two-Way Linking Synchronization (Add Item) ---
@@ -835,6 +843,16 @@ export function AddItem() {
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
+                        {/* The toggle is the curator's own choice; say so when the item will
+                            be hidden anyway, by a private collection. */}
+                        {!isPrivate && !isForcedPrivate({ item_type: itemType, collection_status: collectionStatus }) && (() => {
+                            const hiddenBy = privateCollectionsOf({ collection_ids: selectedCollectionIds }, collections);
+                            return hiddenBy.length > 0 && (
+                                <p className="text-xs text-amber-700 leading-relaxed font-sans mt-1">
+                                    Will be private because it is going into the private collection{hiddenBy.length > 1 ? 's' : ''} {hiddenBy.map(c => `“${c.title}”`).join(', ')}. It will become public if {hiddenBy.length > 1 ? 'those collections are' : 'that collection is'} made public or it is removed.
+                                </p>
+                            );
+                        })()}
                     </div>
                 </div>
                 <button
@@ -966,7 +984,7 @@ export function AddItem() {
                                     <div className="flex flex-col items-center gap-3 mt-4">
                                         <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                         <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
-                                        <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                        <p className="text-xs text-charcoal/60">Converting so every browser can display it</p>
                                     </div>
                                 ) : isConvertingPdf ? (
                                     <div className="flex flex-col items-center gap-3 mt-4">
@@ -975,12 +993,6 @@ export function AddItem() {
                                         <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                             <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                         </div>
-                                    </div>
-                                ) : isOptimizingImage ? (
-                                    <div className="flex flex-col items-center gap-3 mt-4">
-                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
-                                        <p className="font-bold text-charcoal">Optimizing Image...</p>
-                                        <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                     </div>
                                 ) : selectedFiles.length > 0 ? (
                                     <div className="grid grid-cols-4 gap-2 w-full max-w-sm mt-4">
@@ -1029,7 +1041,9 @@ export function AddItem() {
                                                                     e.stopPropagation();
                                                                     setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
                                                                     setFileCaptions(prev => prev.filter((_, i) => i !== idx));
-                                                                    if (featuredImageIndex === idx) setFeaturedImageIndex(0);
+                                                                    // Removing an image before the featured one shifts it
+                                                                    // left, so the index follows it.
+                                                                    setFeaturedImageIndex(prev => featuredIndexAfterRemoval(prev, idx));
                                                                 }}
                                                                 className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
                                                                 title="Remove File"

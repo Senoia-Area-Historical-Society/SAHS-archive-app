@@ -3,7 +3,8 @@ import { Image as ImageIcon, CheckCircle, ChevronDown, ChevronUp, X, Maximize2, 
 import { db, storage } from '../lib/firebase';
 import { doc, getDoc, updateDoc, collection, getDocs, query, addDoc, where, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
-import { loadAccessionPaperwork, saveAccessionPaperwork } from '../lib/provenance';
+import { loadAccessionPaperwork, saveAccessionPaperwork, appendAccessionPaperwork } from '../lib/provenance';
+import { ownPrivacyOf, isForcedPrivate, effectivePrivacy, privateCollectionIdSet, privateCollectionsOf } from '../lib/itemPrivacy';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import type { ArchiveItem, ItemType, Collection, ItemCondition, CollectionStatus } from '../types/database';
 
@@ -41,7 +42,8 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
-import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { convertHeicToJpeg } from '../utils/imageUtils';
+import { featuredAfterRemoval, featuredUrlForSave } from '../lib/featuredImage';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
@@ -231,7 +233,6 @@ export default function EditItem() {
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
-    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -240,33 +241,37 @@ export default function EditItem() {
     const [selectedRelatedDocs, setSelectedRelatedDocs] = useState<{ id: string, title: string }[]>([]);
     const [selectedRelatedOrgs, setSelectedRelatedOrgs] = useState<{ id: string, org_name: string }[]>([]);
     const [collections, setCollections] = useState<Collection[]>([]);
+    // The curator's own choice (`is_private_own`), not the effective value. A
+    // pending or deaccessioned artifact is forced private on top of it, and that
+    // force is deliberately kept out of this state so it never lands in
+    // `is_private_own` — accessioning then restores what the curator chose.
     const [isPrivate, setIsPrivate] = useState(false);
     const [isGraphic, setIsGraphic] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
-            setIsPrivate(true);
-        }
-    }, [collectionStatus, itemType]);
+    // The paperwork list as read from the provenance subcollection; null until
+    // that read succeeds. A save only replaces the list when it has one.
+    const loadedPaperworkRef = useRef<string[] | null>(null);
 
 
 
+
+    // The URL each gallery entry is previewed with, which is also what
+    // featuredImageUrl holds: the stored URL, or the blob: URL of a pending file.
+    const mediaPreviewUrl = (m: MediaItem) =>
+        m.type === 'existing' ? m.value as string : fileObjectURLs.get(m.value as File) ?? null;
 
     const removeMediaItem = (id: string) => {
-        setMediaItems(prev => {
-            const itemToRemove = prev.find(m => m.id === id);
-            if (itemToRemove?.type === 'new') {
-                const url = fileObjectURLs.get(itemToRemove.value as File);
-                if (url) URL.revokeObjectURL(url);
-            }
-            if (itemToRemove?.type === 'existing' && featuredImageUrl === itemToRemove.value) {
-                setFeaturedImageUrl(null);
-            }
-            return prev.filter(m => m.id !== id);
-        });
+        const itemToRemove = mediaItems.find(m => m.id === id);
+        if (!itemToRemove) return;
+        const removedUrl = mediaPreviewUrl(itemToRemove);
+        // Only an existing image used to clear the selection, so removing a newly
+        // added featured file left its blob: URL selected, and that was saved.
+        const remainingUrls = mediaItems.filter(m => m.id !== id).map(mediaPreviewUrl);
+        setFeaturedImageUrl(prev => featuredAfterRemoval(prev, removedUrl, remainingUrls));
+        if (itemToRemove.type === 'new' && removedUrl) URL.revokeObjectURL(removedUrl);
+        setMediaItems(prev => prev.filter(m => m.id !== id));
     };
 
     const moveMediaItem = (index: number, direction: 'left' | 'right') => {
@@ -505,13 +510,20 @@ export default function EditItem() {
                         value: url,
                         caption: data.file_captions ? data.file_captions[idx] : ''
                     })));
-                    // Prefers archive_items/{id}/provenance/paperwork and falls back
-                    // to the parent field for items not yet migrated. See
-                    // src/lib/provenance.ts and scripts/migrate-item-privacy-and-paperwork.cjs.
-                    loadAccessionPaperwork(id, data.accession_paperwork_urls)
-                        .then(setExistingAccessionUrls);
+                    // Staff-only archive_items/{id}/provenance/paperwork — never the
+                    // world-readable parent field. null means the read failed, and
+                    // the save then appends rather than replacing. See
+                    // src/lib/provenance.ts.
+                    loadAccessionPaperwork(id).then((urls) => {
+                        if (!urls) return;
+                        loadedPaperworkRef.current = urls;
+                        setExistingAccessionUrls(urls);
+                    });
                     setExistingAdditionalMediaUrls(data.additional_media_urls || []);
-                    setIsPrivate(data.is_private || false);
+                    // The curator's own choice, not the effective `is_private` — an
+                    // item private only through its collection must not load as
+                    // privately marked, or saving it would make that permanent.
+                    setIsPrivate(ownPrivacyOf(data));
                     setIsGraphic(data.is_graphic || false);
                     setCollectionStatus(data.collection_status || 'permanent');
                 } else {
@@ -641,16 +653,15 @@ export default function EditItem() {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
 
-                // HEIC Conversion
+                // Images are uploaded as they are, at full resolution. They used to be
+                // redrawn at 1920px and JPEG quality 0.8, which cut a typical archival
+                // scan to a fraction of its pixels. Cards and grids load the resized
+                // variants instead (src/lib/imageThumbs.ts). Only HEIC is converted,
+                // because most browsers cannot display it.
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     setIsConvertingHeic(true);
-                    file = await convertHeicToPng(file);
-                    file = await compressImage(file);
+                    file = await convertHeicToJpeg(file);
                     setIsConvertingHeic(false);
-                } else if (file.type.startsWith('image/')) {
-                    setIsOptimizingImage(true);
-                    file = await compressImage(file);
-                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -672,7 +683,6 @@ export default function EditItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
-            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -842,10 +852,19 @@ export default function EditItem() {
                 file_urls: finalFileUrls,
                 file_captions: finalFileCaptions,
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
-                featured_image_url: finalFeaturedUrl,
+                // Never a blob: URL, which only this tab could ever load.
+                featured_image_url: featuredUrlForSave(finalFeaturedUrl, finalFileUrls),
         collection_id: item.collection_id || null,
                 collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
-                is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                // Always both: the curator's choice, and the effective value the
+                // rules read — written here too so there is no public window before
+                // functions/collectionPrivacy.js catches up. See src/lib/itemPrivacy.ts.
+                is_private_own: isPrivate,
+                is_private: effectivePrivacy(
+                    isPrivate,
+                    { collection_id: item.collection_id, collection_ids: item.collection_ids, item_type: itemType, collection_status: collectionStatus },
+                    privateCollectionIdSet(collections)
+                ),
                 is_graphic: isGraphic,
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
@@ -953,18 +972,34 @@ export default function EditItem() {
             updatedData.historical_address = final_historical_address;
             updatedData.coordinates = final_coordinates;
 
-            // Paperwork goes to the staff-only subcollection; the returned patch is
-            // the transitional parent-document copy, merged here so the parent is
-            // written exactly once. Dropping the legacy write later is a one-line
-            // change in src/lib/provenance.ts.
-            const paperworkPatch = await saveAccessionPaperwork(
-                id, [...existingAccessionUrls, ...newAccessionUrls]
-            ).catch(e => {
+            // Paperwork goes to the staff-only subcollection, and only when there is
+            // something to write. The list is replaced only if it actually loaded;
+            // otherwise (still loading, or the read failed) new uploads are appended,
+            // because `existingAccessionUrls` is then [] rather than the real list
+            // and replacing would wipe it. A failure is reported, never routed onto
+            // the world-readable parent document.
+            let paperworkPatch: { accession_paperwork_urls?: string[] } = {};
+            let paperworkSaveFailed = false;
+            try {
+                const loadedPaperwork = loadedPaperworkRef.current;
+                const finalPaperwork = [...existingAccessionUrls, ...newAccessionUrls];
+                if (loadedPaperwork) {
+                    const changed = finalPaperwork.length !== loadedPaperwork.length ||
+                        finalPaperwork.some((url, i) => url !== loadedPaperwork[i]);
+                    if (changed) paperworkPatch = await saveAccessionPaperwork(id, finalPaperwork);
+                } else {
+                    await appendAccessionPaperwork(id, newAccessionUrls);
+                }
+            } catch (e) {
                 console.error('Could not write provenance paperwork:', e);
-                return { accession_paperwork_urls: [...existingAccessionUrls, ...newAccessionUrls] };
-            });
+                paperworkSaveFailed = true;
+            }
 
             await updateDoc(doc(db, 'archive_items', id), { ...updatedData, ...paperworkPatch });
+
+            if (paperworkSaveFailed) {
+                alert('The item was saved, but its accession paperwork changes could not be. Please try again.');
+            }
 
             // --- Two-Way Linking Synchronization ---
             const oldOrgs = item.related_organizations || [];
@@ -1292,6 +1327,16 @@ export default function EditItem() {
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
+                        {/* The toggle is the curator's own choice; say so when the item is
+                            hidden anyway, by a private collection. */}
+                        {!isPrivate && !isForcedPrivate({ item_type: itemType, collection_status: collectionStatus }) && item && (() => {
+                            const hiddenBy = privateCollectionsOf(item, collections);
+                            return hiddenBy.length > 0 && (
+                                <p className="text-xs text-amber-700 leading-relaxed font-sans mt-1">
+                                    Currently private because it is in the private collection{hiddenBy.length > 1 ? 's' : ''} {hiddenBy.map(c => `“${c.title}”`).join(', ')}. It will become public if {hiddenBy.length > 1 ? 'those collections are' : 'that collection is'} made public or it is removed.
+                                </p>
+                            );
+                        })()}
                     </div>
                 </div>
                 <button
@@ -1437,7 +1482,7 @@ export default function EditItem() {
                                 <div className="flex flex-col items-center gap-3 mb-6">
                                     <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                     <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
-                                    <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                    <p className="text-xs text-charcoal/60">Converting so every browser can display it</p>
                                 </div>
                             )}
 
@@ -1448,14 +1493,6 @@ export default function EditItem() {
                                     <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                         <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                     </div>
-                                </div>
-                            )}
-
-                            {isOptimizingImage && (
-                                <div className="flex flex-col items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
-                                    <p className="font-bold text-charcoal">Optimizing Image...</p>
-                                    <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                 </div>
                             )}
 

@@ -93,8 +93,19 @@ The archive is public; individual items and collections can be private.
 - `is_private` on an item is the **effective** value — what `firestore.rules` and
   every public query read.
 - `is_private_own` is the curator's own choice.
-- `is_private = is_private_own || (any collection it belongs to is private)`,
-  maintained by `functions/collectionPrivacy.js`.
+- `is_private = is_private_own || pending/deaccessioned artifact || (any
+  collection it belongs to is private)`, maintained by
+  `functions/collectionPrivacy.js`. Membership for privacy is `collection_ids`
+  **and** the legacy `collection_id`, unioned.
+
+**The client always writes `is_private_own` explicitly** whenever it sets
+privacy, together with the effective `is_private` (so there is no public window
+before the trigger runs) — use `src/lib/itemPrivacy.ts`. The triggers derive
+`is_private` from `is_private_own` and never change an existing one. Writing
+`is_private` alone does not express a choice: a change event cannot tell a
+curator's write from the collection trigger's inheritance write, and inferring
+it is what once pinned items private after their collection went public. The
+artifact-status force is never written into `is_private_own`.
 
 Public reads are gated by `allow read: if resource.data.is_private == false ||
 isSAHSUser()`, so **every public query must carry the filter** — use
@@ -104,8 +115,12 @@ the query already uses `or()`.
 Media privacy is separate and lives in object ACLs, not rules: public objects are
 served via IAM at `storage.googleapis.com`, restricted ones have their download
 tokens revoked and are fetched through `restrictedMediaUrl`.
-`scripts/reconcile-media-visibility.cjs` keeps the bucket in step with Firestore
-and runs fortnightly.
+`functions/mediaVisibility.js` applies an item's visibility to its media and
+thumbnails whenever its `is_private` or media changes;
+`scripts/reconcile-media-visibility.cjs` keeps the whole bucket in step with
+Firestore and runs fortnightly as the backstop. The resize extension is
+configured with `MAKE_PUBLIC=false` (`extensions/storage-resize-images.env`), so
+a thumbnail is public only if its item is.
 
 ## Cloud Functions (`functions/`)
 
@@ -114,6 +129,7 @@ and runs fortnightly.
 | `geocodeArchiveItemAddress` | Firestore | geocodes `historical_address` |
 | `onCommentCreated` | Firestore | comment moderation notifications |
 | `syncItemPrivacy` / `syncCollectionPrivacy` | Firestore | effective item privacy |
+| `syncItemMediaVisibility` | Firestore | item media ACLs and tokens follow `is_private` |
 | `syncUserRoleClaims` | Firestore | mirrors a role onto the Auth claim |
 | `syncMyRoleClaim` | callable | self-heals a missing claim on sign-in |
 | `restrictedMediaUrl` | callable | short-lived signed URLs for staff-only media |
@@ -170,9 +186,10 @@ The site's `tsc -b` follows test imports into `functions/`, where it has neither
 `collectionPrivacy.js` is separate. The same split exists in the website
 (`ticketEmailContent.ts` / `ticketEmail.ts`).
 
-**Installed extensions are not in version control**, so nothing in this repo
-mentions them. `firebase ext:list --project sahs-archives` is the only way to see
-them, and `gcloud functions describe ext-<name>-<fn> --region <r>
+**Installed extensions are mostly not in version control.** Only
+`storage-resize-images` has its config here (`extensions/`), and the CI deploy
+does not apply it — that takes `firebase deploy --only extensions`.
+`firebase ext:list --project sahs-archives` is the only way to see the rest, and `gcloud functions describe ext-<name>-<fn> --region <r>
 --format="value(environmentVariables)"` is how to read their configuration.
 Currently active: `storage-resize-images`, `firestore-send-email` (the website's
 `mail` queue), `storage-extract-image-text` (OCRs **every** bucket upload into an

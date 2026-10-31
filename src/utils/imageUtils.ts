@@ -102,34 +102,39 @@ export default async function getCroppedImg(
 
 
 /**
- * Converts a HEIC/HEIF file to PNG.
- * If the file is not HEIC, it returns the original file.
+ * Converts a HEIC/HEIF file to JPEG, which every browser can display; most cannot
+ * show HEIC at all. Full resolution is kept. JPEG rather than PNG because HEIC is
+ * itself lossy: a lossless PNG of a phone photo is several times the size of the
+ * original and holds no more detail than a high-quality JPEG of it.
+ * Any other file is returned unchanged.
+ *
+ * Nothing else is resized or re-encoded before upload. A compressImage step used
+ * to redraw every image at no more than 1920px and JPEG quality 0.8, so the archive
+ * kept a reduced copy instead of the scan. Smaller versions for cards and grids
+ * come from the storage-resize-images extension; see src/lib/imageThumbs.ts.
  */
-export const convertHeicToPng = async (file: File): Promise<File> => {
+export const convertHeicToJpeg = async (file: File): Promise<File> => {
     const fileName = file.name.toLowerCase();
-    
+
     // Check if it's a HEIC/HEIF file
     if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
         try {
-            console.log(`Converting ${file.name} to PNG...`);
-            
             // Dynamic import to keep this heavy library out of the main bundle
             const heic2any = (await import('heic2any')).default;
-            
+
             const blob = await heic2any({
                 blob: file,
-                toType: 'image/png',
-                quality: 0.9
+                toType: 'image/jpeg',
+                quality: 0.92
             });
-            
+
             // heic2any can return an array if the HEIC has multiple images
             const resultBlob = Array.isArray(blob) ? blob[0] : blob;
-            
-            // Create a new file name with .png extension
-            const newFileName = file.name.replace(/\.(heic|heif)$/i, '.png');
-            
+
+            const newFileName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+
             return new File([resultBlob], newFileName, {
-                type: 'image/png',
+                type: 'image/jpeg',
                 lastModified: new Date().getTime()
             });
         } catch (error) {
@@ -139,89 +144,4 @@ export const convertHeicToPng = async (file: File): Promise<File> => {
     }
     
     return file;
-};
-
-/**
- * Compresses an image file in the browser before upload.
- * It resizes the image if it exceeds max dimensions and converts it to a highly optimized format.
- */
-export const compressImage = async (file: File, maxWidth = 1920, maxHeight = 1920, quality = 0.8): Promise<File> => {
-    // Only compress static images (not gifs, pdfs, etc)
-    if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-        return file;
-    }
-
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                let { width, height } = img;
-                
-                // Calculate new dimensions
-                if (width > maxWidth || height > maxHeight) {
-                    const ratio = Math.min(maxWidth / width, maxHeight / height);
-                    width = Math.round(width * ratio);
-                    height = Math.round(height * ratio);
-                }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                
-                if (!ctx) {
-                    resolve(file); // Fallback to original
-                    return;
-                }
-                
-                // For transparent images (like the HEIC to PNG), fill with white so it doesn't become black in JPEG
-                if (file.type === 'image/png') {
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, width, height);
-                }
-                
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                const outType = 'image/jpeg';
-                
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        const originalName = file.name;
-                        const lastDot = originalName.lastIndexOf('.');
-                        const baseName = lastDot !== -1 ? originalName.substring(0, lastDot) : originalName;
-                        const newName = `${baseName}.jpg`;
-                        
-                        const newFile = new File([blob], newName, {
-                            type: outType,
-                            lastModified: Date.now()
-                        });
-                        resolve(newFile);
-                    } else {
-                        resolve(file);
-                    }
-                }, outType, quality);
-            };
-            img.onerror = () => resolve(file);
-        };
-        reader.onerror = () => resolve(file);
-    });
-};
-
-/**
- * Processes an array of files, converting any HEIC files to PNG and compressing all images.
- */
-export const processFilesForUpload = async (files: File[]): Promise<File[]> => {
-    const processedFiles = await Promise.all(
-        files.map(async (file) => {
-            let processed = file;
-            if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-                processed = await convertHeicToPng(file);
-            }
-            return await compressImage(processed);
-        })
-    );
-    return processedFiles;
 };

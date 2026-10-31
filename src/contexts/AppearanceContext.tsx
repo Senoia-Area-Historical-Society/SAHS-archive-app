@@ -90,7 +90,7 @@ export interface FeatureToggles {
     enableCollections: boolean;
 }
 
-interface AppearanceSettings {
+export interface AppearanceSettings {
     theme: string;
     heroTitle: string;
     heroSubtitle: string;
@@ -263,18 +263,23 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     // the value came from rather than describing it as an arbitrary bag. Every
     // field below is still defaulted, because a Firestore document genuinely can
     // be missing any of them — that defaulting is this function's whole job.
+    //
+    // Text an admin may deliberately leave blank (the Setup Wizard and Website
+    // Appearance both allow it) uses `??`, so a stored "" stays blank and only a
+    // missing field takes the default. The names keep `||`: a museum with no
+    // name would break the page title and labels.
     const parseAppearanceData = (data: DocumentData): AppearanceSettings => ({
         theme: data.theme || 'classic',
-        heroTitle: data.heroTitle || DEFAULT_SETTINGS.heroTitle,
-        heroSubtitle: data.heroSubtitle || DEFAULT_SETTINGS.heroSubtitle,
+        heroTitle: data.heroTitle ?? DEFAULT_SETTINGS.heroTitle,
+        heroSubtitle: data.heroSubtitle ?? DEFAULT_SETTINGS.heroSubtitle,
         backgroundImages: (data.backgroundImages && data.backgroundImages.length > 0)
             ? data.backgroundImages
             : DEFAULT_SETTINGS.backgroundImages,
         logoUrl: data.logoUrl || '',
-        instagramUrl: data.instagramUrl || DEFAULT_SETTINGS.instagramUrl,
-        facebookUrl: data.facebookUrl || DEFAULT_SETTINGS.facebookUrl,
-        youtubeUrl: data.youtubeUrl || DEFAULT_SETTINGS.youtubeUrl,
-        sidebarTitle: data.sidebarTitle || DEFAULT_SETTINGS.sidebarTitle,
+        instagramUrl: data.instagramUrl ?? DEFAULT_SETTINGS.instagramUrl,
+        facebookUrl: data.facebookUrl ?? DEFAULT_SETTINGS.facebookUrl,
+        youtubeUrl: data.youtubeUrl ?? DEFAULT_SETTINGS.youtubeUrl,
+        sidebarTitle: data.sidebarTitle ?? DEFAULT_SETTINGS.sidebarTitle,
         museumName: data.museumName || DEFAULT_SETTINGS.museumName,
         museumShortName: data.museumShortName || DEFAULT_SETTINGS.museumShortName,
         tabNames: { ...DEFAULT_SETTINGS.tabNames, ...(data.tabNames || {}) },

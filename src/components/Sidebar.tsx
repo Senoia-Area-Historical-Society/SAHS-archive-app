@@ -193,7 +193,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             {/* Site branding, not a document heading — using <h1> here put the
                                 same title above every page's real <h1>. */}
                             <div className="font-serif text-lg leading-tight font-bold text-charcoal whitespace-pre-line">
-                                {settings.sidebarTitle || settings.museumName}
+                                {settings.sidebarTitle ?? settings.museumName}
                             </div>
                             <p className="text-xs text-charcoal-light mt-0.5 tracking-wide">
                                 Archive Database
