@@ -6,6 +6,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Collection } from '../types/database';
 import { errorMessage } from '../lib/errors';
+import { featuredUrlForSave } from '../lib/featuredImage';
 
 export function EditCollection() {
     const { id } = useParams<{ id: string }>();
@@ -106,6 +107,10 @@ export function EditCollection() {
         try {
             const formData = new FormData(e.target as HTMLFormElement);
             const fileUrls = [...existingFileUrls];
+            // Tracked locally rather than read back from state: setFeaturedImageUrl
+            // below does not change the featuredImageUrl this closure holds, so a new
+            // cover image was saved as its blob: preview URL.
+            let finalFeaturedUrl = featuredImageUrl;
 
             if (selectedFiles.length > 0) {
                 const totalFiles = selectedFiles.length;
@@ -132,6 +137,7 @@ export function EditCollection() {
                                 fileUrls.push(url);
                                 
                                 if (featuredImageUrl === blobUrl) {
+                                    finalFeaturedUrl = url;
                                     setFeaturedImageUrl(url);
                                 }
                                 
@@ -147,7 +153,8 @@ export function EditCollection() {
                 title: formData.get('title') as string,
                 description: formData.get('description') as string || "",
                 file_urls: fileUrls,
-                featured_image_url: featuredImageUrl || (fileUrls.length > 0 ? fileUrls[0] : ""),
+                // Never a blob: URL, which only this tab could ever load.
+                featured_image_url: featuredUrlForSave(finalFeaturedUrl, fileUrls) || (fileUrls.length > 0 ? fileUrls[0] : ""),
                 is_private: isPrivate
             };
 

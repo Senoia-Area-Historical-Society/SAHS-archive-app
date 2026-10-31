@@ -26,6 +26,7 @@ const { logger } = require('firebase-functions');
 const { getFirestore } = require('firebase-admin/firestore');
 
 const seo = require('./shared/seo.cjs');
+const { CACHE_CONTROL, virtualCollection, isPublicFlag } = require('./renderMetaRules');
 
 const DATABASE_ID = 'sahs-archives';
 const SITE_NAME = 'Senoia Area Historical Society';
@@ -78,9 +79,13 @@ const PRIVATE_META = {
 /**
  * An item is hidden if it is private itself or belongs to a private collection —
  * the same two conditions ItemDetail checks before rendering.
+ *
+ * Its own flag must be exactly false to count as public, as in firestore.rules; a
+ * missing flag is hidden (see isPublicFlag). The collection check stays `=== true`,
+ * matching how functions/collectionPrivacy.js decides what an item inherits.
  */
 async function isHiddenItem(db, data) {
-    if (data.is_private === true) return true;
+    if (!isPublicFlag(data)) return true;
 
     const collectionIds = [...(data.collection_ids || []), data.collection_id]
         .filter((id) => typeof id === 'string' && id !== '');
@@ -234,9 +239,9 @@ exports.renderMeta = onRequest(
             return;
         }
 
-        // Let the CDN absorb repeat traffic so the function runs rarely, and keep
-        // serving a stale page while a new one is fetched rather than blocking.
-        res.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400');
+        // Let the CDN absorb repeat traffic, but only briefly: a cached head keeps
+        // showing a just-made-private item. See CACHE_CONTROL for the trade-off.
+        res.set('Cache-Control', CACHE_CONTROL);
         res.set('Content-Type', 'text/html; charset=utf-8');
 
         let parsed = null;
@@ -255,9 +260,17 @@ exports.renderMeta = onRequest(
 
         try {
             const db = getFirestore(DATABASE_ID);
-            const snap = await db.collection(parsed.route.collection).doc(parsed.id).get();
 
-            if (!snap.exists) {
+            // /collections/on-loan and friends have no document; see
+            // VIRTUAL_COLLECTIONS. They used to fall through to the 404 below.
+            const virtual = parsed.key === 'collections'
+                ? virtualCollection(parsed.id, SITE_NAME)
+                : null;
+            const snap = virtual
+                ? null
+                : await db.collection(parsed.route.collection).doc(parsed.id).get();
+
+            if (snap && !snap.exists) {
                 // The SPA renders its own NotFound view for this URL. Mark it
                 // noindex so a missing document can't enter the index as a
                 // 200-status blank page.
@@ -273,11 +286,15 @@ exports.renderMeta = onRequest(
                 return;
             }
 
-            const data = { ...snap.data(), id: snap.id };
+            const data = virtual || { ...snap.data(), id: snap.id };
 
-            const hidden = parsed.key === 'items'
-                ? await isHiddenItem(db, data)
-                : data.is_private === true;
+            // Items and collections are public only when is_private is exactly
+            // false, as firestore.rules reads them. Library books carry no privacy
+            // flag and are readable by anyone, so only an explicit true hides one.
+            let hidden;
+            if (parsed.key === 'items') hidden = await isHiddenItem(db, data);
+            else if (parsed.key === 'collections') hidden = !isPublicFlag(data);
+            else hidden = data.is_private === true;
 
             if (hidden) {
                 res.status(200).send(injectIntoShell(shell, renderHead(PRIVATE_META, [])));
@@ -293,7 +310,7 @@ exports.renderMeta = onRequest(
                     seo.buildBreadcrumbJsonLd([
                         { name: 'Home', path: '/' },
                         parsed.route.breadcrumb,
-                        { name: data.title || 'Item', path: `${parsed.route.prefix}/${snap.id}` },
+                        { name: data.title || 'Item', path: `${parsed.route.prefix}/${data.id}` },
                     ])
                 );
             }

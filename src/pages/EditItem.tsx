@@ -41,7 +41,8 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { convertPdfToPngs } from '../lib/pdfUtils';
-import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { convertHeicToJpeg } from '../utils/imageUtils';
+import { featuredAfterRemoval, featuredUrlForSave } from '../lib/featuredImage';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorMessage } from '../lib/errors';
@@ -231,7 +232,6 @@ export default function EditItem() {
     const [fileObjectURLs, setFileObjectURLs] = useState<Map<File, string>>(new Map());
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
-    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
     const [croppingImageIndex, setCroppingImageIndex] = useState<number | null>(null);
     const [croppingImageUrl, setCroppingImageUrl] = useState<string | null>(null);
@@ -255,18 +255,21 @@ export default function EditItem() {
 
 
 
+    // The URL each gallery entry is previewed with, which is also what
+    // featuredImageUrl holds: the stored URL, or the blob: URL of a pending file.
+    const mediaPreviewUrl = (m: MediaItem) =>
+        m.type === 'existing' ? m.value as string : fileObjectURLs.get(m.value as File) ?? null;
+
     const removeMediaItem = (id: string) => {
-        setMediaItems(prev => {
-            const itemToRemove = prev.find(m => m.id === id);
-            if (itemToRemove?.type === 'new') {
-                const url = fileObjectURLs.get(itemToRemove.value as File);
-                if (url) URL.revokeObjectURL(url);
-            }
-            if (itemToRemove?.type === 'existing' && featuredImageUrl === itemToRemove.value) {
-                setFeaturedImageUrl(null);
-            }
-            return prev.filter(m => m.id !== id);
-        });
+        const itemToRemove = mediaItems.find(m => m.id === id);
+        if (!itemToRemove) return;
+        const removedUrl = mediaPreviewUrl(itemToRemove);
+        // Only an existing image used to clear the selection, so removing a newly
+        // added featured file left its blob: URL selected, and that was saved.
+        const remainingUrls = mediaItems.filter(m => m.id !== id).map(mediaPreviewUrl);
+        setFeaturedImageUrl(prev => featuredAfterRemoval(prev, removedUrl, remainingUrls));
+        if (itemToRemove.type === 'new' && removedUrl) URL.revokeObjectURL(removedUrl);
+        setMediaItems(prev => prev.filter(m => m.id !== id));
     };
 
     const moveMediaItem = (index: number, direction: 'left' | 'right') => {
@@ -641,16 +644,15 @@ export default function EditItem() {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
 
-                // HEIC Conversion
+                // Images are uploaded as they are, at full resolution. They used to be
+                // redrawn at 1920px and JPEG quality 0.8, which cut a typical archival
+                // scan to a fraction of its pixels. Cards and grids load the resized
+                // variants instead (src/lib/imageThumbs.ts). Only HEIC is converted,
+                // because most browsers cannot display it.
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     setIsConvertingHeic(true);
-                    file = await convertHeicToPng(file);
-                    file = await compressImage(file);
+                    file = await convertHeicToJpeg(file);
                     setIsConvertingHeic(false);
-                } else if (file.type.startsWith('image/')) {
-                    setIsOptimizingImage(true);
-                    file = await compressImage(file);
-                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -672,7 +674,6 @@ export default function EditItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
-            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -842,7 +843,8 @@ export default function EditItem() {
                 file_urls: finalFileUrls,
                 file_captions: finalFileCaptions,
                 additional_media_urls: [...existingAdditionalMediaUrls, ...newAdditionalUrls],
-                featured_image_url: finalFeaturedUrl,
+                // Never a blob: URL, which only this tab could ever load.
+                featured_image_url: featuredUrlForSave(finalFeaturedUrl, finalFileUrls),
         collection_id: item.collection_id || null,
                 collection_ids: item.collection_ids || (item.collection_id ? [item.collection_id] : []),
                 is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
@@ -1437,7 +1439,7 @@ export default function EditItem() {
                                 <div className="flex flex-col items-center gap-3 mb-6">
                                     <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                     <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
-                                    <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                    <p className="text-xs text-charcoal/60">Converting so every browser can display it</p>
                                 </div>
                             )}
 
@@ -1448,14 +1450,6 @@ export default function EditItem() {
                                     <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                         <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                     </div>
-                                </div>
-                            )}
-
-                            {isOptimizingImage && (
-                                <div className="flex flex-col items-center gap-3 mb-6">
-                                    <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
-                                    <p className="font-bold text-charcoal">Optimizing Image...</p>
-                                    <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                 </div>
                             )}
 
