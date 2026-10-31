@@ -16,7 +16,7 @@ export function LibraryBrowse() {
 
     useSeo(buildPageSeo(
         'Reference Library',
-        'Search the reference library of books on Senoia, Coweta County and Georgia history, genealogy and local heritage.',
+        'Search the reference library of books on local history, genealogy and heritage.',
         '/library',
         settings.museumName
     ));
@@ -180,7 +180,7 @@ function LibraryCatalog() {
                 <div>
                     <EditableText
                         textKey="libraryTitle"
-                        defaultText="SAHS Library Catalog"
+                        defaultText="Library Catalog"
                         containerType="h1"
                         className="font-serif text-3xl sm:text-4xl font-bold text-charcoal tracking-tight"
                     />

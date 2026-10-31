@@ -4,7 +4,6 @@ import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Build
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import logo from '../assets/logo2.png';
 import { useAppearance } from '../contexts/AppearanceContext';
 
 function EditableLabel({ tabKey, defaultLabel }: { tabKey: string; defaultLabel: string }) {
@@ -183,14 +182,18 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
             `}>
                 <div className="mb-10 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white shadow-sm rounded-lg flex items-center justify-center shrink-0 border border-tan-light overflow-hidden">
-                            <img src={settings.logoUrl || logo} alt="SAHS Logo" className="w-full h-full object-contain p-1" />
-                        </div>
+                        {/* No logo uploaded means no logo shown. This used to fall back to a
+                            bundled copy of the SAHS logo, which every other museum would see. */}
+                        {settings.logoUrl && (
+                            <div className="w-12 h-12 bg-white shadow-sm rounded-lg flex items-center justify-center shrink-0 border border-tan-light overflow-hidden">
+                                <img src={settings.logoUrl} alt={`${settings.museumName} logo`} className="w-full h-full object-contain p-1" />
+                            </div>
+                        )}
                         <div>
                             {/* Site branding, not a document heading — using <h1> here put the
                                 same title above every page's real <h1>. */}
                             <div className="font-serif text-lg leading-tight font-bold text-charcoal whitespace-pre-line">
-                                {settings.sidebarTitle || settings.museumName || "Senoia Area\nHistorical Society"}
+                                {settings.sidebarTitle || settings.museumName}
                             </div>
                             <p className="text-xs text-charcoal-light mt-0.5 tracking-wide">
                                 Archive Database
@@ -205,7 +208,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="Instagram"
-                                        aria-label="Senoia Area Historical Society on Instagram"
+                                        aria-label={`${settings.museumName} on Instagram`}
                                     >
                                         <Instagram size={14} />
                                     </a>
@@ -217,7 +220,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="Facebook"
-                                        aria-label="Senoia Area Historical Society on Facebook"
+                                        aria-label={`${settings.museumName} on Facebook`}
                                     >
                                         <Facebook size={14} />
                                     </a>
@@ -229,7 +232,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                         rel="noopener noreferrer" 
                                         className="p-1.5 bg-tan/5 text-tan hover:bg-tan hover:text-white rounded-lg transition-all shadow-sm"
                                         title="YouTube"
-                                        aria-label="Senoia Area Historical Society on YouTube"
+                                        aria-label={`${settings.museumName} on YouTube`}
                                     >
                                         <Youtube size={14} />
                                     </a>
