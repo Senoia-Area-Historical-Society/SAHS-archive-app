@@ -188,7 +188,7 @@ The site's `tsc -b` follows test imports into `functions/`, where it has neither
 
 **Installed extensions are mostly not in version control.** Only
 `storage-resize-images` has its config here (`extensions/`), and the CI deploy
-does not apply it — that takes `firebase deploy --only extensions`.
+does not apply it.
 `firebase ext:list --project sahs-archives` is the only way to see the rest, and `gcloud functions describe ext-<name>-<fn> --region <r>
 --format="value(environmentVariables)"` is how to read their configuration.
 Currently active: `storage-resize-images`, `firestore-send-email` (the website's
@@ -196,6 +196,21 @@ Currently active: `storage-resize-images`, `firestore-send-email` (the website's
 `extractedText` collection in the *default* database), and
 `firestore-algolia-search`, which is misconfigured — its `COLLECTION_PATH` is a
 document id, so it indexes nothing.
+
+**Never run `firebase deploy --only extensions` against `sahs-archives`.** The
+deploy is declarative: the `extensions` manifest in `firebase.json` lists only
+`storage-resize-images`, so the other three installed instances count as
+deletions. Interactively it asks (default No); with `--force` it deletes them
+without asking. Narrowing it doesn't work either — firebase-tools 15 rejects
+`--only extensions:storage-resize-images` ("Filters specified with colons … are
+only supported for functions, hosting, storage, and firestore"). To change the
+resize extension's settings, use the Firebase console (Extensions → Resize
+Images → Reconfigure), then mirror the change in
+`extensions/storage-resize-images.env` so the file stays a true record.
+`firebase ext:configure storage-resize-images --project sahs-archives` is
+**not** an alternative: in firebase-tools 15 it only rewrites the local `.env`
+and leaves the installed instance unchanged — its output is meant for that same
+deploy.
 
 **Role simulation is admin-only and derives from `localStorage`.** See
 `src/lib/effectiveRoles.ts`. A simulation is honoured only for an account that
