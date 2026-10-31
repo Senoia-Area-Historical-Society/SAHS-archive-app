@@ -12,7 +12,11 @@ service cloud.firestore {
     function isSAHSUser() {
       return request.auth != null &&
         request.auth.token.email != null && (
-          request.auth.token.role in ['admin', 'curator'] ||
+          // `.get()` rather than `.role`: most tokens carry no role claim, and
+          // reading a missing property is an error, not false. Inside `||` that
+          // happened not to matter, but it made isSAHSUser() unusable as a
+          // condition — expectedCommentRole()'s ternary denied every member.
+          request.auth.token.get('role', '') in ['admin', 'curator'] ||
           // The bare-domain clause was removed here. It granted curator-equivalent
           // write on archive_items, collections, settings, members, rooms and
           // locations to ANY @senoiahistory.com account the moment it signed in —
@@ -48,7 +52,7 @@ service cloud.firestore {
     function isArchiveAdmin() {
       return request.auth != null &&
         request.auth.token.email != null && (
-          request.auth.token.role == 'admin' ||
+          request.auth.token.get('role', '') == 'admin' ||  // see isSAHSUser()
           isSupportAdmin() ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
            get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role == 'admin')
@@ -82,17 +86,75 @@ service cloud.firestore {
 
     // Helper function to check if user is an active member
     function isActiveMember() {
-      return request.auth != null && 
+      return request.auth != null &&
         request.auth.token.email != null &&
-        exists(/databases/$(database)/documents/members/$(request.auth.token.email.lower())) &&
-        get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.status == 'active' &&
+        isActiveMemberAddress(request.auth.token.email.lower());
+    }
+
+    // Whether an arbitrary address is an active member — the body of
+    // isActiveMember(), split out so folder sharing can ask it about the address
+    // being shared WITH rather than the signed-in user. Members are keyed by
+    // lowercased address (the document id), so `email` must already be lowercase.
+    function isActiveMemberAddress(email) {
+      return exists(/databases/$(database)/documents/members/$(email)) &&
+        get(/databases/$(database)/documents/members/$(email)).data.status == 'active' &&
         (
-          get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.expiresAt == 'Never' ||
-          get(/databases/$(database)/documents/members/$(request.auth.token.email.lower())).data.expiresAt >= 
-            string(request.time.year()) + '-' + 
-            (request.time.month() < 10 ? '0' + string(request.time.month()) : string(request.time.month())) + '-' + 
+          get(/databases/$(database)/documents/members/$(email)).data.expiresAt == 'Never' ||
+          get(/databases/$(database)/documents/members/$(email)).data.expiresAt >=
+            string(request.time.year()) + '-' +
+            (request.time.month() < 10 ? '0' + string(request.time.month()) : string(request.time.month())) + '-' +
             (request.time.day() < 10 ? '0' + string(request.time.day()) : string(request.time.day()))
         );
+    }
+
+    // Whether an arbitrary address holds a staff role — a user_roles document or
+    // a place on the support list. The address-based counterpart of isSAHSUser(),
+    // without its claim fast path: a claim belongs to the signed-in token, and
+    // here we are asking about somebody else.
+    function isStaffAddress(email) {
+      return (exists(/databases/$(database)/documents/user_roles/$(email)) &&
+              get(/databases/$(database)/documents/user_roles/$(email)).data.role in ['admin', 'curator']) ||
+        (exists(/databases/$(database)/documents/deployment_config/support) &&
+         email in get(/databases/$(database)/documents/deployment_config/support).data.get('emails', []));
+    }
+
+    // Whether a research_folders write adds only collaborators who may have one.
+    //
+    // Folders are shareable only with members (or staff). The check used to live
+    // only in MyResearch.tsx, in the browser — and that check still waved through
+    // any @senoiahistory.com address after the domain grant was removed — so any
+    // client could share a folder, and every note in it marked shared, with any
+    // Google account at all.
+    //
+    // Rules cannot loop over a list, so a write may add at most ONE new address,
+    // and it must be the last element of `sharedWith` (where arrayUnion and the
+    // client's append both put it): Sets have no way to hand back their single
+    // element, so the rule names it by position and confirms it IS the addition.
+    // Removing collaborators is unrestricted here; who may change `sharedWith` at
+    // all is decided by the update rule below.
+    function sharedWithAdditionsAllowed() {
+      return !('sharedWith' in request.resource.data.diff(resource.data).affectedKeys()) ||
+        sharedWithAdditionAllowed(
+          request.resource.data.sharedWith.toSet().difference(resource.data.get('sharedWith', []).toSet()),
+          request.resource.data.sharedWith);
+    }
+
+    function sharedWithAdditionAllowed(added, after) {
+      return added.size() == 0 || (
+        added.size() == 1 &&
+        added.hasAll([after[after.size() - 1]]) &&
+        (isActiveMemberAddress(after[after.size() - 1]) || isStaffAddress(after[after.size() - 1]))
+      );
+    }
+
+    // The label a new comment must carry, from the writer's REAL role. The client
+    // used to choose it freely, so any member could post as 'Admin' or 'Curator'
+    // — on a public item, under someone else's name, since authorEmail was not
+    // checked either. The order matches AuthContext + ItemDetail: an admin
+    // (role or support list) is 'Admin', other staff 'Curator', everyone else
+    // 'Member'.
+    function expectedCommentRole() {
+      return isArchiveAdmin() ? 'Admin' : (isSAHSUser() ? 'Curator' : 'Member');
     }
 
     // Helper function to check if user has access to a folder
@@ -210,10 +272,29 @@ service cloud.firestore {
     match /archive_items/{itemId}/comments/{commentId} {
       allow read: if isSAHSUser() ||
         get(/databases/$(database)/documents/archive_items/$(itemId)).data.is_private == false;
-      allow create: if request.auth != null && (
-        isSAHSUser() || 
-        isActiveMember()
-      );
+      // Create used to check only "staff or active member", and trusted every
+      // field the client sent. A member could therefore post under someone else's
+      // address (which also let that person delete it — see delete below), wear
+      // an 'Admin' or 'Curator' badge, choose their own moderation status, and
+      // comment on a private item they cannot even read. Each clause closes one:
+      //   • authorEmail is the signed-in address, as ItemDetail.tsx writes it.
+      //   • role is the writer's real role — expectedCommentRole() above.
+      //   • status: ItemDetail writes 'approved' for every new comment and reply
+      //     and nothing ever updates it (there is no update rule), so that is the
+      //     only value a non-staff writer may set. Staff are left free so that a
+      //     future moderation flow can be built without loosening this rule.
+      //   • a member may only comment on an item they can read: a public one.
+      // The parent get() is the same document read rules already do for `read`.
+      allow create: if request.auth != null &&
+        request.auth.token.email != null &&
+        request.resource.data.authorEmail == request.auth.token.email.lower() &&
+        request.resource.data.role == expectedCommentRole() && (
+          isSAHSUser() || (
+            isActiveMember() &&
+            request.resource.data.status == 'approved' &&
+            get(/databases/$(database)/documents/archive_items/$(itemId)).data.is_private == false
+          )
+        );
       allow delete: if isSAHSUser() || (
         request.auth != null && 
         request.auth.token.email.lower() == resource.data.authorEmail.lower()
@@ -314,15 +395,38 @@ service cloud.firestore {
           (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
         )
       );
-      allow create: if isSAHSUser() || (
-        isActiveMember() && 
-        request.resource.data.ownerEmail != null &&
-        request.resource.data.ownerEmail == request.auth.token.email.lower()
+      // A new folder starts unshared — both MyResearch and ItemDetail create it
+      // with `sharedWith: []`. Collaborators are then added one at a time through
+      // update, where sharedWithAdditionsAllowed() checks each; allowing a list on
+      // create would be a way around that check.
+      allow create: if request.resource.data.get('sharedWith', []) == [] && (
+        isSAHSUser() || (
+          isActiveMember() &&
+          request.resource.data.ownerEmail != null &&
+          request.resource.data.ownerEmail == request.auth.token.email.lower()
+        )
       );
-      allow update: if isSAHSUser() || (
-        isActiveMember() && (
-          (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || 
-          (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
+      // Update used to check only who the caller was in the EXISTING document, so a
+      // collaborator — anyone in `sharedWith` — could rewrite `ownerEmail` to
+      // themselves and `sharedWith` to whatever they liked, and then, as the new
+      // "owner", delete the folder. Now:
+      //   • staff may change anything, subject to the members-only sharing check;
+      //   • the owner may change anything except `ownerEmail`, and may add only
+      //     members or staff as collaborators;
+      //   • a collaborator may change only the folder's contents — `itemIds`
+      //     (MyResearch's add/remove, ItemDetail's bookmark) and `name` /
+      //     `description` (the Edit Folder Details button, shown to collaborators
+      //     too). Not `ownerEmail`, not `sharedWith`.
+      allow update: if sharedWithAdditionsAllowed() && (
+        isSAHSUser() || (
+          isActiveMember() && (
+            (resource.data.ownerEmail != null &&
+             resource.data.ownerEmail == request.auth.token.email.lower() &&
+             request.resource.data.ownerEmail == resource.data.ownerEmail) ||
+            (resource.data.sharedWith != null &&
+             request.auth.token.email.lower() in resource.data.sharedWith &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['itemIds', 'name', 'description']))
+          )
         )
       );
       allow delete: if isSAHSUser() || (

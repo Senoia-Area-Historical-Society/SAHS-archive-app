@@ -3,13 +3,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { db, defaultDb } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
-import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem, Member } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
 import { OptimizedImage } from '../components/OptimizedImage';
-import { errorMessage } from '../lib/errors';
+import { errorCode, errorMessage } from '../lib/errors';
 
 interface ResearchFolder {
     id: string;
@@ -78,18 +78,32 @@ export function MyResearch() {
     const [activeNoteTitle, setActiveNoteTitle] = useState('');
     const [activeNoteIsPrivate, setActiveNoteIsPrivate] = useState(true);
     const [isSavingNote, setIsSavingNote] = useState(false);
+    const [notesError, setNotesError] = useState<string | null>(null);
 
     // Fetch folder-specific notes and collaborators' shared notes
     const fetchFolderNotes = async (folderId: string) => {
         if (!user || !user.email || !hasResearchAccess) return;
         const email = user.email.toLowerCase();
         try {
+            // Two queries, merged, rather than one on folderId alone. Firestore
+            // refuses a list query unless the rules can prove every possible result
+            // readable from the query's own filters, and the research_notes rule
+            // admits a note only as "mine" (ownerEmail == me) or "shared"
+            // (isPrivate == false, in a folder I own or collaborate on). A query on
+            // folderId alone proves neither, so it was rejected outright for every
+            // member — and the error went only to the console, leaving an empty
+            // journal that looked like "no notes yet". Both shapes are equality-only,
+            // so neither needs a composite index (and Firestore would refuse one).
             const notesCol = collection(db, 'research_notes');
-            const q = query(notesCol, where('folderId', '==', folderId));
-            const snap = await getDocs(q);
+            const [mineSnap, sharedSnap] = await Promise.all([
+                getDocs(query(notesCol, where('folderId', '==', folderId), where('ownerEmail', '==', email))),
+                getDocs(query(notesCol, where('folderId', '==', folderId), where('isPrivate', '==', false))),
+            ]);
+            // My own shared notes come back from both; keep one copy of each.
+            const byId = new globalThis.Map([...mineSnap.docs, ...sharedSnap.docs].map(d => [d.id, d]));
             
             const notesMap: Record<string, ResearchNote[]> = {};
-            snap.docs.forEach(docSnap => {
+            byId.forEach(docSnap => {
                 const data = docSnap.data();
                 const noteOwner = (data.ownerEmail || '').toLowerCase();
                 const itemId = data.itemId;
@@ -117,8 +131,11 @@ export function MyResearch() {
             });
             
             setNotes(notesMap);
+            setNotesError(null);
         } catch (err) {
             console.error("Error fetching folder notes:", err);
+            setNotes({});
+            setNotesError(`Couldn't load research notes for this folder: ${errorMessage(err) || String(err)}`);
         }
     };
 
@@ -241,6 +258,7 @@ export function MyResearch() {
             fetchFolderNotes(selectedFolder.id);
         } else {
             setNotes({});
+            setNotesError(null);
         }
     }, [selectedFolder, user]);
 
@@ -447,19 +465,21 @@ export function MyResearch() {
 
         setIsSharing(true);
         try {
-            // Verify if the recipient email has research access (is staff or registered member)
-            const isStaffDomain = emailToShare.endsWith('@senoiahistory.com');
-            let isAuthorized = isStaffDomain;
+            // Folders are shareable only with active members (or staff), and
+            // firestore.rules enforces that on the write below — this check is here
+            // to give a clear message first, not to decide access. It used to treat
+            // any @senoiahistory.com address as authorised without looking it up;
+            // the domain stopped granting anything in Sept 2026, so such an address
+            // passed here and then failed in the rules with a generic error.
+            let isAuthorized = false;
 
-            if (!isAuthorized) {
-                try {
-                    const roleDoc = await getDoc(doc(db, 'user_roles', emailToShare));
-                    if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
-                        isAuthorized = true;
-                    }
-                } catch (err) {
-                    console.warn("Could not check user_roles:", err);
+            try {
+                const roleDoc = await getDoc(doc(db, 'user_roles', emailToShare));
+                if (roleDoc.exists() && ['admin', 'curator'].includes(roleDoc.data().role)) {
+                    isAuthorized = true;
                 }
+            } catch (err) {
+                console.warn("Could not check user_roles:", err);
             }
 
             if (!isAuthorized) {
@@ -478,14 +498,26 @@ export function MyResearch() {
             }
 
             if (!isAuthorized) {
-                showToast("Failed to share: This email is not an active registered member or staff curator.");
+                showToast(`Can't share with ${emailToShare}: research folders can only be shared with active members of the society. Check the address, or ask them to renew their membership.`);
                 setIsSharing(false);
                 return;
             }
 
+            // One address per write, appended with arrayUnion: the rules can check
+            // only a single new collaborator per write (they cannot loop over a
+            // list), and arrayUnion also stops two quick shares overwriting each
+            // other's additions.
             const folderRef = doc(db, 'research_folders', sharingFolder.id);
             const newSharedWith = [...sharingFolder.sharedWith, emailToShare];
-            await updateDoc(folderRef, { sharedWith: newSharedWith });
+            try {
+                await updateDoc(folderRef, { sharedWith: arrayUnion(emailToShare) });
+            } catch (err) {
+                if (errorCode(err) === 'permission-denied') {
+                    showToast(`Can't share with ${emailToShare}: research folders can only be shared with active members of the society, and only by the folder's owner.`);
+                    return;
+                }
+                throw err;
+            }
             
             // Trigger collaborative email notification
             await addDoc(collection(defaultDb, 'mail'), {
@@ -545,7 +577,7 @@ export function MyResearch() {
         try {
             const folderRef = doc(db, 'research_folders', sharingFolder.id);
             const newSharedWith = sharingFolder.sharedWith.filter(e => e !== emailToUnshare);
-            await updateDoc(folderRef, { sharedWith: newSharedWith });
+            await updateDoc(folderRef, { sharedWith: arrayRemove(emailToUnshare) });
             
             // Sync local state
             setSharingFolder(prev => prev ? { ...prev, sharedWith: newSharedWith } : null);
@@ -764,6 +796,12 @@ export function MyResearch() {
                         <p className="text-sm text-charcoal/70 font-sans italic mb-8 leading-relaxed max-w-3xl border-l-2 border-tan/30 pl-4 break-words">
                             {selectedFolder.description}
                         </p>
+                    )}
+
+                    {notesError && (
+                        <div role="alert" className="mb-6 px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-sans">
+                            {notesError}
+                        </div>
                     )}
 
                     {loadingItems ? (
