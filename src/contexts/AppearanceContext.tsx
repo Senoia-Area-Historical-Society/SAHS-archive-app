@@ -90,7 +90,7 @@ export interface FeatureToggles {
     enableCollections: boolean;
 }
 
-interface AppearanceSettings {
+export interface AppearanceSettings {
     theme: string;
     heroTitle: string;
     heroSubtitle: string;

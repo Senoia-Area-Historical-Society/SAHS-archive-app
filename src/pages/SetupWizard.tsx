@@ -1,32 +1,69 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppearance } from '../contexts/AppearanceContext';
 import { db, storage, functions } from '../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Loader2, ArrowRight, ShieldCheck, Palette, Building2, CheckCircle2, Link as LinkIcon, MapPin, Type, FileText, Upload, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ArrowRight, ShieldCheck, Palette, Building2, CheckCircle2, Link as LinkIcon, MapPin, Type, FileText, Upload, Trash2, Image as ImageIcon, Sliders, Info, Undo2 } from 'lucide-react';
+import {
+    FIRST_RUN_VALUES,
+    WIZARD_FEATURES,
+    changedWizardFields,
+    firstRunAppearanceWrite,
+    rerunAppearanceWrite,
+    wizardValuesFromSettings,
+    type WizardValues,
+} from '../lib/setupWizardFields';
+
+// Names for the "what will be saved" summary on a re-run.
+const FIELD_LABELS: Record<string, string> = {
+    museumName: 'Full organization name',
+    museumShortName: 'Short name',
+    sidebarTitle: 'Sidebar title',
+    heroTitle: 'Homepage hero title',
+    heroSubtitle: 'Hero subtitle',
+    theme: 'Color theme',
+    logoUrl: 'Logo',
+    backgroundImages: 'Slider images',
+    contactSupportUrl: 'Contact/Support URL',
+    archiveFeedbackUrl: 'Feedback form URL',
+    suggestionBoxUrl: 'Suggestion box URL',
+    stripeBillingPortalUrl: 'Stripe portal URL',
+    instagramUrl: 'Instagram URL',
+    facebookUrl: 'Facebook URL',
+    youtubeUrl: 'YouTube URL',
+    mapCenterLat: 'Map latitude',
+    mapCenterLng: 'Map longitude',
+    mapDefaultZoom: 'Map zoom',
+};
+
+function describeField(path: string): string {
+    const [group, key] = path.split('.');
+    if (group === 'tabNames') return `Tab name: ${key}`;
+    if (group === 'contentBlocks') return `Content block: ${key}`;
+    if (group === 'featureToggles') return `Feature: ${WIZARD_FEATURES.find(f => f.key === key)?.label ?? key}`;
+    return FIELD_LABELS[path] ?? path;
+}
 
 export function SetupWizard() {
     const { user, isSetupComplete, realIsAdmin } = useAuth();
+    const { settings, loading: appearanceLoading } = useAppearance();
     const navigate = useNavigate();
 
     const [step, setStep] = useState(1);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // Step 2: Organization data
-    const [museumName, setMuseumName] = useState('');
-    const [museumShortName, setMuseumShortName] = useState('');
-    const [sidebarTitle, setSidebarTitle] = useState('');
+    // 'first-run' on an empty archive; 'rerun' when an admin launches the wizard
+    // again from Admin Settings to update an archive that is already set up.
+    const [mode, setMode] = useState<'loading' | 'first-run' | 'rerun'>('loading');
+    // Where every field started. On a re-run a field is written only if it no
+    // longer matches this, so untouched fields keep their current values.
+    const [initial, setInitial] = useState<WizardValues>(FIRST_RUN_VALUES);
+    const [values, setValues] = useState<WizardValues>(FIRST_RUN_VALUES);
 
-    // Step 3: Branding data
-    const [heroTitle, setHeroTitle] = useState('');
-    const [heroSubtitle, setHeroSubtitle] = useState('Preserving Our Past, Inspiring Our Future');
-    const [theme, setTheme] = useState('classic');
-    const [logoUrl, setLogoUrl] = useState('');
-    const [backgroundImages, setBackgroundImages] = useState<string[]>([]);
-    
     // Upload loading states
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [isUploadingSlider, setIsUploadingSlider] = useState(false);
@@ -35,75 +72,41 @@ export function SetupWizard() {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const sliderInputRef = useRef<HTMLInputElement>(null);
 
-    // Step 4: Social & Links
-    const [contactSupportUrl, setContactSupportUrl] = useState('');
-    const [archiveFeedbackUrl, setArchiveFeedbackUrl] = useState('');
-    const [suggestionBoxUrl, setSuggestionBoxUrl] = useState('');
-    const [stripeBillingPortalUrl, setStripeBillingPortalUrl] = useState('');
-    const [instagramUrl, setInstagramUrl] = useState('');
-    const [facebookUrl, setFacebookUrl] = useState('');
-    const [youtubeUrl, setYoutubeUrl] = useState('');
+    // Decide which kind of run this is from the documents themselves, the same
+    // test as isSetupComplete() in firestore.rules, rather than from AuthContext's
+    // isSetupComplete — that starts out true to avoid a flash and only turns false
+    // once its listener fires.
+    useEffect(() => {
+        if (appearanceLoading || mode !== 'loading') return;
+        let cancelled = false;
+        Promise.all([
+            getDoc(doc(db, 'site_settings', 'setup')),
+            getDoc(doc(db, 'site_settings', 'appearance')),
+        ]).then(([setupSnap, appearanceSnap]) => {
+            if (cancelled) return;
+            const alreadySetUp = (setupSnap.exists() && setupSnap.data().isComplete === true) || appearanceSnap.exists();
+            if (alreadySetUp) {
+                const current = wizardValuesFromSettings(settings);
+                setInitial(current);
+                setValues(current);
+                setMode('rerun');
+                // Step 1 is the first-run admin claim; a re-run skips it.
+                setStep(2);
+            } else {
+                setMode('first-run');
+            }
+        }).catch(err => {
+            // Never fall back to first-run here: its defaults would be saved over
+            // whatever settings could not be read.
+            console.error('Error loading current settings:', err);
+            if (!cancelled) setError('Could not load the archive\'s current settings. Please reload the page and try again.');
+        });
+        return () => { cancelled = true; };
+    }, [appearanceLoading, mode, settings]);
 
-    // Step 5: Map & Location
-    const [mapCenterLat, setMapCenterLat] = useState('33.3001');
-    const [mapCenterLng, setMapCenterLng] = useState('-84.5544');
-    const [mapDefaultZoom, setMapDefaultZoom] = useState('13');
-
-    // Step 6: Tabs
-    const [tabNames, setTabNames] = useState({
-        home: "Home",
-        oralHistories: "Oral Histories",
-        documents: "Documents",
-        figures: "Historic Figures",
-        orgs: "Historic Orgs",
-        artifacts: "Artifact Collection",
-        library: "Book Library",
-        search: "Advanced Search",
-        map: "Map View",
-        collections: "Curated Collections",
-        researchFolders: "My Research Folders",
-        researchMap: "My Research Map",
-        membership: "Membership Status",
-        locations: "Museum Locations",
-        tagging: "Tagging Hub",
-        interactiveMap: "Interactive Map",
-        qrSearch: "Search via QR Code",
-        addItem: "Add Archive Item",
-        addBook: "Add Library Book",
-        audit: "Data Quality Audit",
-        notifications: "Moderation Feed",
-        appearance: "Website Appearance",
-        settings: "Admin Settings"
-    });
-
-    // Step 7: Content Blocks
-    const [contentBlocks, setContentBlocks] = useState({
-        homeShareTitle: "Help Us Spread the\nHistory",
-        homeShareDesc: "Our mission is to preserve and share the rich heritage of our community. Share this archive with friends and family, or follow us on social media for daily historical insights.",
-        footerCopyrightTitle: "Copyright & Usage Notice",
-        footerCopyrightDesc: "All information, documents, photographs, and materials provided on this website are the exclusive property of our organization. All rights are reserved.",
-        footerAiTitle: "Authenticity & AI Disclaimer",
-        footerAiDesc: "We are committed to preserving history authentically. No artificial intelligence is used to generate, alter, or enhance the historical records.",
-        exploreTitle: "Explore Our Archives",
-        exploreSubtitle: "Discover the stories, people, and events that shaped our community",
-        exploreDocTitle: "Historical Documents",
-        exploreDocDesc: "Dive into primary sources including letters, ledgers, meeting minutes, and local government records.",
-        exploreFigTitle: "Historic Figures",
-        exploreFigDesc: "Read about the individuals who have left a lasting impact on our community.",
-        exploreOrgTitle: "Historic Organizations",
-        exploreOrgDesc: "Explore the history of local businesses, churches, schools, and civic groups.",
-        exploreArtTitle: "Artifact Collection",
-        exploreArtDesc: "Our collection of physical artifacts captures the material history of our community.",
-        exploreSearchTitle: "Search the Archive",
-        exploreSearchDesc: "Looking for something specific? Use our advanced search tool to query the archive by keyword, date, location, or subject tags.",
-        qrTitle: "Archive Website",
-        qrSubtitle: "Scan to Visit",
-        qrValue: "https://example.com",
-        storiesTitle: "Community Stories",
-        storiesTitleItalic: "Stories",
-        storiesDesc: "A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped our community over the decades.",
-        storiesLogoUrl: ""
-    });
+    const setField = <K extends keyof WizardValues>(key: K, value: WizardValues[K]) => {
+        setValues(prev => ({ ...prev, [key]: value }));
+    };
 
     // Handle Uploads
     const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,7 +118,7 @@ export function SetupWizard() {
             const fileRef = ref(storage, `site_assets/logo_${Date.now()}_${file.name}`);
             await uploadBytes(fileRef, file);
             const downloadUrl = await getDownloadURL(fileRef);
-            setLogoUrl(downloadUrl);
+            setField('logoUrl', downloadUrl);
         } catch (err) {
             console.error("Logo upload failed", err);
             alert('Failed to upload logo. Please try again.');
@@ -134,7 +137,7 @@ export function SetupWizard() {
             const fileRef = ref(storage, `site_assets/hero_slider_${Date.now()}_${file.name}`);
             await uploadBytes(fileRef, file);
             const downloadUrl = await getDownloadURL(fileRef);
-            setBackgroundImages(prev => [...prev, downloadUrl]);
+            setValues(prev => ({ ...prev, backgroundImages: [...prev.backgroundImages, downloadUrl] }));
         } catch (err) {
             console.error("Slider image upload failed", err);
             alert('Failed to upload slider image. Please try again.');
@@ -145,15 +148,29 @@ export function SetupWizard() {
     };
 
     const handleDeleteSliderImage = (indexToDelete: number) => {
-        setBackgroundImages(prev => prev.filter((_, idx) => idx !== indexToDelete));
+        setValues(prev => ({ ...prev, backgroundImages: prev.backgroundImages.filter((_, idx) => idx !== indexToDelete) }));
     };
 
-    const updateTabName = (key: keyof typeof tabNames, value: string) => {
-        setTabNames(prev => ({ ...prev, [key]: value }));
+    const updateTabName = (key: string, value: string) => {
+        setValues(prev => ({ ...prev, tabNames: { ...prev.tabNames, [key]: value } }));
     };
 
-    const updateContentBlock = (key: keyof typeof contentBlocks, value: string) => {
-        setContentBlocks(prev => ({ ...prev, [key]: value }));
+    const updateContentBlock = (key: string, value: string) => {
+        setValues(prev => ({ ...prev, contentBlocks: { ...prev.contentBlocks, [key]: value } }));
+    };
+
+    // On a re-run, a field that had a value and has been emptied is about to be
+    // saved blank. Say so beside it, with a way back, so a blank is never an accident.
+    const clearedNotice = (wasValue: string | undefined, isValue: string, restore: () => void) => {
+        if (mode !== 'rerun' || !wasValue || isValue !== '') return null;
+        return (
+            <p className="mt-1 flex items-center gap-2 text-[11px] font-semibold text-amber-700">
+                Will be saved blank.
+                <button type="button" onClick={restore} className="inline-flex items-center gap-1 underline hover:text-amber-900">
+                    <Undo2 size={11} /> Restore
+                </button>
+            </p>
+        );
     };
 
     // If setup is complete, only real Admins are allowed to access this page manually.
@@ -176,13 +193,40 @@ export function SetupWizard() {
         );
     }
 
+    if (mode === 'loading') {
+        return (
+            <div className="min-h-screen bg-cream flex items-center justify-center p-4 font-sans">
+                {error ? (
+                    <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-md w-full border border-red-100 text-sm text-red-600">{error}</div>
+                ) : (
+                    <Loader2 className="animate-spin text-tan" size={32} />
+                )}
+            </div>
+        );
+    }
+
+    const isRerun = mode === 'rerun';
+    const pendingChanges = isRerun ? changedWizardFields(initial, values) : [];
+
     const handleClaimAdmin = async () => {
+        // First-run bootstrap only. On a re-run the admin already holds their
+        // access — possibly as a support admin with no user_roles document at all,
+        // where writing one would leave them admin even after the museum removed
+        // support access — so this step is never shown then.
+        if (isRerun) return;
         setIsProcessing(true);
         setError(null);
         try {
-            await setDoc(doc(db, 'user_roles', user.email!.toLowerCase()), {
-                role: 'admin'
-            });
+            const roleRef = doc(db, 'user_roles', user.email!.toLowerCase());
+            // Coming back to an unfinished setup finds the role already claimed.
+            // Merge rather than overwrite, so addedAt and anything else on it survive.
+            const existing = await getDoc(roleRef);
+            if (!(existing.exists() && existing.data().role === 'admin')) {
+                await setDoc(roleRef, {
+                    role: 'admin',
+                    ...(existing.exists() && existing.data().addedAt ? {} : { addedAt: new Date().toISOString() })
+                }, { merge: true });
+            }
             // Storage only sees a role through the token's claim, and this token
             // was issued before the role existed — so without a refresh the logo
             // and slideshow uploads two steps on are refused for up to an hour.
@@ -214,40 +258,26 @@ export function SetupWizard() {
         setIsProcessing(true);
         setError(null);
         try {
-            // Write appearance settings
-            await setDoc(doc(db, 'site_settings', 'appearance'), {
-                theme,
-                museumName,
-                museumShortName,
-                sidebarTitle,
-                heroTitle,
-                heroSubtitle,
-                logoUrl,
-                backgroundImages,
-                contactSupportUrl,
-                archiveFeedbackUrl,
-                suggestionBoxUrl,
-                stripeBillingPortalUrl,
-                instagramUrl,
-                facebookUrl,
-                youtubeUrl,
-                mapCenterLat: parseFloat(mapCenterLat),
-                mapCenterLng: parseFloat(mapCenterLng),
-                mapDefaultZoom: parseInt(mapDefaultZoom, 10),
-                tabNames,
-                contentBlocks: {
-                    ...contentBlocks,
-                    heroTitle,
-                    heroSubtitle
+            if (isRerun) {
+                // Only what the admin changed. This used to write every field from
+                // the wizard's blank defaults over the live settings.
+                const write = rerunAppearanceWrite(initial, values);
+                if (Object.keys(write).length > 0) {
+                    await setDoc(doc(db, 'site_settings', 'appearance'), write, { merge: true });
                 }
-            }, { merge: true });
+                // site_settings/setup already records when and by whom the archive
+                // was first set up; a re-run leaves that alone.
+            } else {
+                // Write appearance settings
+                await setDoc(doc(db, 'site_settings', 'appearance'), firstRunAppearanceWrite(values), { merge: true });
 
-            // Mark setup as complete
-            await setDoc(doc(db, 'site_settings', 'setup'), {
-                isComplete: true,
-                completedBy: user.email,
-                completedAt: new Date().toISOString()
-            });
+                // Mark setup as complete
+                await setDoc(doc(db, 'site_settings', 'setup'), {
+                    isComplete: true,
+                    completedBy: user.email,
+                    completedAt: new Date().toISOString()
+                });
+            }
 
             // Redirect to home
             navigate('/', { replace: true });
@@ -259,20 +289,23 @@ export function SetupWizard() {
         }
     };
 
+    const steps = isRerun ? [2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8];
+    const isNumber = (v: string) => v.trim() !== '' && !Number.isNaN(Number(v));
+
     return (
         <div className="min-h-screen bg-cream/50 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden font-sans">
             <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-tan-light/20 to-transparent pointer-events-none" />
-            
+
             <div className="w-full max-w-2xl relative z-10">
                 {/* Progress Tracker */}
                 <div className="flex items-center justify-between mb-8 px-4">
-                    {[1, 2, 3, 4, 5, 6, 7].map(s => (
+                    {steps.map((s, i) => (
                         <div key={s} className="flex flex-col items-center gap-2">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-500
-                                ${step === s ? 'bg-tan text-white scale-110 shadow-lg' : 
+                                ${step === s ? 'bg-tan text-white scale-110 shadow-lg' :
                                   step > s ? 'bg-tan/20 text-tan' : 'bg-tan-light/30 text-charcoal/30'}`}
                             >
-                                {step > s ? <CheckCircle2 size={16} /> : s}
+                                {step > s ? <CheckCircle2 size={16} /> : i + 1}
                             </div>
                         </div>
                     ))}
@@ -280,15 +313,26 @@ export function SetupWizard() {
 
                 {/* Step Container */}
                 <div className="bg-white rounded-3xl shadow-xl shadow-tan/5 border border-tan-light/30 p-8 lg:p-12">
-                    
+
                     {error && (
                         <div className="mb-8 p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm font-medium">
                             {error}
                         </div>
                     )}
 
+                    {isRerun && (
+                        <div className="mb-8 p-4 bg-blue-50/60 text-blue-900 rounded-xl border border-blue-100 text-xs leading-relaxed flex gap-3">
+                            <Info size={16} className="shrink-0 mt-0.5" />
+                            <div>
+                                <strong>Updating your archive's settings.</strong> Every field shows what your site uses now.
+                                Anything you leave alone stays exactly as it is. To remove something, empty the field — it will be saved blank.
+                                Nothing is saved until you press Save Changes on the last step.
+                            </div>
+                        </div>
+                    )}
+
                     <div className="relative">
-                        {step === 1 && (
+                        {step === 1 && !isRerun && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 text-center">
                                 <div className="w-20 h-20 bg-tan/10 rounded-full flex items-center justify-center text-tan mx-auto mb-6">
                                     <ShieldCheck size={40} />
@@ -316,36 +360,36 @@ export function SetupWizard() {
                                     <Building2 size={24} />
                                 </div>
                                 <h2 className="text-xl font-bold text-charcoal mb-4">Core Organization</h2>
-                                
+
                                 <div className="space-y-5">
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Full Organization Name</label>
-                                        <input 
+                                        <input
                                             id="museumName"
-                                            type="text" 
-                                            value={museumName}
-                                            onChange={e => setMuseumName(e.target.value)}
+                                            type="text"
+                                            value={values.museumName}
+                                            onChange={e => setField('museumName', e.target.value)}
                                             placeholder="e.g. Springfield Historical Society"
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Short Name / Acronym</label>
-                                        <input 
+                                        <input
                                             id="museumShortName"
-                                            type="text" 
-                                            value={museumShortName}
-                                            onChange={e => setMuseumShortName(e.target.value)}
+                                            type="text"
+                                            value={values.museumShortName}
+                                            onChange={e => setField('museumShortName', e.target.value)}
                                             placeholder="e.g. SHS"
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Navigation Sidebar Title</label>
-                                        <textarea 
+                                        <textarea
                                             id="sidebarTitle"
-                                            value={sidebarTitle}
-                                            onChange={e => setSidebarTitle(e.target.value)}
+                                            value={values.sidebarTitle}
+                                            onChange={e => setField('sidebarTitle', e.target.value)}
                                             placeholder="e.g. Springfield&#10;Historical Society"
                                             rows={2}
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm resize-none"
@@ -353,13 +397,18 @@ export function SetupWizard() {
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={() => setStep(3)}
-                                    disabled={!museumName || !museumShortName || !sidebarTitle}
-                                    className="w-full mt-8 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
-                                >
-                                    Continue <ArrowRight size={16} />
-                                </button>
+                                <div className="flex gap-3 mt-8">
+                                    {isRerun && (
+                                        <button onClick={() => navigate('/settings')} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Cancel</button>
+                                    )}
+                                    <button
+                                        onClick={() => setStep(3)}
+                                        disabled={!values.museumName || !values.museumShortName || !values.sidebarTitle}
+                                        className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
+                                    >
+                                        Continue <ArrowRight size={16} />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -369,14 +418,14 @@ export function SetupWizard() {
                                     <Palette size={24} />
                                 </div>
                                 <h2 className="text-xl font-bold text-charcoal mb-4">Homepage Branding & Assets</h2>
-                                
+
                                 <div className="space-y-5 max-h-[420px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Homepage Hero Title</label>
-                                        <textarea 
+                                        <textarea
                                             id="heroTitle"
-                                            value={heroTitle}
-                                            onChange={e => setHeroTitle(e.target.value)}
+                                            value={values.heroTitle}
+                                            onChange={e => setField('heroTitle', e.target.value)}
                                             placeholder="e.g. Springfield&#10;Historical Society"
                                             rows={2}
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm resize-none font-serif text-lg"
@@ -384,24 +433,27 @@ export function SetupWizard() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Hero Subtitle</label>
-                                        <input 
-                                            type="text" 
-                                            value={heroSubtitle}
-                                            onChange={e => setHeroSubtitle(e.target.value)}
+                                        <input
+                                            type="text"
+                                            value={values.heroSubtitle}
+                                            onChange={e => setField('heroSubtitle', e.target.value)}
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm italic font-serif"
                                         />
+                                        {clearedNotice(initial.heroSubtitle, values.heroSubtitle, () => setField('heroSubtitle', initial.heroSubtitle))}
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Color Theme</label>
-                                        <select 
-                                            value={theme}
-                                            onChange={e => setTheme(e.target.value)}
+                                        <select
+                                            value={values.theme}
+                                            onChange={e => setField('theme', e.target.value)}
                                             className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
                                         >
                                             <option value="classic">Classic (Forest & Tan)</option>
                                             <option value="navy">Maritime (Navy & Slate)</option>
                                             <option value="gold">Vintage (Gold & Charcoal)</option>
                                             <option value="burgundy">Heritage (Burgundy & Rose)</option>
+                                            {/* Settable in Website Appearance, so a re-run can find it already chosen. */}
+                                            <option value="forest">Historic Forest Green</option>
                                         </select>
                                     </div>
 
@@ -410,8 +462,8 @@ export function SetupWizard() {
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Organization Logo</label>
                                         <div className="flex items-center gap-4 bg-cream/20 p-4 border border-tan-light/40 rounded-xl">
                                             <div className="w-16 h-16 rounded-xl bg-cream border border-tan-light/20 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                                                {logoUrl ? (
-                                                    <img src={logoUrl} alt="Logo preview" className="w-full h-full object-contain p-1" />
+                                                {values.logoUrl ? (
+                                                    <img src={values.logoUrl} alt="Logo preview" className="w-full h-full object-contain p-1" />
                                                 ) : (
                                                     <ImageIcon className="text-charcoal/20" size={24} />
                                                 )}
@@ -425,17 +477,18 @@ export function SetupWizard() {
                                                     className="flex items-center gap-2 bg-tan text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-tan-dark transition-all disabled:opacity-50"
                                                 >
                                                     {isUploadingLogo ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                                                    {logoUrl ? 'Change Logo' : 'Upload Logo'}
+                                                    {values.logoUrl ? 'Change Logo' : 'Upload Logo'}
                                                 </button>
-                                                {logoUrl && (
+                                                {values.logoUrl && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setLogoUrl('')}
+                                                        onClick={() => setField('logoUrl', '')}
                                                         className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-red-600 hover:text-red-800 transition-colors"
                                                     >
                                                         <Trash2 size={10} /> Remove Logo
                                                     </button>
                                                 )}
+                                                {clearedNotice(initial.logoUrl, values.logoUrl, () => setField('logoUrl', initial.logoUrl))}
                                             </div>
                                         </div>
                                     </div>
@@ -445,7 +498,7 @@ export function SetupWizard() {
                                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Background Slider Images</label>
                                         <div className="bg-cream/20 p-4 border border-tan-light/40 rounded-xl space-y-4">
                                             <input type="file" accept="image/*" ref={sliderInputRef} onChange={handleUploadSlider} className="hidden" />
-                                            
+
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-charcoal/60">Upload slideshow images for the landing page.</span>
                                                 <button
@@ -459,9 +512,9 @@ export function SetupWizard() {
                                                 </button>
                                             </div>
 
-                                            {backgroundImages.length > 0 ? (
+                                            {values.backgroundImages.length > 0 ? (
                                                 <div className="grid grid-cols-3 gap-2 pt-2">
-                                                    {backgroundImages.map((img, idx) => (
+                                                    {values.backgroundImages.map((img, idx) => (
                                                         <div key={idx} className="relative w-full aspect-video rounded-lg overflow-hidden border border-tan-light/20 group">
                                                             <img src={img} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" />
                                                             <button
@@ -479,6 +532,14 @@ export function SetupWizard() {
                                                     No slider images uploaded. (A solid brand color will show instead).
                                                 </div>
                                             )}
+                                            {isRerun && JSON.stringify(values.backgroundImages) !== JSON.stringify(initial.backgroundImages) && (
+                                                <p className="flex items-center gap-2 text-[11px] font-semibold text-amber-700">
+                                                    Slider images changed.
+                                                    <button type="button" onClick={() => setField('backgroundImages', [...initial.backgroundImages])} className="inline-flex items-center gap-1 underline hover:text-amber-900">
+                                                        <Undo2 size={11} /> Restore
+                                                    </button>
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
@@ -488,7 +549,7 @@ export function SetupWizard() {
                                     <button onClick={() => setStep(2)} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Back</button>
                                     <button
                                         onClick={() => setStep(4)}
-                                        disabled={!heroTitle}
+                                        disabled={!values.heroTitle}
                                         className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
                                     >
                                         Continue <ArrowRight size={16} />
@@ -500,30 +561,28 @@ export function SetupWizard() {
                         {step === 4 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="w-12 h-12 bg-tan/10 rounded-2xl flex items-center justify-center text-tan mb-6">
-                                    <LinkIcon size={24} />
+                                    <Sliders size={24} />
                                 </div>
-                                <h2 className="text-xl font-bold text-charcoal mb-4">Social & Links</h2>
-                                <p className="text-sm text-charcoal/60 mb-6">Connect your external pages. Leave blank if not applicable.</p>
-                                
-                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
-                                    {[
-                                        { label: 'Facebook URL', value: facebookUrl, setter: setFacebookUrl },
-                                        { label: 'Instagram URL', value: instagramUrl, setter: setInstagramUrl },
-                                        { label: 'YouTube URL', value: youtubeUrl, setter: setYoutubeUrl },
-                                        { label: 'Contact/Support URL', value: contactSupportUrl, setter: setContactSupportUrl },
-                                        { label: 'Feedback Form URL', value: archiveFeedbackUrl, setter: setArchiveFeedbackUrl },
-                                        { label: 'Suggestion Box URL', value: suggestionBoxUrl, setter: setSuggestionBoxUrl },
-                                        { label: 'Stripe Portal URL', value: stripeBillingPortalUrl, setter: setStripeBillingPortalUrl },
-                                    ].map((field, i) => (
-                                        <div key={i}>
-                                            <label className="block text-[10px] font-bold text-charcoal/70 uppercase tracking-wider mb-1">{field.label}</label>
-                                            <input 
-                                                type="url" 
-                                                value={field.value}
-                                                onChange={e => field.setter(e.target.value)}
-                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
+                                <h2 className="text-xl font-bold text-charcoal mb-4">Features</h2>
+                                <p className="text-sm text-charcoal/60 mb-6">
+                                    Choose which parts of the archive to turn on. Features left off are hidden from visitors.
+                                    You can change these later in Website Appearance.
+                                </p>
+
+                                <div className="space-y-3">
+                                    {WIZARD_FEATURES.map(feature => (
+                                        <label key={feature.key} className="flex items-start gap-3 p-4 bg-cream/20 border border-tan-light/40 rounded-xl cursor-pointer hover:bg-cream/40 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={values.featureToggles[feature.key]}
+                                                onChange={e => setField('featureToggles', { ...values.featureToggles, [feature.key]: e.target.checked })}
+                                                className="mt-0.5 h-4 w-4 rounded border-tan-light text-tan focus:ring-tan cursor-pointer"
                                             />
-                                        </div>
+                                            <span>
+                                                <span className="block text-sm font-bold text-charcoal">{feature.label}</span>
+                                                <span className="block text-xs text-charcoal/60 mt-0.5">{feature.desc}</span>
+                                            </span>
+                                        </label>
                                     ))}
                                 </div>
 
@@ -542,45 +601,38 @@ export function SetupWizard() {
                         {step === 5 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="w-12 h-12 bg-tan/10 rounded-2xl flex items-center justify-center text-tan mb-6">
-                                    <MapPin size={24} />
+                                    <LinkIcon size={24} />
                                 </div>
-                                <h2 className="text-xl font-bold text-charcoal mb-4">Map & Location Setup</h2>
-                                
-                                <div className="space-y-5">
-                                    <div>
-                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Latitude</label>
-                                        <input 
-                                            type="number" step="any"
-                                            value={mapCenterLat}
-                                            onChange={e => setMapCenterLat(e.target.value)}
-                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Longitude</label>
-                                        <input 
-                                            type="number" step="any"
-                                            value={mapCenterLng}
-                                            onChange={e => setMapCenterLng(e.target.value)}
-                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Default Zoom Level</label>
-                                        <input 
-                                            type="number"
-                                            value={mapDefaultZoom}
-                                            onChange={e => setMapDefaultZoom(e.target.value)}
-                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
-                                        />
-                                    </div>
+                                <h2 className="text-xl font-bold text-charcoal mb-4">Social & Links</h2>
+                                <p className="text-sm text-charcoal/60 mb-6">Connect your external pages. Leave blank if not applicable.</p>
+
+                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
+                                    {([
+                                        { label: 'Facebook URL', key: 'facebookUrl' },
+                                        { label: 'Instagram URL', key: 'instagramUrl' },
+                                        { label: 'YouTube URL', key: 'youtubeUrl' },
+                                        { label: 'Contact/Support URL', key: 'contactSupportUrl' },
+                                        { label: 'Feedback Form URL', key: 'archiveFeedbackUrl' },
+                                        { label: 'Suggestion Box URL', key: 'suggestionBoxUrl' },
+                                        { label: 'Stripe Portal URL', key: 'stripeBillingPortalUrl' },
+                                    ] as const).map(field => (
+                                        <div key={field.key}>
+                                            <label className="block text-[10px] font-bold text-charcoal/70 uppercase tracking-wider mb-1">{field.label}</label>
+                                            <input
+                                                type="url"
+                                                value={values[field.key]}
+                                                onChange={e => setField(field.key, e.target.value)}
+                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
+                                            />
+                                            {clearedNotice(initial[field.key], values[field.key], () => setField(field.key, initial[field.key]))}
+                                        </div>
+                                    ))}
                                 </div>
 
                                 <div className="flex gap-3 mt-8">
                                     <button onClick={() => setStep(4)} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Back</button>
                                     <button
                                         onClick={() => setStep(6)}
-                                        disabled={!mapCenterLat || !mapCenterLng}
                                         className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
                                     >
                                         Continue <ArrowRight size={16} />
@@ -592,29 +644,46 @@ export function SetupWizard() {
                         {step === 6 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="w-12 h-12 bg-tan/10 rounded-2xl flex items-center justify-center text-tan mb-6">
-                                    <Type size={24} />
+                                    <MapPin size={24} />
                                 </div>
-                                <h2 className="text-xl font-bold text-charcoal mb-4">Navigation Tabs</h2>
-                                <p className="text-sm text-charcoal/60 mb-6">Customize the names of the tabs in your navigation bar.</p>
-                                
-                                <div className="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
-                                    {Object.entries(tabNames).map(([key, value]) => (
-                                        <div key={key}>
-                                            <label className="block text-[10px] font-bold text-charcoal/70 uppercase tracking-wider mb-1">{key}</label>
-                                            <input 
-                                                type="text" 
-                                                value={value}
-                                                onChange={e => updateTabName(key as keyof typeof tabNames, e.target.value)}
-                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-xs"
-                                            />
-                                        </div>
-                                    ))}
+                                <h2 className="text-xl font-bold text-charcoal mb-4">Map & Location Setup</h2>
+
+                                <div className="space-y-5">
+                                    <div>
+                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Latitude</label>
+                                        <input
+                                            type="number" step="any"
+                                            value={values.mapCenterLat}
+                                            onChange={e => setField('mapCenterLat', e.target.value)}
+                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Longitude</label>
+                                        <input
+                                            type="number" step="any"
+                                            value={values.mapCenterLng}
+                                            onChange={e => setField('mapCenterLng', e.target.value)}
+                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Default Zoom Level</label>
+                                        <input
+                                            type="number"
+                                            value={values.mapDefaultZoom}
+                                            onChange={e => setField('mapDefaultZoom', e.target.value)}
+                                            className="w-full px-4 py-3 bg-cream/30 border border-tan-light/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-sm"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="flex gap-3 mt-8">
                                     <button onClick={() => setStep(5)} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Back</button>
                                     <button
                                         onClick={() => setStep(7)}
+                                        // A blank zoom used to be saved as NaN; all three are numbers the map needs.
+                                        disabled={!isNumber(values.mapCenterLat) || !isNumber(values.mapCenterLng) || !isNumber(values.mapDefaultZoom)}
                                         className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
                                     >
                                         Continue <ArrowRight size={16} />
@@ -626,21 +695,22 @@ export function SetupWizard() {
                         {step === 7 && (
                             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <div className="w-12 h-12 bg-tan/10 rounded-2xl flex items-center justify-center text-tan mb-6">
-                                    <FileText size={24} />
+                                    <Type size={24} />
                                 </div>
-                                <h2 className="text-xl font-bold text-charcoal mb-4">Content Blocks & Footer</h2>
-                                <p className="text-sm text-charcoal/60 mb-6">Final step! Customize the text blocks across your site.</p>
-                                
-                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
-                                    {Object.entries(contentBlocks).map(([key, value]) => (
+                                <h2 className="text-xl font-bold text-charcoal mb-4">Navigation Tabs</h2>
+                                <p className="text-sm text-charcoal/60 mb-6">Customize the names of the tabs in your navigation bar.</p>
+
+                                <div className="grid grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
+                                    {Object.entries(values.tabNames).map(([key, value]) => (
                                         <div key={key}>
                                             <label className="block text-[10px] font-bold text-charcoal/70 uppercase tracking-wider mb-1">{key}</label>
-                                            <textarea 
+                                            <input
+                                                type="text"
                                                 value={value}
-                                                onChange={e => updateContentBlock(key as keyof typeof contentBlocks, e.target.value)}
-                                                rows={value.length > 50 ? 3 : 1}
-                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-xs resize-none"
+                                                onChange={e => updateTabName(key, e.target.value)}
+                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-xs"
                                             />
+                                            {clearedNotice(initial.tabNames[key], value, () => updateTabName(key, initial.tabNames[key]))}
                                         </div>
                                     ))}
                                 </div>
@@ -648,11 +718,65 @@ export function SetupWizard() {
                                 <div className="flex gap-3 mt-8">
                                     <button onClick={() => setStep(6)} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Back</button>
                                     <button
+                                        onClick={() => setStep(8)}
+                                        className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
+                                    >
+                                        Continue <ArrowRight size={16} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 8 && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="w-12 h-12 bg-tan/10 rounded-2xl flex items-center justify-center text-tan mb-6">
+                                    <FileText size={24} />
+                                </div>
+                                <h2 className="text-xl font-bold text-charcoal mb-4">Content Blocks & Footer</h2>
+                                <p className="text-sm text-charcoal/60 mb-6">Final step! Customize the text blocks across your site.</p>
+
+                                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-4 custom-scrollbar">
+                                    {Object.entries(values.contentBlocks).map(([key, value]) => (
+                                        <div key={key}>
+                                            <label className="block text-[10px] font-bold text-charcoal/70 uppercase tracking-wider mb-1">{key}</label>
+                                            <textarea
+                                                value={value}
+                                                onChange={e => updateContentBlock(key, e.target.value)}
+                                                rows={value.length > 50 ? 3 : 1}
+                                                className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-xs resize-none"
+                                            />
+                                            {clearedNotice(initial.contentBlocks[key], value, () => updateContentBlock(key, initial.contentBlocks[key]))}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {isRerun && (
+                                    <div className="mt-6 p-4 bg-cream/40 border border-tan-light/40 rounded-xl text-xs text-charcoal/80">
+                                        {pendingChanges.length === 0 ? (
+                                            <p>You haven't changed anything, so nothing will be saved.</p>
+                                        ) : (
+                                            <>
+                                                <p className="font-bold mb-2">
+                                                    {pendingChanges.length === 1 ? '1 change' : `${pendingChanges.length} changes`} will be saved; everything else stays as it is:
+                                                </p>
+                                                <ul className="list-disc pl-5 space-y-0.5 max-h-32 overflow-y-auto">
+                                                    {pendingChanges.map(path => (
+                                                        <li key={path}>{describeField(path)}</li>
+                                                    ))}
+                                                </ul>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 mt-8">
+                                    <button onClick={() => setStep(7)} className="px-6 py-4 border border-tan/20 text-charcoal/60 rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan/5 transition-colors">Back</button>
+                                    <button
                                         onClick={handleCompleteSetup}
                                         disabled={isProcessing}
                                         className="flex-1 py-4 bg-tan text-white rounded-xl font-bold uppercase tracking-wider text-sm hover:bg-tan-dark transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
                                     >
-                                        {isProcessing ? <Loader2 className="animate-spin" /> : 'Complete Setup'}
+                                        {isProcessing ? <Loader2 className="animate-spin" /> : isRerun ? (pendingChanges.length === 0 ? 'Finish' : 'Save Changes') : 'Complete Setup'}
                                     </button>
                                 </div>
                             </div>
