@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ModuleDisabled } from '../components/ModuleDisabled';
+import { formatFreeTextDate } from '../lib/freeTextDate';
 
 export function MembershipStatus() {
     const { settings, loading } = useAppearance();
@@ -51,7 +52,9 @@ function MembershipCard() {
         ? 'May 28, 2027' 
         : (memberData?.expiresAt === 'Never' 
             ? 'Never (Lifetime / No Expiration)' 
-            : (memberData?.expiresAt ? new Date(memberData.expiresAt).toLocaleDateString() : 'N/A'));
+            // Stored as YYYY-MM-DD, which new Date() reads as UTC midnight: the
+            // day before, anywhere in the Americas.
+            : (memberData?.expiresAt ? formatFreeTextDate(memberData.expiresAt, {}) : 'N/A'));
 
 
     return (
