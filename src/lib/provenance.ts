@@ -13,60 +13,65 @@
  *
  * ── Transition state ─────────────────────────────────────────────────────────
  *
- * `saveAccessionPaperwork` deliberately writes BOTH locations for now, and
- * `loadAccessionPaperwork` prefers the subcollection but falls back to the legacy
- * field. That is what makes the rollout safe in either order: a curator on a
- * cached bundle that still reads the old field keeps working, and a document that
- * has not been migrated yet still resolves.
+ * The rollout was: copy the field into the subcollection with
+ * `scripts/migrate-item-privacy-and-paperwork.cjs --prod`, deploy a client that
+ * reads and writes the subcollection (still writing the parent field too, for
+ * cached bundles), drop that parent write, then remove the field from the
+ * documents with `--delete-legacy`.
  *
- * Once `scripts/migrate-item-privacy-and-paperwork.cjs --prod` has run and this
- * client is deployed, the legacy half comes out in two steps — drop
- * `writeLegacyField` here, deploy, then run the script again with
- * `--delete-legacy` to remove the field from the documents. Do not delete the
- * field before this client is live, or curators lose their paperwork links.
+ * `writeLegacyField` is now false and `loadAccessionPaperwork` no longer reads the
+ * parent field, so this client neither publishes nor depends on it — every
+ * paperwork save had been copying the list back onto the world-readable document.
+ * What remains is the last step: run the script with `--prod --delete-legacy` to
+ * strip the field from the documents that still carry it. Until then those
+ * copies stay readable, but nothing refreshes or extends them.
  */
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { arrayUnion, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
-/** Set false once the migration has run and this client is deployed everywhere. */
-const writeLegacyField = true;
+/**
+ * Whether saves also copy the list onto the parent document. False, because that
+ * copy is world-readable; kept only so the transition above stays legible.
+ */
+const writeLegacyField = false;
 
 const paperworkRef = (itemId: string) =>
     doc(db, 'archive_items', itemId, 'provenance', 'paperwork');
 
 /**
- * The item's accession paperwork URLs.
+ * The item's accession paperwork URLs, or null if they could not be read.
  *
- * `legacyValue` is whatever the parent document carries, passed in by the caller
- * that already has it, so an unmigrated item still resolves without a second
- * read. Returns [] rather than throwing: a non-staff caller is denied by the
- * rules, and this is only ever rendered on staff screens.
+ * Null rather than [] on failure, because to a caller that saves the two mean
+ * different things: [] is "this item has no paperwork", null is "unknown".
+ * EditItem used to get [] for both, so a save made before the read resolved — or
+ * after it failed — wrote `[] + new uploads` over the real list.
+ *
+ * There is deliberately no fallback to the parent document's legacy
+ * `accession_paperwork_urls`: that copy is world-readable and on its way out, and
+ * nothing should keep it load-bearing. A missing subcollection document is a
+ * successful read of "no paperwork".
  */
-export async function loadAccessionPaperwork(
-    itemId: string,
-    legacyValue?: string[] | null
-): Promise<string[]> {
+export async function loadAccessionPaperwork(itemId: string): Promise<string[] | null> {
     try {
         const snap = await getDoc(paperworkRef(itemId));
         const urls = snap.exists() ? snap.data()?.accession_paperwork_urls : undefined;
-        if (Array.isArray(urls)) return urls;
+        return Array.isArray(urls) ? urls : [];
     } catch (err) {
-        // Denied or offline — fall through to whatever the parent had. Warned
-        // rather than swallowed silently, because a staff user seeing an empty
-        // paperwork list should be traceable to a cause.
-        console.warn('Could not read provenance paperwork; falling back to the legacy field:', err);
+        // Denied or offline. Warned rather than swallowed silently, because a
+        // staff user seeing an empty paperwork list should be traceable to a cause.
+        console.warn('Could not read provenance paperwork:', err);
+        return null;
     }
-    return Array.isArray(legacyValue) ? legacyValue : [];
 }
 
 /**
- * Writes the paperwork URLs to the staff-only subcollection, and (during the
- * transition) to the legacy field as well.
+ * Replaces the paperwork URLs in the staff-only subcollection. Only for a caller
+ * that actually holds the current list — otherwise use appendAccessionPaperwork.
  *
  * Returns the patch the caller should merge into its own `archive_items` update
- * so there is exactly one write to the parent document, rather than this helper
- * racing the caller's own save.
+ * so there is exactly one write to the parent document. With `writeLegacyField`
+ * off it is always empty.
  */
 export async function saveAccessionPaperwork(
     itemId: string,
@@ -78,4 +83,19 @@ export async function saveAccessionPaperwork(
     }, { merge: true });
 
     return writeLegacyField ? { accession_paperwork_urls: urls } : {};
+}
+
+/**
+ * Adds paperwork URLs without knowing the current list.
+ *
+ * For a save made while the list is unknown — still loading, or the read failed.
+ * `arrayUnion` appends on the server, so the new uploads are kept and the
+ * existing entries are never overwritten.
+ */
+export async function appendAccessionPaperwork(itemId: string, urls: string[]): Promise<void> {
+    if (urls.length === 0) return;
+    await setDoc(paperworkRef(itemId), {
+        accession_paperwork_urls: arrayUnion(...urls),
+        updatedAt: new Date().toISOString(),
+    }, { merge: true });
 }

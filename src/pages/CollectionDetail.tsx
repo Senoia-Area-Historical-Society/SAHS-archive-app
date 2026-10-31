@@ -9,7 +9,8 @@ import { useJsonLd } from '../hooks/useJsonLd';
 import { buildCollectionJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { db } from '../lib/firebase';
 import { publicOnly, publicOnlyWith } from '../lib/privacyQuery';
-import { doc, getDoc, collection, query, where, getDocs, updateDoc, or, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, or, runTransaction } from 'firebase/firestore';
+import { membershipPatch, ownPrivacyOf } from '../lib/itemPrivacy';
 import { DocumentCard } from '../components/DocumentCard';
 import { CollectionGridImage } from '../components/CollectionGridImage';
 import type { Collection, ArchiveItem } from '../types/database';
@@ -188,9 +189,23 @@ export function CollectionDetail() {
         if (!id || selectedItemIds.size === 0) return;
         setIsAdding(true);
         try {
-            const promises = Array.from(selectedItemIds).map(itemId => 
-                updateDoc(doc(db, 'archive_items', itemId), { 
-                    collection_ids: arrayUnion(id)
+            // Read-modify-write rather than arrayUnion, so the legacy collection_id
+            // is folded into collection_ids instead of being shadowed by it — see
+            // membershipPatch. Adding to a private collection also hides the item
+            // now rather than when the trigger catches up, recording the curator's
+            // own choice first if the document predates is_private_own.
+            const promises = Array.from(selectedItemIds).map(itemId =>
+                runTransaction(db, async (tx) => {
+                    const ref = doc(db, 'archive_items', itemId);
+                    const snap = await tx.get(ref);
+                    if (!snap.exists()) return;
+                    const data = snap.data() as ArchiveItem;
+                    tx.update(ref, {
+                        ...membershipPatch(data, id, 'add'),
+                        ...(collectionData?.is_private === true
+                            ? { is_private: true, is_private_own: ownPrivacyOf(data) }
+                            : {}),
+                    });
                 })
             );
             await Promise.all(promises);
@@ -225,15 +240,24 @@ export function CollectionDetail() {
     const handleRemoveItem = async (itemId: string, event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
-        
+        const collectionId = id;
+        if (!collectionId) return;
+
         if (!window.confirm("Are you sure you want to remove this item from the collection? (It will not be deleted from the archive)")) {
             return;
         }
         
         try {
-            await updateDoc(doc(db, 'archive_items', itemId), { 
-                collection_id: null,
-                collection_ids: arrayRemove(id)
+            // Both membership fields, kept consistent. Clearing collection_id
+            // outright dropped any *other* collection the item held through it.
+            // Privacy is left to functions/collectionPrivacy.js: leaving a private
+            // collection can only make an item more public, and the trigger
+            // decides whether it should be.
+            await runTransaction(db, async (tx) => {
+                const ref = doc(db, 'archive_items', itemId);
+                const snap = await tx.get(ref);
+                if (!snap.exists()) return;
+                tx.update(ref, membershipPatch(snap.data() as ArchiveItem, collectionId, 'remove'));
             });
             setItems(prev => prev.filter(item => item.id !== itemId));
         } catch (error) {

@@ -7,11 +7,14 @@
  * URLs from its resizing proxy ("load directly for maximum speed"), so the
  * optimizedWidth={400} that DocumentCard already passes had no effect.
  *
- * The storage-resize-images extension writes variants next to each original.
- * With MAKE_PUBLIC enabled those variants need no signature or download token,
- * so their URL can be derived here from the original's object path — which
- * matters because 37 of every 40 stored URLs are signed storage.googleapis.com
- * links whose signature cannot be reused for a different object.
+ * The storage-resize-images extension writes variants next to each original. A
+ * public item's variants are public by object ACL — set by
+ * functions/mediaVisibility.js and scripts/reconcile-media-visibility.cjs, no
+ * longer by the extension's MAKE_PUBLIC, which published private items' copies
+ * too — so they need no signature or download token, and their URL can be
+ * derived here from the original's object path. That matters because 37 of every
+ * 40 stored URLs are signed storage.googleapis.com links whose signature cannot be
+ * reused for a different object. A restricted variant 403s like its original.
  *
  * Deriving a URL does not guarantee the object exists: the extension only
  * processes uploads, so images predating it are covered by a backfill
@@ -120,6 +123,6 @@ export function thumbnailUrl(originalUrl: string, targetWidth: number): string |
     if (objectPath.includes(`/${RESIZED_DIR}/`)) return null;
 
     const path = thumbObjectPath(objectPath, targetWidth);
-    // MAKE_PUBLIC=true, so no signature or token is required.
+    // Public variants are public by ACL, so no signature or token is required.
     return `https://storage.googleapis.com/${BUCKET}/${encodePath(path)}`;
 }

@@ -4,6 +4,7 @@ import { db, storage } from '../lib/firebase';
 import { useSearchParams, Link } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { saveAccessionPaperwork } from '../lib/provenance';
+import { effectivePrivacy, isForcedPrivate, privateCollectionIdSet, privateCollectionsOf } from '../lib/itemPrivacy';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import type { ItemType, Collection, ArchiveItem, ItemCondition, CollectionStatus } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -143,15 +144,12 @@ export function AddItem() {
     const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>(initialCollectionParam ? [initialCollectionParam] : []);
     const [artifactId, setArtifactId] = useState('');
     const [suggestedId, setSuggestedId] = useState<string | null>(null);
+    // The curator's own choice (`is_private_own`). A pending or deaccessioned
+    // artifact is forced private on top of it, and that force is kept out of this
+    // state so it never lands in `is_private_own`.
     const [isPrivate, setIsPrivate] = useState(false);
     const [isGraphic, setIsGraphic] = useState(false);
     const [collectionStatus, setCollectionStatus] = useState<CollectionStatus>('permanent');
-
-    useEffect(() => {
-        if (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) {
-            setIsPrivate(true);
-        }
-    }, [collectionStatus, itemType]);
 
     const handleCollectionToggle = (collId: string) => {
         setSelectedCollectionIds(prev => prev.includes(collId) ? prev.filter(id => id !== collId) : [...prev, collId]);
@@ -490,7 +488,6 @@ export function AddItem() {
                 file_urls: fileUrls,
                 file_captions: fileCaptions,
                 featured_image_url: fileUrls[featuredImageIndex] || (fileUrls.length > 0 ? fileUrls[0] : null),
-                accession_paperwork_urls: accessionUrls,
                 additional_media_urls: additionalMediaUrls,
                 tags: currentTags,
                 collection_id: selectedCollectionIds.length > 0 ? selectedCollectionIds[0] : null,
@@ -498,7 +495,16 @@ export function AddItem() {
                 created_at: new Date().toISOString(),
                 uploaded_by_email: user?.email || null,
                 uploaded_by_name: user?.displayName || null,
-                is_private: (itemType === 'Artifact' && (collectionStatus === 'pending' || collectionStatus === 'deaccessioned')) ? true : isPrivate,
+                // Always both: the curator's choice, and the effective value the
+                // rules read — true up front when the item goes into a private
+                // collection, so it is never public before functions/collectionPrivacy.js
+                // runs. See src/lib/itemPrivacy.ts.
+                is_private_own: isPrivate,
+                is_private: effectivePrivacy(
+                    isPrivate,
+                    { collection_ids: selectedCollectionIds, item_type: itemType, collection_status: collectionStatus },
+                    privateCollectionIdSet(collections)
+                ),
                 is_graphic: isGraphic,
                 collection_status: itemType === 'Artifact' ? collectionStatus : null,
 
@@ -565,13 +571,16 @@ export function AddItem() {
 
             const docRef = await addDoc(collection(db, 'archive_items'), itemData);
 
-            // Accession paperwork also goes to the staff-only subcollection. The
-            // parent copy above is transitional — see src/lib/provenance.ts. Not
-            // fatal: the item is saved either way, and a curator can re-attach
-            // paperwork, whereas failing here would discard the whole upload.
+            // Accession paperwork goes only to the staff-only subcollection, never
+            // onto the world-readable item — see src/lib/provenance.ts. Not fatal:
+            // the item is saved either way, and a curator can re-attach paperwork,
+            // whereas failing here would discard the whole upload. But say so, since
+            // there is no longer a second copy to fall back on.
             if (accessionUrls.length > 0) {
-                await saveAccessionPaperwork(docRef.id, accessionUrls)
-                    .catch(e => console.error('Could not write provenance paperwork:', e));
+                await saveAccessionPaperwork(docRef.id, accessionUrls).catch(e => {
+                    console.error('Could not write provenance paperwork:', e);
+                    alert('The item was saved, but its accession paperwork could not be. Please re-attach it from Edit Item.');
+                });
             }
 
             // --- Two-Way Linking Synchronization (Add Item) ---
@@ -835,6 +844,16 @@ export function AddItem() {
                                 ? 'Hidden from public visitors. Only Admins and Curators can view this item.' 
                                 : 'Visible to all visitors in the public archive and search results.'}
                         </p>
+                        {/* The toggle is the curator's own choice; say so when the item will
+                            be hidden anyway, by a private collection. */}
+                        {!isPrivate && !isForcedPrivate({ item_type: itemType, collection_status: collectionStatus }) && (() => {
+                            const hiddenBy = privateCollectionsOf({ collection_ids: selectedCollectionIds }, collections);
+                            return hiddenBy.length > 0 && (
+                                <p className="text-xs text-amber-700 leading-relaxed font-sans mt-1">
+                                    Will be private because it is going into the private collection{hiddenBy.length > 1 ? 's' : ''} {hiddenBy.map(c => `“${c.title}”`).join(', ')}. It will become public if {hiddenBy.length > 1 ? 'those collections are' : 'that collection is'} made public or it is removed.
+                                </p>
+                            );
+                        })()}
                     </div>
                 </div>
                 <button
