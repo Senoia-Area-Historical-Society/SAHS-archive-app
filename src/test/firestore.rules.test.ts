@@ -185,6 +185,14 @@ describe('user_roles bootstrap — self-granting admin during first-run setup', 
         await assertSucceeds(setDoc(doc(db, 'user_roles', 'director@examplemuseum.org'), { role: 'admin' }));
     });
 
+    it('allows the Setup Wizard\'s exact claim: read own role, then merge in role and addedAt', async () => {
+        await clearSetup();
+        const db = director().firestore();
+        const roleRef = doc(db, 'user_roles', 'director@examplemuseum.org');
+        await assertSucceeds(getDoc(roleRef));
+        await assertSucceeds(setDoc(roleRef, { role: 'admin', addedAt: new Date().toISOString() }, { merge: true }));
+    });
+
     it('matches the listed address case-insensitively', async () => {
         await clearSetup();
         const db = testEnv.authenticatedContext('director2', { email: 'Director@ExampleMuseum.org' }).firestore();
