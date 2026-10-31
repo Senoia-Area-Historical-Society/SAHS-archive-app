@@ -231,6 +231,11 @@ exports.restrictedMediaUrl = require("./restrictedMedia").restrictedMediaUrl;
 exports.syncItemPrivacy = require("./collectionPrivacy").syncItemPrivacy;
 exports.syncCollectionPrivacy = require("./collectionPrivacy").syncCollectionPrivacy;
 
+// Applies an item's privacy to its media (object ACLs and download tokens) when
+// the item changes, rather than at the next fortnightly reconcile — see
+// functions/mediaVisibility.js.
+exports.syncItemMediaVisibility = require("./mediaVisibility").syncItemMediaVisibility;
+
 // Mirrors user_roles and the support list onto Auth custom claims — see
 // functions/userRoles.js.
 exports.syncUserRoleClaims = require("./userRoles").syncUserRoleClaims;

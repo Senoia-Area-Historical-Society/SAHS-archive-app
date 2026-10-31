@@ -879,16 +879,23 @@ export function ItemDetail() {
         if (!window.confirm('Are you sure you want to accession this artifact? This will make it a Permanent Artifact and set its visibility to Public.')) return;
         
         try {
+            // Accessioning is the curator choosing "public", so it is written as
+            // their own choice. The effective value still honours a private
+            // collection, rather than opening a public window for the trigger to
+            // close — see src/lib/itemPrivacy.ts.
             await updateDoc(doc(db, 'archive_items', id), {
                 collection_status: 'permanent',
-                is_private: false,
+                is_private_own: false,
+                is_private: isCollectionPrivate,
                 updated_at: new Date().toISOString(),
                 updated_by_email: user?.email || null,
                 updated_by_name: user?.displayName || null,
             });
             // Update local state
-            setItem(prev => prev ? { ...prev, collection_status: 'permanent', is_private: false } : null);
-            alert('Artifact has been successfully accessioned and is now public!');
+            setItem(prev => prev ? { ...prev, collection_status: 'permanent', is_private_own: false, is_private: isCollectionPrivate } : null);
+            alert(isCollectionPrivate
+                ? 'Artifact has been successfully accessioned. It stays private while its collection is private.'
+                : 'Artifact has been successfully accessioned and is now public!');
         } catch (error) {
             console.error("Error accessioning item:", error);
             alert("Failed to accession item.");

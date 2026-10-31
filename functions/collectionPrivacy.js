@@ -27,23 +27,40 @@
  *
  *     is_private = is_private_own || (any collection it belongs to is private)
  *
- * `is_private_own` is written lazily rather than migrated: when it is absent it
- * falls back to `is_private`, which is exactly right for the existing data — the
- * backfill reported *zero* items inheriting privacy from a collection, so every
- * current `is_private: true` is a genuine curator choice, not an inherited one.
+ * Pending and deaccessioned artifacts are forced private on top of that; the
+ * force is kept out of `is_private_own` so accessioning restores the curator's
+ * choice. See functions/collectionPrivacyRules.js.
  *
- * ── Loop safety ──────────────────────────────────────────────────────────────
+ * The client writes `is_private_own` explicitly (and the effective `is_private`
+ * too, so there is no public window); these triggers never change an existing
+ * `is_private_own`. When it is absent it falls back to `is_private`, which is
+ * exactly right for the existing data — the backfill reported *zero* items
+ * inheriting privacy from a collection, so every such `is_private: true` is a
+ * genuine curator choice. The fallback is frozen into `is_private_own` the first
+ * time a trigger changes `is_private`, so it is never read back from a value a
+ * trigger wrote.
+ *
+ * ── Loop safety and retries ──────────────────────────────────────────────────
  *
  * Both triggers write to `archive_items`, and the item trigger watches it. That
  * terminates because the second pass computes the same values and writes nothing:
  * an update is only issued when the stored values actually differ from the
  * computed ones.
+ *
+ * Both are `retry: true`. A dropped event here is a privacy failure — an item left
+ * public inside a private collection — so a transient error must not be the end of
+ * it. That is safe because each run recomputes from *current* state rather than
+ * from the event's snapshot: a retry, a duplicate or a late delivery converges on
+ * the same answer. The item trigger reads and writes inside a transaction for the
+ * same reason, so a stale event can never write over a newer edit. The collection
+ * trigger's batch can race an edit, but its write fires the item trigger, which
+ * settles it.
  */
 
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { logger } = require("firebase-functions");
 const { getFirestore } = require("firebase-admin/firestore");
-const { ownPrivacy, effectivePrivacy } = require("./collectionPrivacyRules");
+const { privacyPatch } = require("./collectionPrivacyRules");
 
 const DATABASE = "sahs-archives";
 const BATCH_LIMIT = 400;
@@ -69,22 +86,27 @@ exports.syncItemPrivacy = onDocumentWritten({
     document: "archive_items/{itemId}",
     database: DATABASE,
     maxInstances: 10,
+    retry: true,
 }, async (event) => {
-    const after = event.data?.after.data();
-    if (!after) return; // deleted
-    const before = event.data?.before.exists ? event.data.before.data() : undefined;
+    if (!event.data?.after.exists) return; // deleted
 
     const privateCollectionIds = await loadPrivateCollectionIds();
-    const own = ownPrivacy(before, after);
-    const effective = effectivePrivacy(own, after, privateCollectionIds);
+    const ref = event.data.after.ref;
 
-    if (after.is_private === effective && after.is_private_own === own) return;
+    // Re-read inside a transaction rather than trusting the event's snapshot: a
+    // retried or late event would otherwise write privacy computed from an older
+    // version of the item over a newer one.
+    const patch = await db().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) return null;
+        const p = privacyPatch(snap.data(), privateCollectionIds);
+        if (p) tx.update(ref, p);
+        return p;
+    });
 
-    await event.data.after.ref.update({ is_private: effective, is_private_own: own });
-    logger.info(
-        `syncItemPrivacy: ${event.params.itemId} own=${own} effective=${effective}` +
-        (effective !== own ? " (inherited from a private collection)" : "")
-    );
+    if (patch) {
+        logger.info(`syncItemPrivacy: ${event.params.itemId} ${JSON.stringify(patch)}`);
+    }
 });
 
 /**
@@ -98,6 +120,7 @@ exports.syncCollectionPrivacy = onDocumentWritten({
     document: "collections/{collectionId}",
     database: DATABASE,
     maxInstances: 10,
+    retry: true,
 }, async (event) => {
     const before = event.data?.before.exists ? event.data.before.data() : undefined;
     const after = event.data?.after.data();
@@ -108,6 +131,8 @@ exports.syncCollectionPrivacy = onDocumentWritten({
     if (before !== undefined && wasPrivate === isPrivate) return;
 
     const id = event.params.collectionId;
+    // Read now, not taken from the event, so a retry after the collection has
+    // flipped again acts on where it ended up.
     const privateCollectionIds = await loadPrivateCollectionIds();
 
     const items = new Map();
@@ -121,18 +146,13 @@ exports.syncCollectionPrivacy = onDocumentWritten({
 
     const pending = [];
     for (const doc of items.values()) {
-        const data = doc.data();
-        const own = ownPrivacy(undefined, data);
-        const effective = effectivePrivacy(own, data, privateCollectionIds);
-        if (data.is_private === effective && data.is_private_own === own) continue;
-        pending.push({ ref: doc.ref, is_private: effective, is_private_own: own });
+        const patch = privacyPatch(doc.data(), privateCollectionIds);
+        if (patch) pending.push({ ref: doc.ref, patch });
     }
 
     for (let i = 0; i < pending.length; i += BATCH_LIMIT) {
         const batch = db().batch();
-        for (const p of pending.slice(i, i + BATCH_LIMIT)) {
-            batch.update(p.ref, { is_private: p.is_private, is_private_own: p.is_private_own });
-        }
+        for (const p of pending.slice(i, i + BATCH_LIMIT)) batch.update(p.ref, p.patch);
         await batch.commit();
     }
 

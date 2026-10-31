@@ -114,11 +114,14 @@ export interface ArchiveItem {
      * The curator's own privacy choice, as distinct from `is_private`, which is the
      * *effective* value the rules and every public query read:
      *
-     *     is_private = is_private_own || (any collection it belongs to is private)
+     *     is_private = is_private_own || forced by artifact status
+     *                  || (any collection it belongs to is private)
      *
-     * Maintained by functions/collectionPrivacy.js. Absent on documents that
-     * predate it, where it falls back to `is_private`. Do not write it from the
-     * client — set `is_private` and the trigger records the intent.
+     * The client ALWAYS writes it explicitly whenever it sets privacy, alongside
+     * the effective `is_private` — see src/lib/itemPrivacy.ts. The triggers in
+     * functions/collectionPrivacy.js derive `is_private` from it and never change
+     * an existing value. Absent on documents that predate it, where it falls back
+     * to `is_private`.
      */
     is_private_own?: boolean;
     is_graphic?: boolean;
