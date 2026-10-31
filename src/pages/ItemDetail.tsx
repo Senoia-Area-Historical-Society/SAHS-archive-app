@@ -43,7 +43,7 @@ export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isSAHSUser, user, hasResearchAccess, isAdmin, isCurator, isMember, memberData } = useAuth();
+    const { isSAHSUser, user, hasResearchAccess, realIsAdmin, realIsCurator, isMember, memberData } = useAuth();
     const { settings } = useAppearance();
 
     const galleryIds = (location.state?.galleryIds as string[]) || [];
@@ -639,9 +639,12 @@ export function ItemDetail() {
             authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
         }
 
+        // The badge comes from the REAL role, not the simulated one: firestore.rules
+        // requires it to match what the writer actually is, so an admin previewing
+        // the site as a member still posts — and is shown — as 'Admin'.
         let role: 'Admin' | 'Curator' | 'Member' = 'Member';
-        if (isAdmin) role = 'Admin';
-        else if (isCurator) role = 'Curator';
+        if (realIsAdmin) role = 'Admin';
+        else if (realIsCurator) role = 'Curator';
 
         try {
             const commentsCol = collection(db, 'archive_items', id, 'comments');
@@ -714,9 +717,10 @@ export function ItemDetail() {
             authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
         }
 
+        // Real role, as in handlePostComment — the rules check it.
         let role: 'Admin' | 'Curator' | 'Member' = 'Member';
-        if (isAdmin) role = 'Admin';
-        else if (isCurator) role = 'Curator';
+        if (realIsAdmin) role = 'Admin';
+        else if (realIsCurator) role = 'Curator';
 
         try {
             const commentsCol = collection(db, 'archive_items', id, 'comments');

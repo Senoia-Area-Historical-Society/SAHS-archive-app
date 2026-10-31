@@ -15,7 +15,7 @@
  * under test.
  */
 
-import { describe, it, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
     initializeTestEnvironment,
@@ -23,7 +23,7 @@ import {
     assertSucceeds,
     type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let testEnv: RulesTestEnvironment;
 
@@ -563,5 +563,274 @@ describe('support admins and role management', () => {
             await setDoc(doc(ctx.firestore(), 'deployment_config', 'bootstrap'), { emails: ['director@examplemuseum.org'] });
         });
         await assertFails(getDoc(doc(museumAdmin().firestore(), 'deployment_config', 'bootstrap')));
+    });
+});
+
+/** The member a folder is shared with — `other@example.com` is an active member. */
+const collaborator = () => testEnv.authenticatedContext('other', { email: 'other@example.com' });
+
+/**
+ * research_folders. The update rule checked only who the caller was in the
+ * existing document, so a collaborator could rewrite ownerEmail and sharedWith,
+ * take the folder over, and then delete it as its new "owner". And sharing was
+ * checked only in the browser, so a folder could be shared with anyone.
+ */
+describe('research_folders — collaborators cannot take a folder over', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'research_folders', 'f1'), {
+                name: 'Mill families', description: '', createdAt: '2026-10-01T00:00:00.000Z',
+                itemIds: ['a'], ownerEmail: 'member@example.com', sharedWith: ['other@example.com'],
+            });
+            await setDoc(doc(db, 'members', 'third@example.com'), {
+                status: 'active', expiresAt: 'Never', name: 'Third Member',
+            });
+        });
+    });
+
+    it('refuses a collaborator rewriting ownerEmail', async () => {
+        const db = collaborator().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { ownerEmail: 'other@example.com' }));
+    });
+
+    it('refuses a collaborator rewriting sharedWith', async () => {
+        const db = collaborator().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: [] }));
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('third@example.com') }));
+    });
+
+    it('refuses the whole takeover in one write', async () => {
+        const db = collaborator().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), {
+            ownerEmail: 'other@example.com', sharedWith: [],
+        }));
+    });
+
+    it('refuses a collaborator deleting the folder', async () => {
+        const db = collaborator().firestore();
+        await assertFails(deleteDoc(doc(db, 'research_folders', 'f1')));
+    });
+
+    it('still lets a collaborator change the contents, name and description', async () => {
+        const db = collaborator().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { itemIds: ['a', 'b'] }));
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { name: 'Mill families, 1890s', description: 'x' }));
+    });
+
+    it('refuses the owner handing the folder to someone else', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { ownerEmail: 'other@example.com' }));
+    });
+
+    it('lets staff reassign a folder\'s owner', async () => {
+        const db = staff().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { ownerEmail: 'other@example.com' }));
+    });
+
+    it('lets the owner remove a collaborator, and still delete their folder', async () => {
+        const db = member().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayRemove('other@example.com') }));
+        await assertSucceeds(deleteDoc(doc(db, 'research_folders', 'f1')));
+    });
+});
+
+describe('research_folders — shareable only with members', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'research_folders', 'f1'), {
+                name: 'Mill families', itemIds: [], ownerEmail: 'member@example.com', sharedWith: [],
+            });
+            await setDoc(doc(db, 'members', 'lapsed@example.com'), {
+                status: 'expired', expiresAt: '2020-01-01', name: 'Lapsed Member',
+            });
+            await setDoc(doc(db, 'members', 'third@example.com'), {
+                status: 'active', expiresAt: 'Never', name: 'Third Member',
+            });
+        });
+    });
+
+    it('lets the owner share with an active member, as the client does it', async () => {
+        const db = member().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('other@example.com') }));
+    });
+
+    it('lets the owner share with staff', async () => {
+        const db = member().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('curator@example.com') }));
+    });
+
+    it('refuses sharing with a non-member', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('stranger@example.com') }));
+    });
+
+    it('refuses sharing with an expired member', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('lapsed@example.com') }));
+    });
+
+    /** The domain grant is gone; a bare @senoiahistory.com address is not a member. */
+    it('refuses sharing with a Workspace address that holds no role', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('newvolunteer@senoiahistory.com') }));
+    });
+
+    it('refuses adding two at once, even a non-member alongside a member', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), {
+            sharedWith: ['stranger@example.com', 'other@example.com'],
+        }));
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), {
+            sharedWith: ['other@example.com', 'third@example.com'],
+        }));
+    });
+
+    it('applies to staff too', async () => {
+        const db = staff().firestore();
+        await assertFails(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('stranger@example.com') }));
+    });
+
+    it('refuses creating a folder already shared, which would skip the check', async () => {
+        const db = member().firestore();
+        await assertFails(setDoc(doc(db, 'research_folders', 'f2'), {
+            name: 'New', itemIds: [], ownerEmail: 'member@example.com', sharedWith: ['stranger@example.com'],
+        }));
+        await assertSucceeds(setDoc(doc(db, 'research_folders', 'f3'), {
+            name: 'New', itemIds: [], ownerEmail: 'member@example.com', sharedWith: [],
+        }));
+    });
+});
+
+/**
+ * Comment create trusted every field the client sent: a member could post under
+ * another address, wear an Admin badge, pick their own status, and comment on a
+ * private item they cannot read.
+ */
+describe('comments — the author and role are the writer\'s own', () => {
+    const comment = (overrides: Record<string, unknown> = {}) => ({
+        itemId: 'public1', authorName: 'A Member', authorEmail: 'member@example.com',
+        role: 'Member', content: 'Lovely photograph', createdAt: '2026-10-31T00:00:00.000Z',
+        status: 'approved', ...overrides,
+    });
+
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'archive_items', 'public1'), { title: 'Public', is_private: false });
+            await setDoc(doc(db, 'archive_items', 'private1'), { title: 'Private', is_private: true });
+        });
+    });
+
+    it('lets a member post a comment as themselves', async () => {
+        const db = member().firestore();
+        await assertSucceeds(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'), comment()));
+    });
+
+    it('refuses a forged author address', async () => {
+        const db = member().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'),
+            comment({ authorEmail: 'other@example.com' })));
+    });
+
+    it('refuses a member claiming a staff role', async () => {
+        const db = member().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'), comment({ role: 'Admin' })));
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c2'), comment({ role: 'Curator' })));
+    });
+
+    it('refuses a member choosing a status other than approved', async () => {
+        const db = member().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'), comment({ status: 'featured' })));
+    });
+
+    it('refuses a member commenting on a private item', async () => {
+        const db = member().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'private1', 'comments', 'c1'), comment({ itemId: 'private1' })));
+    });
+
+    it('still refuses a stranger', async () => {
+        const db = stranger().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c1'),
+            comment({ authorEmail: 'stranger@example.com' })));
+    });
+
+    it('requires a curator to post as Curator, and not as Admin or Member', async () => {
+        const db = curator().firestore();
+        const mine = { authorEmail: 'curator@example.com' };
+        await assertSucceeds(setDoc(doc(db, 'archive_items', 'private1', 'comments', 'c1'), comment({ ...mine, role: 'Curator' })));
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c2'), comment({ ...mine, role: 'Admin' })));
+        await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c3'), comment({ ...mine, role: 'Member' })));
+    });
+
+    it('requires an admin — by claim, role document or support list — to post as Admin', async () => {
+        await assertSucceeds(setDoc(doc(staff().firestore(), 'archive_items', 'public1', 'comments', 'c1'),
+            comment({ authorEmail: 'staff@senoiahistory.com', role: 'Admin' })));
+        await assertSucceeds(setDoc(doc(museumAdmin().firestore(), 'archive_items', 'public1', 'comments', 'c2'),
+            comment({ authorEmail: 'admin@examplemuseum.org', role: 'Admin' })));
+        await assertSucceeds(setDoc(doc(supportAdmin().firestore(), 'archive_items', 'public1', 'comments', 'c3'),
+            comment({ authorEmail: 'jeremywarren@senoiahistory.com', role: 'Admin' })));
+        await assertFails(setDoc(doc(museumAdmin().firestore(), 'archive_items', 'public1', 'comments', 'c4'),
+            comment({ authorEmail: 'admin@examplemuseum.org', role: 'Curator' })));
+    });
+});
+
+/**
+ * research_notes. MyResearch queried by folderId alone, which the rule cannot
+ * prove readable, so Firestore rejected it for every member and the journal came
+ * up empty. These are the two query shapes it uses now.
+ */
+describe('research_notes — the queries MyResearch runs', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'research_folders', 'f1'), {
+                name: 'Mill families', itemIds: ['a'], ownerEmail: 'member@example.com', sharedWith: ['other@example.com'],
+            });
+            await setDoc(doc(db, 'members', 'third@example.com'), { status: 'active', expiresAt: 'Never' });
+            const note = (ownerEmail: string, isPrivate: boolean) => ({
+                itemId: 'a', folderId: 'f1', ownerEmail, content: 'n', isPrivate, lastUpdated: '2026-10-01T00:00:00.000Z',
+            });
+            await setDoc(doc(db, 'research_notes', 'n1'), note('member@example.com', true));
+            await setDoc(doc(db, 'research_notes', 'n2'), note('member@example.com', false));
+            await setDoc(doc(db, 'research_notes', 'n3'), note('other@example.com', true));
+            await setDoc(doc(db, 'research_notes', 'n4'), note('other@example.com', false));
+        });
+    });
+
+    type Db = ReturnType<ReturnType<typeof member>['firestore']>;
+    const mine = (db: Db, email: string) =>
+        query(collection(db, 'research_notes'), where('folderId', '==', 'f1'), where('ownerEmail', '==', email));
+    const shared = (db: Db) =>
+        query(collection(db, 'research_notes'), where('folderId', '==', 'f1'), where('isPrivate', '==', false));
+
+    it('refuses the old folderId-only query — the bug', async () => {
+        const db = member().firestore();
+        await assertFails(getDocs(query(collection(db, 'research_notes'), where('folderId', '==', 'f1'))));
+    });
+
+    it('lets a member list their own notes in a folder', async () => {
+        const db = member().firestore();
+        const snap = await assertSucceeds(getDocs(mine(db, 'member@example.com')));
+        expect(snap.docs.map(d => d.id).sort()).toEqual(['n1', 'n2']);
+    });
+
+    it('lets a collaborator list the folder\'s shared notes, and their own', async () => {
+        const db = collaborator().firestore();
+        const sharedSnap = await assertSucceeds(getDocs(shared(db)));
+        expect(sharedSnap.docs.map(d => d.id).sort()).toEqual(['n2', 'n4']);
+        const mineSnap = await assertSucceeds(getDocs(mine(db, 'other@example.com')));
+        expect(mineSnap.docs.map(d => d.id).sort()).toEqual(['n3', 'n4']);
+    });
+
+    it('refuses a non-collaborator listing the folder\'s shared notes', async () => {
+        const db = testEnv.authenticatedContext('third', { email: 'third@example.com' }).firestore();
+        await assertFails(getDocs(shared(db)));
+    });
+
+    it('refuses listing someone else\'s notes by owner', async () => {
+        const db = collaborator().firestore();
+        await assertFails(getDocs(mine(db, 'member@example.com')));
     });
 });
