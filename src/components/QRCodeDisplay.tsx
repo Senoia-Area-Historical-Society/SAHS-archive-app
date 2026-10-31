@@ -77,7 +77,7 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
                         <img src="${dataUrl}" />
                         <h1>${label}</h1>
                         ${subLabel ? `<p>${subLabel}</p>` : ''}
-                        ${!isSmall ? `<p style="margin-top: 20px; font-size: 12px; color: #999;">SAHS Archive Tracking System</p>` : ''}
+                        ${!isSmall ? `<p style="margin-top: 20px; font-size: 12px; color: #999;">Archive Tracking System</p>` : ''}
                     </div>
                     <script>
                         window.onload = () => {

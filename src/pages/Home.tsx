@@ -469,17 +469,17 @@ export function Home() {
                 <div className="max-w-4xl mx-auto flex flex-col items-center">
                     <div className="flex items-center gap-8 mb-10">
                         {settings.instagramUrl && (
-                            <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on Instagram" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
+                            <a href={settings.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label={`${settings.museumName} on Instagram`} className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Instagram size={24} />
                             </a>
                         )}
                         {settings.facebookUrl && (
-                            <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on Facebook" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
+                            <a href={settings.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label={`${settings.museumName} on Facebook`} className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Facebook size={24} />
                             </a>
                         )}
                         {settings.youtubeUrl && (
-                            <a href={settings.youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label="Senoia Area Historical Society on YouTube" className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
+                            <a href={settings.youtubeUrl} target="_blank" rel="noopener noreferrer" aria-label={`${settings.museumName} on YouTube`} className="text-cream opacity-40 hover:opacity-100 hover:text-tan-light transition-all">
                                 <Youtube size={24} />
                             </a>
                         )}

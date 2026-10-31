@@ -16,6 +16,8 @@ interface LegacyRoom {
     map_coordinates?: Room['map_coordinates'];
 }
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { useAuth } from '../contexts/AuthContext';
+import { deleteLocationAndUnassign } from '../lib/deleteLocation';
 
 // --- Sub-components ---
 
@@ -104,6 +106,7 @@ const LocationCard = ({
 // --- Main Page Component ---
 
 export function ManageLocations() {
+    const { user } = useAuth();
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
@@ -220,7 +223,9 @@ export function ManageLocations() {
                     created_at: new Date().toISOString()
                 };
                 if (activeTab === 'locations') {
-                    newData.room_id = selectedRoomId || undefined;
+                    // null, not undefined: Firestore rejects undefined values, so
+                    // creating a location with "No Room (Unassigned)" used to fail.
+                    newData.room_id = selectedRoomId || null;
                 }
                 await addDoc(collection(db, targetColl), newData);
             }
@@ -269,15 +274,21 @@ export function ManageLocations() {
         if (!docId) return;
         const msg = target === 'rooms' 
             ? `Are you sure you want to delete the room "${name}"? Locations inside will move to unassigned.`
-            : `Are you sure you want to delete "${name}"?`;
+            : `Are you sure you want to delete "${name}"?\n\nThe items, books and boxes inside will NOT be deleted, but they will be unassigned from this location.`;
             
         if (!window.confirm(msg)) return;
         
         try {
-            await deleteDoc(doc(db, target, docId));
+            if (target === 'locations') {
+                const loc = locations.find(l => l.docId === docId);
+                await deleteLocationAndUnassign({ docId, id: loc?.id }, user?.email || 'Admin');
+            } else {
+                await deleteDoc(doc(db, target, docId));
+            }
             fetchData();
         } catch (error) {
             console.error("Error deleting:", error);
+            alert(`Couldn't delete "${name}". Please try again; anything already unassigned stays unassigned.`);
         }
     };
 

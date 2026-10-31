@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
 import { MapPin, Plus, Trash2, Loader2, Edit2, X, ChevronLeft, GripVertical, Archive, Folder, Search } from 'lucide-react';
 import type { MuseumLocation, Room } from '../types/database';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
+import { useAuth } from '../contexts/AuthContext';
+import { deleteLocationAndUnassign } from '../lib/deleteLocation';
 
 // Reusable Location Card for Admin view
 const LocationCard = ({ 
@@ -96,6 +98,7 @@ export function ManageRoomLocations() {
     const { roomId } = useParams();
     const [room, setRoom] = useState<Room | null>(null);
     const [rooms, setRooms] = useState<Room[]>([]);
+    const { user } = useAuth();
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
     const [loading, setLoading] = useState(true);
     const [mode, setMode] = useState<'add' | 'edit'>('add');
@@ -186,12 +189,17 @@ export function ManageRoomLocations() {
     };
 
     const handleDelete = async (docId: string | undefined, name: string) => {
-        if (!docId || !window.confirm(`Delete "${name}"? This will UNLINK all related artifacts.`)) return;
+        if (!docId || !window.confirm(`Delete "${name}"?\n\nThe items, books and boxes inside will NOT be deleted, but they will be unassigned from this location.`)) return;
         try {
-            await deleteDoc(doc(db, 'locations', docId));
-            setLocations(prev => prev.filter(l => l.docId !== docId));
+            const loc = locations.find(l => l.docId === docId);
+            await deleteLocationAndUnassign({ docId, id: loc?.id }, user?.email || 'Admin');
+            // Nested boxes are now top-level, so reflect that rather than just dropping the row.
+            setLocations(prev => prev
+                .filter(l => l.docId !== docId)
+                .map(l => l.parent_location_id === docId ? { ...l, parent_location_id: undefined } : l));
         } catch (err) {
             console.error(err);
+            alert(`Couldn't delete "${name}". Please try again; anything already unassigned stays unassigned.`);
         }
     };
 
