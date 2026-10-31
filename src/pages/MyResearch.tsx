@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { db, defaultDb } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
-import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, documentId, or, addDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { fetchItemsByIds } from '../lib/itemsById';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, or, addDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import type { ArchiveItem, Member } from '../types/database';
@@ -221,6 +222,7 @@ export function MyResearch() {
             const folderList = snap.docs.map(doc => ({
                 id: doc.id,
                 name: doc.data().name || 'Unnamed Folder',
+                description: doc.data().description || '',
                 createdAt: doc.data().createdAt || new Date().toISOString(),
                 itemIds: doc.data().itemIds || [],
                 ownerEmail: doc.data().ownerEmail || '',
@@ -272,28 +274,8 @@ export function MyResearch() {
             
             setLoadingItems(true);
             try {
-                const itemIds = selectedFolder.itemIds;
-                const itemsCol = collection(db, 'archive_items');
-                
-                // Firestore's 'in' filter takes at most 30 ids, so load in chunks of 30.
-                // Loading only the first chunk silently cut folders off at 30 items.
-                const chunks: string[][] = [];
-                for (let i = 0; i < itemIds.length; i += 30) {
-                    chunks.push(itemIds.slice(i, i + 30));
-                }
-                const snaps = await Promise.all(chunks.map(chunk =>
-                    getDocs(query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', chunk)))));
-                
-                const itemsList = snaps.flatMap(snap => snap.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }))) as ArchiveItem[];
-                // Keep the folder's own order; query results come back in id order.
-                // (A plain object, not a Map — `Map` here is the lucide icon.)
-                const position: Record<string, number> = Object.fromEntries(itemIds.map((id, i) => [id, i]));
-                itemsList.sort((a, b) => (position[a.id] ?? 0) - (position[b.id] ?? 0));
-                
-                setFolderItems(itemsList);
+                // In the folder's own order, without any item since made private or deleted.
+                setFolderItems(await fetchItemsByIds(selectedFolder.itemIds, isSAHSUser));
             } catch (err) {
                 console.error("Error loading folder contents:", err);
                 showToast(`Failed to load historical items: ${errorMessage(err) || String(err)}`);

@@ -59,3 +59,36 @@ export function formatFreeTextDate(
 
     return trimmed;
 }
+
+const MONTH = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i;
+const MONTH_PREFIXES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/**
+ * A number that orders free-text dates chronologically — YYYYMMDD, with 00 for a
+ * month or day the text doesn't give — or null when the text names no year.
+ *
+ * Comparing the text itself put "March 3, 1911" after "1940" and "c. 1890" after
+ * both. So: an ISO or US numeric date (04/12/1858) gives all three parts,
+ * otherwise the first four-digit number is the year ("c. 1890", "1940s",
+ * "1850-1900"), with a month name and a day of the month when the text has them
+ * ("March 3, 1911", "3 March 1911").
+ */
+export function freeTextDateSortKey(text: string | null | undefined): number | null {
+    const trimmed = text?.trim() ?? '';
+    const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return Number(iso[1]) * 10000 + Number(iso[2]) * 100 + Number(iso[3]);
+
+    // US numeric, as the birth and founding date fields store it: 04/12/1858
+    const us = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (us) return Number(us[3]) * 10000 + Number(us[1]) * 100 + Number(us[2]);
+
+    const year = trimmed.match(/\b(\d{4})\b/);
+    if (!year) return null;
+
+    const monthName = trimmed.match(MONTH)?.[1].toLowerCase();
+    const month = monthName ? MONTH_PREFIXES.indexOf(monthName.slice(0, 3)) + 1 : 0;
+    const dayText = month ? trimmed.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/)?.[1] : undefined;
+    const day = dayText && Number(dayText) >= 1 && Number(dayText) <= 31 ? Number(dayText) : 0;
+
+    return Number(year[1]) * 10000 + month * 100 + day;
+}

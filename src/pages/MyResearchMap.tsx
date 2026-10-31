@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { publicOnly } from '../lib/privacyQuery';
-import { collection, getDocs, query, where, or, documentId } from 'firebase/firestore';
+import { fetchItemsByIds } from '../lib/itemsById';
+import { collection, getDocs, query, where, or } from 'firebase/firestore';
 import { Sparkles, AlertCircle } from 'lucide-react';
 import type { ArchiveItem } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
@@ -55,30 +55,8 @@ export function MyResearchMap() {
                     return;
                 }
                 
-                // 3. Load item documents in chunks of 30 (Firestore 'in' query limit)
-                const itemsCol = collection(db, 'archive_items');
-                const chunks: string[][] = [];
-                for (let i = 0; i < uniqueIds.length; i += 30) {
-                    chunks.push(uniqueIds.slice(i, i + 30));
-                }
-                
-                const fetchPromises = chunks.map(chunk => {
-                    const q = query(itemsCol, ...publicOnly(isSAHSUser), where(documentId(), 'in', chunk));
-                    return getDocs(q);
-                });
-                
-                const snapshots = await Promise.all(fetchPromises);
-                const loadedItems: ArchiveItem[] = [];
-                snapshots.forEach(snap => {
-                    snap.docs.forEach(docSnap => {
-                        loadedItems.push({
-                            id: docSnap.id,
-                            ...docSnap.data()
-                        } as ArchiveItem);
-                    });
-                });
-                
-                setItems(loadedItems);
+                // 3. Load the item documents, skipping any since made private or deleted
+                setItems(await fetchItemsByIds(uniqueIds, isSAHSUser));
             } catch (err) {
                 console.error("Error loading research items:", err);
                 setError(errorMessage(err) || "Failed to load research item coordinates.");

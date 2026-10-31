@@ -38,30 +38,17 @@ function MapBrowser() {
     useEffect(() => {
         const fetchItems = async () => {
             try {
-                // Fetch items
+                // `is_private` is already the effective value — it includes the
+                // privacy of every collection an item belongs to — so the public
+                // filter is the whole check. Reading `collections` to work it out
+                // again was an unfiltered list query, which the rules refuse for
+                // the public, and that failed the whole map for everyone but staff.
                 const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
-                const itemsData = querySnapshot.docs.map(doc => ({
+                setItems(querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
-                })) as ArchiveItem[];
-
-                // Fetch collections to determine privacy
-                const collectionsSnapshot = await getDocs(collection(db, 'collections'));
-                const privateCollections = new Set(
-                    collectionsSnapshot.docs
-                        .filter(doc => doc.data().is_private === true)
-                        .map(doc => doc.id)
-                );
-
-                // Filter for public view if not curator
-                const visibleItems = isSAHSUser ? itemsData : itemsData.filter(item => {
-                    const isItemPrivate = item.is_private === true;
-                    const isCollectionPrivate = item.collection_id ? privateCollections.has(item.collection_id) : false;
-                    return !isItemPrivate && !isCollectionPrivate;
-                });
-
-                setItems(visibleItems);
+                })) as ArchiveItem[]);
             } catch (error) {
                 console.error("Error fetching map items:", error);
             } finally {
