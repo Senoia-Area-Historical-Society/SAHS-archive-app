@@ -10,11 +10,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { ImageCropper } from '../components/ImageCropper';
 import { convertPdfToPngs } from '../lib/pdfUtils';
-import { convertHeicToPng, compressImage } from '../utils/imageUtils';
+import { convertHeicToJpeg } from '../utils/imageUtils';
+import { featuredIndexAfterRemoval } from '../lib/featuredImage';
 import { GoogleDrivePicker } from '../components/GoogleDrivePicker';
 import { errorMessage } from '../lib/errors';
 import { ARTIFACT_TYPES, artifactTypeLabel } from '../lib/artifactTypes';
-import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS } from '../lib/itemFieldOptions';
+import { DOCUMENT_CATEGORIES, ITEM_CONDITIONS, mergeLocationText } from '../lib/itemFieldOptions';
 
 /** A figure as the related-figures picker lists it. */
 interface FigureOption {
@@ -60,7 +61,6 @@ export function AddItem() {
     const [fileCaptions, setFileCaptions] = useState<string[]>([]);
     const [isConvertingPdf, setIsConvertingPdf] = useState(false);
     const [isConvertingHeic, setIsConvertingHeic] = useState(false);
-    const [isOptimizingImage, setIsOptimizingImage] = useState(false);
     const [pdfConvertProgress, setPdfConvertProgress] = useState(0);
 
     const figureRef = useRef<HTMLDivElement>(null);
@@ -275,16 +275,15 @@ export function AddItem() {
             for (let i = 0; i < fileArray.length; i++) {
                 let file = fileArray[i];
 
-                // HEIC Conversion
+                // Images are uploaded as they are, at full resolution. They used to be
+                // redrawn at 1920px and JPEG quality 0.8, which cut a typical archival
+                // scan to a fraction of its pixels. Cards and grids load the resized
+                // variants instead (src/lib/imageThumbs.ts). Only HEIC is converted,
+                // because most browsers cannot display it.
                 if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
                     setIsConvertingHeic(true);
-                    file = await convertHeicToPng(file);
-                    file = await compressImage(file);
+                    file = await convertHeicToJpeg(file);
                     setIsConvertingHeic(false);
-                } else if (file.type.startsWith('image/')) {
-                    setIsOptimizingImage(true);
-                    file = await compressImage(file);
-                    setIsOptimizingImage(false);
                 }
 
                 if (file.type === 'application/pdf') {
@@ -307,7 +306,6 @@ export function AddItem() {
         } finally {
             setIsConvertingPdf(false);
             setIsConvertingHeic(false);
-            setIsOptimizingImage(false);
             setPdfConvertProgress(0);
         }
     };
@@ -551,7 +549,8 @@ export function AddItem() {
 
                 artifact_id: formData.get('artifact_id') as string || "",
                 artifact_type: formData.get('artifact_type') as string || "",
-                museum_location: formData.get('museum_location') as string || "",
+                // "Specific Location in Archive" was never read; see mergeLocationText.
+                museum_location: mergeLocationText(formData.get('archive_specific_location'), formData.get('museum_location')),
                 accession_date: formData.get('accession_date') as string || "",
 
                 // Oral History specific
@@ -966,7 +965,7 @@ export function AddItem() {
                                     <div className="flex flex-col items-center gap-3 mt-4">
                                         <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
                                         <p className="font-bold text-charcoal">Converting iPhone Image (HEIC)...</p>
-                                        <p className="text-xs text-charcoal/60">Optimizing for web preservation</p>
+                                        <p className="text-xs text-charcoal/60">Converting so every browser can display it</p>
                                     </div>
                                 ) : isConvertingPdf ? (
                                     <div className="flex flex-col items-center gap-3 mt-4">
@@ -975,12 +974,6 @@ export function AddItem() {
                                         <div className="w-full max-w-[200px] h-2 bg-cream rounded-full overflow-hidden">
                                             <div className="h-full bg-tan transition-all duration-300" style={{ width: `${Math.max(5, pdfConvertProgress)}%` }}></div>
                                         </div>
-                                    </div>
-                                ) : isOptimizingImage ? (
-                                    <div className="flex flex-col items-center gap-3 mt-4">
-                                        <div className="w-8 h-8 border-4 border-tan border-t-transparent rounded-full animate-spin"></div>
-                                        <p className="font-bold text-charcoal">Optimizing Image...</p>
-                                        <p className="text-xs text-charcoal/60">Resizing for web preservation</p>
                                     </div>
                                 ) : selectedFiles.length > 0 ? (
                                     <div className="grid grid-cols-4 gap-2 w-full max-w-sm mt-4">
@@ -1029,7 +1022,9 @@ export function AddItem() {
                                                                     e.stopPropagation();
                                                                     setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
                                                                     setFileCaptions(prev => prev.filter((_, i) => i !== idx));
-                                                                    if (featuredImageIndex === idx) setFeaturedImageIndex(0);
+                                                                    // Removing an image before the featured one shifts it
+                                                                    // left, so the index follows it.
+                                                                    setFeaturedImageIndex(prev => featuredIndexAfterRemoval(prev, idx));
                                                                 }}
                                                                 className="p-1 bg-white/20 hover:bg-red-500/60 rounded-full text-white backdrop-blur-sm transition-colors"
                                                                 title="Remove File"

@@ -27,3 +27,23 @@ export const ITEM_CONDITIONS = [
 export function isUnlisted(value: string | null | undefined, listed: readonly string[]): value is string {
     return !!value && !listed.includes(value);
 }
+
+/**
+ * Add Item asks for the free-text shelf/box location twice: "Specific Location in
+ * Archive" beside Filing Location, and "Museum Location (Specific Shelf/Box)"
+ * further down. Only the second was ever saved, so whatever a curator typed into
+ * the first was lost. Both now go to `museum_location`, the field Edit Item edits
+ * and Item Detail shows; this joins them, dropping blanks and repeats.
+ */
+export function mergeLocationText(...values: (FormDataEntryValue | null | undefined)[]): string {
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const value of values) {
+        if (typeof value !== 'string') continue;
+        const text = value.trim();
+        if (!text || seen.has(text.toLowerCase())) continue;
+        seen.add(text.toLowerCase());
+        parts.push(text);
+    }
+    return parts.join('; ');
+}

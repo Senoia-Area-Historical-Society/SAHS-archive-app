@@ -18,6 +18,7 @@ import { buildItemSeo } from '../lib/seo';
 import { useJsonLd } from '../hooks/useJsonLd';
 import { buildItemJsonLd, buildBreadcrumbJsonLd } from '../lib/structuredData';
 import { errorMessage, errorCode } from '../lib/errors';
+import { formatFreeTextDate } from '../lib/freeTextDate';
 // Aliased: `User` is already taken in this file by the lucide-react icon.
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -43,7 +44,7 @@ export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isSAHSUser, user, hasResearchAccess, isAdmin, isCurator, isMember, memberData } = useAuth();
+    const { isSAHSUser, user, hasResearchAccess, realIsAdmin, realIsCurator, isMember, memberData } = useAuth();
     const { settings } = useAppearance();
 
     const galleryIds = (location.state?.galleryIds as string[]) || [];
@@ -639,9 +640,12 @@ export function ItemDetail() {
             authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
         }
 
+        // The badge comes from the REAL role, not the simulated one: firestore.rules
+        // requires it to match what the writer actually is, so an admin previewing
+        // the site as a member still posts — and is shown — as 'Admin'.
         let role: 'Admin' | 'Curator' | 'Member' = 'Member';
-        if (isAdmin) role = 'Admin';
-        else if (isCurator) role = 'Curator';
+        if (realIsAdmin) role = 'Admin';
+        else if (realIsCurator) role = 'Curator';
 
         try {
             const commentsCol = collection(db, 'archive_items', id, 'comments');
@@ -714,9 +718,10 @@ export function ItemDetail() {
             authorName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
         }
 
+        // Real role, as in handlePostComment — the rules check it.
         let role: 'Admin' | 'Curator' | 'Member' = 'Member';
-        if (isAdmin) role = 'Admin';
-        else if (isCurator) role = 'Curator';
+        if (realIsAdmin) role = 'Admin';
+        else if (realIsCurator) role = 'Curator';
 
         try {
             const commentsCol = collection(db, 'archive_items', id, 'comments');
@@ -1675,8 +1680,13 @@ export function ItemDetail() {
                                                                 );
                                                             })}
                                                         </div>
-                                                    ) : (
+                                                    ) : !item.museum_location?.trim() && (
                                                         <p className="text-lg font-serif text-charcoal/40 italic">Not currently placed on museum blueprint</p>
+                                                    )}
+                                                    {/* The free-text shelf/box note from Add Item and Edit Item.
+                                                        It opened this section but was never shown in it. */}
+                                                    {item.museum_location?.trim() && (
+                                                        <p className="text-[15px] font-sans text-charcoal leading-snug break-words mt-2">{item.museum_location}</p>
                                                     )}
                                                 </>
                                             )}
@@ -2343,7 +2353,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
         }
         
         const narratorName = narrator ? narrator.title : item.title;
-        const dateStr = item.interview_date ? new Date(item.interview_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+        const dateStr = formatFreeTextDate(item.interview_date);
         const interviewerStr = item.interviewer || 'Not specified';
         
         const linesHtml = parsedLines.map(line => `
@@ -2535,7 +2545,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                             )}
                             {item.interview_date && (
                                 <p className="text-xs text-charcoal/50 font-sans">
-                                    Recorded on: {new Date(item.interview_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+                                    Recorded on: {formatFreeTextDate(item.interview_date)}
                                 </p>
                             )}
                         </div>

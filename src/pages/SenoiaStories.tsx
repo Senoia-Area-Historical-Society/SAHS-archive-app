@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Play, Pause, Mic, Search, Calendar, ArrowRight, Info, Sparkles, MessageSquare, Edit2, Plus, Lock, Upload } from 'lucide-react';
 import { db, storage } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
-import { collection, getDocs, query, where, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { ArchiveItem } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,53 +12,7 @@ import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
 import { EditableText } from '../components/EditableText';
 import { ModuleDisabled } from '../components/ModuleDisabled';
-
-// Premium Curated Mock Stories for a spectacular initial experience
-const MOCK_STORIES: ArchiveItem[] = [
-    {
-        id: 'mock-story-1',
-        item_type: 'Oral History',
-        title: 'Living Through the Senoia Boom',
-        description: 'Mildred Sibley (Age 94) shares her rich memories of growing up in Senoia during the 1930s, witnessing the agricultural changes, and seeing Main Street transform over nearly a century.',
-        narrator_id: 'mildred-sibley',
-        interviewer: 'Jane Nolan',
-        interview_date: '2026-04-12',
-        audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Premium copyright-free playable stream
-        youtube_video_id: 'dQw4w9WgXcQ', // Playable placeholder video
-        transcript: 'Mildred Sibley: I remember when Main Street was just dirt. In the summers, the dust would rise up so high you could barely see the storefronts across the way. We used to walk down to the depot just to watch the steam trains roll in from Atlanta.\nJane Nolan: That must have been quite a sight. How did the town feel back then?\nMildred Sibley: Oh, it was a quiet place, but warm. Everyone knew their neighbors, and on Saturdays, families from all around the county would ride in to buy supplies. We had everything we needed right here.',
-        file_urls: ['https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'], // Unsplash elegant portrait
-        tags: ['Depot', '1930s', 'Main Street', 'Agriculture'],
-        created_at: new Date().toISOString()
-    },
-    {
-        id: 'mock-story-2',
-        item_type: 'Oral History',
-        title: 'Tales of a Fourth-Generation Farmer',
-        description: "Robert 'Bobby' Carter (Age 86) recounts the challenges and triumphs of farming cotton and peaches in Coweta County, the impact of the old railroad line, and the changes in land ownership.",
-        narrator_id: 'bobby-carter',
-        interviewer: 'Mark Henderson',
-        interview_date: '2026-05-05',
-        audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-        transcript: "Robert 'Bobby' Carter: Farming was in our blood. My great-grandfather came here in the late 1800s, and we worked the same clay ever since. When the boll weevil hit, it nearly wiped us out, but we adapted.\nMark Henderson: What role did the railroad play in your farming operations?\nRobert 'Bobby' Carter: It was our lifeline. Before the highways, we loaded the train cars right behind the station. You'd see mounds of watermelons and crates of peaches stacked ten feet high, all heading north.",
-        file_urls: ['https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'],
-        tags: ['Railroad', 'Farming', 'Coweta County', 'Cotton'],
-        created_at: new Date().toISOString()
-    },
-    {
-        id: 'mock-story-3',
-        item_type: 'Oral History',
-        title: 'Main Street Memories: The Merchant\'s Life',
-        description: 'Sarah Jenkins (Age 79) details running the historic dry goods store on Main Street, serving local families, and surviving the economic shifts of the mid-20th century.',
-        narrator_id: 'sarah-jenkins',
-        interviewer: 'Jane Nolan',
-        interview_date: '2026-03-20',
-        audio_url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-        transcript: "Sarah Jenkins: My parents opened the shop in 1948. We sold fabrics, hardware, schoolbooks, and the best peppermint candies in Georgia. You didn't just sell goods; you listened to people's lives.\nJane Nolan: What changes stand out most to you today?\nSarah Jenkins: The preservation. It makes me so happy to see the old brick buildings being cared for today. The shopfront looks almost exactly as it did when I was a girl, even if the signs have changed.",
-        file_urls: ['https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400'],
-        tags: ['Main Street', 'Commerce', '1950s', 'Community'],
-        created_at: new Date().toISOString()
-    }
-];
+import { formatFreeTextDate } from '../lib/freeTextDate';
 
 export function SenoiaStories() {
     const { settings, loading } = useAppearance();
@@ -137,56 +91,12 @@ function StoriesBrowser() {
         return () => unsubscribe();
     }, [isSAHSUser]);
 
-    // Auto-seed mock stories to Firestore if database is empty and curator is logged in
-    useEffect(() => {
-        const seedMockStories = async () => {
-            if (isSAHSUser && dbStories.length === 0 && !loading) {
-                try {
-                    for (const story of MOCK_STORIES) {
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        const { id, ...storyData } = story;
-                        await addDoc(collection(db, 'archive_items'), {
-                            ...storyData,
-                            created_at: new Date().toISOString(),
-                            uploaded_by_email: 'admin@senoiahistory.com',
-                            uploaded_by_name: 'SAHS Curator'
-                        });
-                    }
-                    
-                    // Refetch
-                    const q = query(
-                        collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
-                        where('item_type', '==', 'Oral History')
-                    );
-                    const snapshot = await getDocs(q);
-                    const fetched = snapshot.docs.map(doc => ({
-                        id: doc.id,
-                        ...doc.data()
-                    } as ArchiveItem));
-                    fetched.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                    setDbStories(fetched);
-                } catch (err) {
-                    console.error("Failed to seed mock stories to Firestore:", err);
-                }
-            }
-        };
-
-        seedMockStories();
-    }, [isSAHSUser, dbStories.length, loading]);
-
-
-    const hasPublicInterviews = useMemo(() => {
-        return dbStories.some(story => !story.is_private);
-    }, [dbStories]);
-
-    // Only show mock stories when Firestore has no oral histories at all.
-    // Per-title deduplication caused deleted stories to re-appear as their mock twin.
-    // Private stories are filtered out for public users.
+    // Only real records. This page used to write three sample interviews into
+    // archive_items whenever a staff member opened it with none recorded, so a new
+    // museum's archive filled with invented people. An empty archive now gets the
+    // empty state below. Private stories are filtered out for public users.
     const allStories = useMemo(() => {
-        if (isSAHSUser) {
-            return dbStories.length > 0 ? dbStories : MOCK_STORIES;
-        }
+        if (isSAHSUser) return dbStories;
         return dbStories.filter(story => !story.is_private);
     }, [dbStories, isSAHSUser]);
 
@@ -344,7 +254,7 @@ function StoriesBrowser() {
                 <div className="flex justify-center items-center py-20">
                     <div className="w-12 h-12 border-4 border-tan/20 border-t-tan rounded-full animate-spin"></div>
                 </div>
-            ) : !isSAHSUser && !hasPublicInterviews ? (
+            ) : allStories.length === 0 ? (
                 <div className="relative overflow-hidden bg-white/40 backdrop-blur-md rounded-3xl border border-tan-light/30 p-12 text-center max-w-2xl mx-auto shadow-2xl space-y-6 animate-in fade-in zoom-in duration-700">
                     <div className="absolute -top-12 -left-12 w-48 h-48 bg-tan/10 rounded-full blur-2xl pointer-events-none" />
                     <div className="absolute -bottom-12 -right-12 w-48 h-48 bg-amber-700/5 rounded-full blur-2xl pointer-events-none" />
@@ -367,6 +277,15 @@ function StoriesBrowser() {
                             Check back soon to listen to our first published interviews.
                         </p>
                     </div>
+
+                    {isSAHSUser && (
+                        <Link
+                            to="/add-item?type=Oral History"
+                            className="relative z-10 inline-flex items-center gap-1.5 bg-tan hover:bg-charcoal text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md"
+                        >
+                            <Plus size={14} /> Add the First Interview
+                        </Link>
+                    )}
                 </div>
             ) : (
                 <>
@@ -385,7 +304,7 @@ function StoriesBrowser() {
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search Mildred, cotton, depot..."
+                                    placeholder="Search names, places, keywords..."
                                     className="w-full bg-cream/30 border border-tan-light/50 pl-10 pr-4 py-2.5 rounded-xl outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans text-sm text-charcoal"
                                 />
                             </div>
@@ -460,7 +379,7 @@ function StoriesBrowser() {
                                             </div>
 
                                             {/* Curator Edit Button Overlay */}
-                                            {isSAHSUser && !story.id.startsWith('mock-') && (
+                                            {isSAHSUser && (
                                                 <Link 
                                                     to={`/edit-item/${story.id}`}
                                                     className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/20 flex items-center justify-center shadow-lg transition-all hover:bg-tan hover:text-white hover:scale-105 active:scale-95 z-20"
@@ -476,7 +395,7 @@ function StoriesBrowser() {
                                         <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                                             <div className="space-y-2">
                                                 <h3 className="text-xl font-serif font-bold text-charcoal leading-snug group-hover:text-tan transition-colors">
-                                                    <Link to={story.id.startsWith('mock-') ? '#' : `/items/${story.id}`}>
+                                                    <Link to={`/items/${story.id}`}>
                                                         {story.title}
                                                     </Link>
                                                 </h3>
@@ -485,7 +404,7 @@ function StoriesBrowser() {
                                                         <span>Interviewer: <span className="font-semibold text-charcoal">{story.interviewer}</span></span>
                                                     )}
                                                     {story.interview_date && (
-                                                        <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(story.interview_date).toLocaleDateString()}</span>
+                                                        <span className="flex items-center gap-1"><Calendar size={12} /> {formatFreeTextDate(story.interview_date, {})}</span>
                                                     )}
                                                 </p>
                                                 <p className="text-sm text-charcoal/70 font-sans leading-relaxed line-clamp-3">
@@ -536,18 +455,12 @@ function StoriesBrowser() {
                                                     ))}
                                                 </div>
 
-                                                {story.id.startsWith('mock-') ? (
-                                                    <span className="text-xs font-sans text-charcoal/30 flex items-center gap-1 select-none">
-                                                        Mock Experience
-                                                    </span>
-                                                ) : (
-                                                    <Link 
-                                                        to={`/items/${story.id}`}
-                                                        className="text-xs font-bold text-tan hover:text-charcoal flex items-center gap-1 group/btn font-sans"
-                                                    >
-                                                        Full Record <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-1" />
-                                                    </Link>
-                                                )}
+                                                <Link 
+                                                    to={`/items/${story.id}`}
+                                                    className="text-xs font-bold text-tan hover:text-charcoal flex items-center gap-1 group/btn font-sans"
+                                                >
+                                                    Full Record <ArrowRight size={14} className="transition-transform group-hover/btn:translate-x-1" />
+                                                </Link>
                                             </div>
                                         </div>
                                     </div>
