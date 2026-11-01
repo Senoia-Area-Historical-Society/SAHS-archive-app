@@ -66,6 +66,16 @@ async function applyRoleClaim(email, role) {
     logger.info(role
         ? `Set role claim "${role}" for ${email} (uid ${user.uid}).`
         : `Revoked role claim for ${email} (uid ${user.uid}).`);
+
+    // Removing a claim doesn't reach a token already issued, and Storage Rules
+    // go by the claim alone (firestore.rules reads user_roles, so it stops at
+    // once). Revoking the refresh tokens means that token can't be renewed: the
+    // person is signed out when it expires, within the hour, rather than kept
+    // on the old claim for as long as they stay signed in.
+    if (currentRole && !role) {
+        await admin.auth().revokeRefreshTokens(user.uid);
+        logger.info(`Revoked refresh tokens for ${email} (uid ${user.uid}) after their role was removed.`);
+    }
 }
 
 exports.syncUserRoleClaims = onDocumentWritten({

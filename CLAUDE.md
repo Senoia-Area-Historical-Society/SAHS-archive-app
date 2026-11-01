@@ -60,7 +60,7 @@ access bugs here.
 | Layer | Can it read `user_roles`? | What it accepts |
 |---|---|---|
 | `AuthContext` | yes | role document, support list |
-| `firestore.rules` | yes, via `get()` | `role` claim, role document, support list |
+| `firestore.rules` | yes, via `get()` | role document, support list — **not** the claim, so a revoked role stops at once |
 | `storage.rules` | **no** | `role` claim only |
 | `functions/restrictedMedia.js` | not used | `role` claim, support list |
 
@@ -79,6 +79,8 @@ Settings, and can be removed (`--none`). Any admin — support or museum-granted
 may grant and revoke roles; roles are `admin` and `curator` only.
 
 `scripts/backfill-role-claims.cjs` reconciles claims against `user_roles`.
+Removing a role also revokes the user's refresh tokens, so Storage access ends
+when their current ID token expires (within the hour).
 
 **First-run setup** (the Setup Wizard's self-grant of admin on an empty archive)
 is open only to the exact addresses in `deployment_config/bootstrap`, set with
@@ -132,6 +134,7 @@ a thumbnail is public only if its item is.
 | `syncItemMediaVisibility` | Firestore | item media ACLs and tokens follow `is_private` |
 | `syncUserRoleClaims` | Firestore | mirrors a role onto the Auth claim |
 | `syncMyRoleClaim` | callable | self-heals a missing claim on sign-in |
+| `syncMemberLogins` | Firestore | `member_logins/{secondary email}` → member record, so spouses get member access |
 | `restrictedMediaUrl` | callable | short-lived signed URLs for staff-only media |
 | `lookupIsbnFallback` | callable | ISBN lookup for the library |
 | `renderMeta` | HTTP (Hosting rewrite) | SSR `<head>` for `/items/**`, `/collections/**`, `/library/**` |
@@ -202,7 +205,8 @@ document id, so it indexes nothing.
 actually holds the role; the stored value alone grants nothing.
 
 **Scripts default to a dry run and take `--prod` to write.** That applies to
-`migrate-item-privacy-and-paperwork.cjs`, `backfill-role-claims.cjs` and
+`migrate-item-privacy-and-paperwork.cjs`, `backfill-role-claims.cjs`,
+`backfill-member-logins.cjs` and
 `normalize-artifact-types.cjs`; all are idempotent. Under bare user ADC the Auth API needs
 `GOOGLE_CLOUD_QUOTA_PROJECT=sahs-archives` set **per command** — not via `gcloud
 auth application-default set-quota-project`, which changes it for every tool on the

@@ -34,11 +34,20 @@ const member = () => testEnv.authenticatedContext('member', { email: 'member@exa
 /** A curator granted by role claim, with no SAHS email address. */
 const curator = () => testEnv.authenticatedContext('curator', { email: 'curator@example.com', role: 'curator' });
 /**
- * A Workspace account holding a role, via the claim userRoles.js mirrors onto the
- * token. This is what staff access looks like now that the bare-domain grant is
- * gone — the address alone no longer admits anyone.
+ * A Workspace account holding a role: a user_roles document, and the claim
+ * userRoles.js mirrors onto the token. This is what staff access looks like now
+ * that the bare-domain grant is gone — the address alone no longer admits anyone.
  */
 const staff = () => testEnv.authenticatedContext('staff', { email: 'staff@senoiahistory.com', role: 'admin' });
+
+/**
+ * Someone whose role was just removed: their user_roles document is gone, but the
+ * token they signed in with still carries the `role` claim until it expires.
+ */
+const formerStaff = () => testEnv.authenticatedContext('former', { email: 'former@example.com', role: 'admin' });
+
+/** A spouse listed as the secondary email on primary@example.com's membership. */
+const spouse = () => testEnv.authenticatedContext('spouse', { email: 'spouse@example.com' });
 
 /** A Workspace address with no role and no claim — admitted until this change. */
 const domainOnly = () => testEnv.authenticatedContext('domainonly', { email: 'newvolunteer@senoiahistory.com' });
@@ -81,6 +90,7 @@ beforeEach(async () => {
             status: 'active', expiresAt: 'Never', name: 'Another Member',
         });
         await setDoc(doc(db, 'user_roles', 'curator@example.com'), { role: 'curator' });
+        await setDoc(doc(db, 'user_roles', 'staff@senoiahistory.com'), { role: 'admin' });
         await setDoc(doc(db, 'user_roles', 'admin@examplemuseum.org'), { role: 'admin' });
         // Mirrors production: the two addresses that used to be hardcoded.
         await setDoc(doc(db, 'deployment_config', 'support'), {
@@ -462,9 +472,21 @@ describe('H2 — the email domain alone grants nothing', () => {
         await assertFails(getDoc(doc(db, 'members', 'other@example.com')));
     });
 
-    it('still admits a role holder, via the claim', async () => {
+    it('still admits a role holder, via their role document', async () => {
         const db = staff().firestore();
         await assertSucceeds(setDoc(doc(db, 'archive_items', 'new2'), { title: 'Fine', is_private: false }));
+    });
+
+    /**
+     * Revocation must be immediate. The claim stays on a token until it expires,
+     * so accepting it kept a removed curator's write access for up to an hour.
+     */
+    it('refuses someone whose role was removed, though their token still carries the claim', async () => {
+        const db = formerStaff().firestore();
+        await assertFails(setDoc(doc(db, 'archive_items', 'new4'), { title: 'Should not write', is_private: false }));
+        await assertFails(getDocs(collection(db, 'archive_items')));
+        await assertFails(setDoc(doc(db, 'site_settings', 'appearance'), { theme: 'hijacked' }));
+        await assertFails(setDoc(doc(db, 'user_roles', 'former@example.com'), { role: 'admin' }));
     });
 
     /**
@@ -543,9 +565,14 @@ describe('support admins and role management', () => {
         await assertSucceeds(deleteDoc(doc(db, 'user_roles', 'new@example.com')));
     });
 
-    it('lets an admin holding only the claim grant roles', async () => {
+    it('lets an admin holding a role document grant roles', async () => {
         const db = staff().firestore();
         await assertSucceeds(setDoc(doc(db, 'user_roles', 'new@example.com'), { role: 'curator' }));
+    });
+
+    it('refuses an admin claim with no role document behind it', async () => {
+        const db = formerStaff().firestore();
+        await assertFails(setDoc(doc(db, 'user_roles', 'new@example.com'), { role: 'curator' }));
     });
 
     it('refuses a role that does not exist', async () => {
@@ -789,7 +816,7 @@ describe('comments — the author and role are the writer\'s own', () => {
         await assertFails(setDoc(doc(db, 'archive_items', 'public1', 'comments', 'c3'), comment({ ...mine, role: 'Member' })));
     });
 
-    it('requires an admin — by claim, role document or support list — to post as Admin', async () => {
+    it('requires an admin — by role document or support list — to post as Admin', async () => {
         await assertSucceeds(setDoc(doc(staff().firestore(), 'archive_items', 'public1', 'comments', 'c1'),
             comment({ authorEmail: 'staff@senoiahistory.com', role: 'Admin' })));
         await assertSucceeds(setDoc(doc(museumAdmin().firestore(), 'archive_items', 'public1', 'comments', 'c2'),
@@ -857,5 +884,79 @@ describe('research_notes — the queries MyResearch runs', () => {
     it('refuses listing someone else\'s notes by owner', async () => {
         const db = collaborator().firestore();
         await assertFails(getDocs(mine(db, 'member@example.com')));
+    });
+});
+
+/**
+ * A spouse or family member listed as a membership's secondary email has no
+ * record of their own. member_logins/{address}, kept by functions/memberLogins.js,
+ * points at the record that lists them, and they are a member through it.
+ */
+describe('members — a secondary email is a member through the record that lists it', () => {
+    beforeEach(async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            const db = ctx.firestore();
+            await setDoc(doc(db, 'members', 'primary@example.com'), {
+                status: 'active', expiresAt: 'Never', name: 'Primary Member', secondaryEmail: 'spouse@example.com',
+            });
+            await setDoc(doc(db, 'member_logins', 'spouse@example.com'), { memberId: 'primary@example.com' });
+            // A pointer the record no longer backs: someone removed as secondary.
+            await setDoc(doc(db, 'member_logins', 'removed@example.com'), { memberId: 'primary@example.com' });
+            await setDoc(doc(db, 'research_folders', 'f1'), {
+                name: 'Mill families', itemIds: [], ownerEmail: 'member@example.com', sharedWith: [],
+            });
+        });
+    });
+
+    it('lets the spouse find and read the record', async () => {
+        const db = spouse().firestore();
+        await assertSucceeds(getDoc(doc(db, 'member_logins', 'spouse@example.com')));
+        await assertSucceeds(getDoc(doc(db, 'members', 'primary@example.com')));
+    });
+
+    it('gives the spouse member access', async () => {
+        const db = spouse().firestore();
+        await assertSucceeds(setDoc(doc(db, 'research_folders', 'sf1'), {
+            name: 'Our family', itemIds: [], ownerEmail: 'spouse@example.com', sharedWith: [],
+        }));
+    });
+
+    it('lets a member share a folder with the spouse', async () => {
+        const db = member().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'research_folders', 'f1'), { sharedWith: arrayUnion('spouse@example.com') }));
+    });
+
+    it('lets the spouse mark the member tour finished, and nothing else', async () => {
+        const db = spouse().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'members', 'primary@example.com'), { hasCompletedMemberWizard: true }));
+        await assertFails(updateDoc(doc(db, 'members', 'primary@example.com'), { expiresAt: '2099-01-01' }));
+    });
+
+    it('grants nothing through a pointer the record no longer backs', async () => {
+        const db = testEnv.authenticatedContext('removed', { email: 'removed@example.com' }).firestore();
+        await assertFails(getDoc(doc(db, 'members', 'primary@example.com')));
+        await assertFails(setDoc(doc(db, 'research_folders', 'rf1'), {
+            name: 'Not mine', itemIds: [], ownerEmail: 'removed@example.com', sharedWith: [],
+        }));
+    });
+
+    it('gives no member access once the membership has lapsed, but still shows the record', async () => {
+        await testEnv.withSecurityRulesDisabled(async (ctx) => {
+            await updateDoc(doc(ctx.firestore(), 'members', 'primary@example.com'), { status: 'expired', expiresAt: '2020-01-01' });
+        });
+        const db = spouse().firestore();
+        await assertSucceeds(getDoc(doc(db, 'members', 'primary@example.com')));
+        await assertFails(setDoc(doc(db, 'research_folders', 'sf2'), {
+            name: 'Our family', itemIds: [], ownerEmail: 'spouse@example.com', sharedWith: [],
+        }));
+    });
+
+    it('hides someone else\'s login pointer from a stranger', async () => {
+        await assertFails(getDoc(doc(stranger().firestore(), 'member_logins', 'spouse@example.com')));
+    });
+
+    it('lets nobody write login pointers from the app, staff included', async () => {
+        await assertFails(setDoc(doc(stranger().firestore(), 'member_logins', 'stranger@example.com'), { memberId: 'primary@example.com' }));
+        await assertFails(setDoc(doc(staff().firestore(), 'member_logins', 'x@example.com'), { memberId: 'primary@example.com' }));
     });
 });
