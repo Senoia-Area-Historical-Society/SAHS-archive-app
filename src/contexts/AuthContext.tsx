@@ -7,11 +7,12 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth, googleProvider, db, functions } from '../lib/firebase';
-import { doc, getDoc, onSnapshot, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { useLocation } from 'react-router-dom';
 import { useAppearance } from './AppearanceContext';
 import type { Member } from '../types/database';
+import { findMemberRecord } from '../lib/memberLookup';
 
 /**
  * A curator/admin role granted in Admin Settings only reaches Storage Rules
@@ -224,21 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     }
                 }
 
-                // Verify member status — check primary email, then secondary email
+                // Verify member status — their own record, or the one listing
+                // them as its secondary email
                 try {
-                    let mData: Member | null = null;
-                    const memberDoc = await getDoc(doc(db, 'members', email));
-                    if (memberDoc.exists()) {
-                        mData = { id: memberDoc.id, ...memberDoc.data() } as Member;
-                    } else {
-                        // Secondary email query
-                        const secondaryQuery = query(collection(db, 'members'), where('secondaryEmail', '==', email));
-                        const secondarySnap = await getDocs(secondaryQuery);
-                        if (!secondarySnap.empty) {
-                            const matchDoc = secondarySnap.docs[0];
-                            mData = { id: matchDoc.id, ...matchDoc.data() } as Member;
-                        }
-                    }
+                    const mData = await findMemberRecord(email);
 
                     if (mData) {
                         const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
@@ -324,9 +314,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Plain members can't read user_roles — fall through to member check
             }
 
-            // 3. Allow members (active OR expired — expired members can log in but get a renewal prompt)
-            const memberDoc = await getDoc(doc(db, 'members', email));
-            if (memberDoc.exists()) {
+            // 3. Allow members (active OR expired — expired members can log in but get a renewal prompt),
+            // including a spouse or family member listed as a record's secondary email
+            if (await findMemberRecord(email)) {
                 // Any record in members collection = allow login. Expiry is handled in the UI.
                 return;
             }

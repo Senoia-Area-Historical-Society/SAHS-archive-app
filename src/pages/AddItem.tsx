@@ -1203,7 +1203,9 @@ export function AddItem() {
                                             className="hidden" 
                                             accept="video/*,audio/*"
                                             onChange={(e) => {
-                                                if (e.target.files) setAdditionalMediaFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                                                // Copied before the input is cleared — see AddCollection.
+                                                const files = Array.from(e.target.files ?? []);
+                                                setAdditionalMediaFiles(prev => [...prev, ...files]);
                                                 e.target.value = '';
                                             }}
                                         />

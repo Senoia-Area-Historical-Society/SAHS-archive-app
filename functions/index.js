@@ -242,6 +242,10 @@ exports.syncUserRoleClaims = require("./userRoles").syncUserRoleClaims;
 exports.syncSupportAdminClaims = require("./userRoles").syncSupportAdminClaims;
 exports.syncMyRoleClaim = require("./userRoles").syncMyRoleClaim;
 
+// Points each secondary email on a member record (a spouse or family member) at
+// that record, so they can sign in as a member — see functions/memberLogins.js.
+exports.syncMemberLogins = require("./memberLogins").syncMemberLogins;
+
 
 // Server-rendered <head> for archive detail pages. Social scrapers don't execute
 // JavaScript, so without this every shared link previews as the generic site title.

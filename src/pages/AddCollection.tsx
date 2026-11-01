@@ -210,8 +210,10 @@ export function AddCollection() {
                                 multiple
                                 accept="image/png, image/jpeg, image/webp"
                                 onChange={(e) => {
-                                    const files = e.target.files;
-                                    if (files) setSelectedFiles(prev => [...prev, ...Array.from(files)]);
+                                    // Copy the files out first: `e.target.files` is live, so
+                                    // clearing the input below empties it before the updater runs.
+                                    const files = Array.from(e.target.files ?? []);
+                                    setSelectedFiles(prev => [...prev, ...files]);
                                     e.target.value = '';
                                 }}
                             />
