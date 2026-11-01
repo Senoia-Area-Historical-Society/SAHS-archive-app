@@ -427,6 +427,15 @@ export default function EditItem() {
     const [debouncedOrgSearch, setDebouncedOrgSearch] = useState('');
     const [showOrgResults, setShowOrgResults] = useState(false);
 
+    // Title of every item, by id, for loading this item's links. The pickers
+    // above list only one type each — documents only Documents and Artifacts —
+    // but a link can point at any type (a figure's related_documents holds its
+    // organizations and oral histories too). Loading links from the pickers
+    // dropped those, and saving then unlinked them on both sides. Null until
+    // loaded, and saving waits for it for the same reason.
+    const [itemTitles, setItemTitles] = useState<Record<string, string> | null>(null);
+    const linksLoaded = useRef(false);
+
     useEffect(() => {
         const h = setTimeout(() => setDebouncedFigureSearch(figureSearch), 200);
         return () => clearTimeout(h);
@@ -584,26 +593,8 @@ export default function EditItem() {
                     .map(i => ({ id: i.id, title: i.title || i.org_name || "Unnamed Organization" }));
                 setAllOrgs(orgsList.sort((a, b) => a.title.localeCompare(b.title)));
 
-                if (item) {
-                     if (item.related_figures && item.related_figures.length > 0) {
-                        const linkedFigs = figsList
-                            .filter(f => item.related_figures?.includes(f.id))
-                            .map(f => ({ id: f.id, full_name: f.title }));
-                        setSelectedRelatedFigures(linkedFigs);
-                    }
-                    if (item.related_documents && item.related_documents.length > 0) {
-                        const linkedDocs = docsList
-                            .filter(d => item.related_documents?.includes(d.id))
-                            .map(d => ({ id: d.id, title: d.title }));
-                        setSelectedRelatedDocs(linkedDocs);
-                    }
-                    if (item.related_organizations && item.related_organizations.length > 0) {
-                        const linkedOrgs = orgsList
-                            .filter(o => item.related_organizations?.includes(o.id))
-                            .map(o => ({ id: o.id, org_name: o.title }));
-                        setSelectedRelatedOrgs(linkedOrgs);
-                    }
-                }
+                setItemTitles(Object.fromEntries(allItemsData.map(i =>
+                    [i.id, i.title || i.full_name || i.org_name || 'Untitled'])));
 
             } catch (error) {
                 console.error("Error fetching collections/linked data:", error);
@@ -614,28 +605,21 @@ export default function EditItem() {
         fetchCollectionsAndLinked();
     }, [id]);
 
+    // Once both the item and every item's title are in, select its links —
+    // whatever type each linked item is. An id with no item behind it any more
+    // is left out, so saving tidies away links to deleted items. Only once:
+    // `item` also changes when a collection is ticked, and that must not undo
+    // link edits not yet saved.
     useEffect(() => {
-        if (item) {
-            if (allFigures.length > 0 && (!selectedRelatedFigures.length && item.related_figures?.length)) {
-                const linkedFigs = allFigures
-                    .filter(f => item.related_figures?.includes(f.id))
-                    .map(f => ({ id: f.id, full_name: f.title }));
-                setSelectedRelatedFigures(linkedFigs);
-            }
-            if (allDocs.length > 0 && (!selectedRelatedDocs.length && item.related_documents?.length)) {
-                const linkedDocs = allDocs
-                    .filter(d => item.related_documents?.includes(d.id))
-                    .map(d => ({ id: d.id, title: d.title }));
-                setSelectedRelatedDocs(linkedDocs);
-            }
-            if (allOrgs.length > 0 && (!selectedRelatedOrgs.length && item.related_organizations?.length)) {
-                const linkedOrgs = allOrgs
-                    .filter(o => item.related_organizations?.includes(o.id))
-                    .map(o => ({ id: o.id, org_name: o.title }));
-                setSelectedRelatedOrgs(linkedOrgs);
-            }
-        }
-    }, [item, allFigures, allDocs, allOrgs]);
+        if (!item || !itemTitles || linksLoaded.current) return;
+        linksLoaded.current = true;
+        const linked = (ids: string[] | undefined) => (ids || [])
+            .filter(linkedId => linkedId in itemTitles)
+            .map(linkedId => ({ id: linkedId, title: itemTitles[linkedId] }));
+        setSelectedRelatedFigures(linked(item.related_figures).map(f => ({ id: f.id, full_name: f.title })));
+        setSelectedRelatedDocs(linked(item.related_documents));
+        setSelectedRelatedOrgs(linked(item.related_organizations).map(o => ({ id: o.id, org_name: o.title })));
+    }, [item, itemTitles]);
 
 
 
@@ -743,6 +727,12 @@ export default function EditItem() {
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!id || !item) return;
+        // Saving before the links have loaded would save them as none, and
+        // unlink every one of them on the other side too.
+        if (!linksLoaded.current) {
+            setError("This item's linked records are still loading. Please wait a moment and save again.");
+            return;
+        }
 
         setIsSubmitting(true);
         setError(null);
@@ -1002,10 +992,12 @@ export default function EditItem() {
             }
 
             // --- Two-Way Linking Synchronization ---
+            // An item that no longer exists has no side to unlink.
+            const stillExists = (linkedId: string) => !!itemTitles && linkedId in itemTitles;
             const oldOrgs = item.related_organizations || [];
             const newOrgs = selectedRelatedOrgs.map(o => o.id);
             const addedOrgs = newOrgs.filter(orgId => !oldOrgs.includes(orgId));
-            const removedOrgs = oldOrgs.filter(orgId => !newOrgs.includes(orgId));
+            const removedOrgs = oldOrgs.filter(orgId => !newOrgs.includes(orgId) && stillExists(orgId));
 
             for (const orgId of addedOrgs) {
                 await updateDoc(doc(db, 'archive_items', orgId), {
@@ -1021,7 +1013,7 @@ export default function EditItem() {
             const oldFigs = item.related_figures || [];
             const newFigs = selectedRelatedFigures.map(f => f.id);
             const addedFigs = newFigs.filter(figId => !oldFigs.includes(figId));
-            const removedFigs = oldFigs.filter(figId => !newFigs.includes(figId));
+            const removedFigs = oldFigs.filter(figId => !newFigs.includes(figId) && stillExists(figId));
 
             for (const figId of addedFigs) {
                 await updateDoc(doc(db, 'archive_items', figId), {
@@ -1037,7 +1029,7 @@ export default function EditItem() {
             const oldDocs = item.related_documents || [];
             const newDocs = selectedRelatedDocs.map(d => d.id);
             const addedDocs = newDocs.filter(docId => !oldDocs.includes(docId));
-            const removedDocs = oldDocs.filter(docId => !newDocs.includes(docId));
+            const removedDocs = oldDocs.filter(docId => !newDocs.includes(docId) && stillExists(docId));
 
             for (const docId of addedDocs) {
                 const arrayField = itemType === 'Historic Organization' ? 'related_organizations' : itemType === 'Historic Figure' ? 'related_figures' : 'related_documents';

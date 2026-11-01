@@ -4,19 +4,16 @@ service cloud.firestore {
 
     // Helper function for admin/curator roles.
     //
-    // The role claim (set by functions/userRoles.js from this same user_roles
-    // collection) is checked first as a fast path that skips the get() below
-    // once a session has picked it up — it's also the only signal Storage
-    // Rules have, since they can't reach this named database the way this
-    // get()/exists() pair can.
+    // Read from user_roles and the support list on every request — never from
+    // the `role` claim functions/userRoles.js mirrors onto the token. The claim
+    // used to be accepted first, as a fast path, but a token keeps its claims
+    // until it expires: someone whose role was revoked kept staff write access
+    // here for up to an hour. Storage Rules still go by the claim, since they
+    // cannot read this named database; userRoles.js revokes the person's
+    // refresh tokens to cut that short.
     function isSAHSUser() {
       return request.auth != null &&
         request.auth.token.email != null && (
-          // `.get()` rather than `.role`: most tokens carry no role claim, and
-          // reading a missing property is an error, not false. Inside `||` that
-          // happened not to matter, but it made isSAHSUser() unusable as a
-          // condition — expectedCommentRole()'s ternary denied every member.
-          request.auth.token.get('role', '') in ['admin', 'curator'] ||
           // The bare-domain clause was removed here. It granted curator-equivalent
           // write on archive_items, collections, settings, members, rooms and
           // locations to ANY @senoiahistory.com account the moment it signed in —
@@ -52,7 +49,7 @@ service cloud.firestore {
     function isArchiveAdmin() {
       return request.auth != null &&
         request.auth.token.email != null && (
-          request.auth.token.get('role', '') == 'admin' ||  // see isSAHSUser()
+          // Not the role claim — see isSAHSUser().
           isSupportAdmin() ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
            get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role == 'admin')
@@ -95,12 +92,34 @@ service cloud.firestore {
     // isActiveMember(), split out so folder sharing can ask it about the address
     // being shared WITH rather than the signed-in user. Members are keyed by
     // lowercased address (the document id), so `email` must already be lowercase.
+    //
+    // An address is a member either as the key of its own record, or as the
+    // secondary email on someone else's — a spouse or family member. That kind
+    // has no record of its own, so member_logins/{email} (kept by
+    // functions/memberLogins.js) says which record to look at, and the record
+    // itself must still list the address: a stale pointer grants nothing.
     function isActiveMemberAddress(email) {
-      return exists(/databases/$(database)/documents/members/$(email)) &&
-        get(/databases/$(database)/documents/members/$(email)).data.status == 'active' &&
+      let login = /databases/$(database)/documents/member_logins/$(email);
+      return isActiveMemberRecord(email) || (
+        exists(login) &&
+        isSecondaryEmailOf(get(login).data.memberId, email) &&
+        isActiveMemberRecord(get(login).data.memberId)
+      );
+    }
+
+    // Whether members/{memberId} lists `email` as its secondary email.
+    function isSecondaryEmailOf(memberId, email) {
+      let record = /databases/$(database)/documents/members/$(memberId);
+      return exists(record) && get(record).data.get('secondaryEmail', '') == email;
+    }
+
+    // Whether members/{memberId} is active and not past its expiry date.
+    function isActiveMemberRecord(memberId) {
+      return exists(/databases/$(database)/documents/members/$(memberId)) &&
+        get(/databases/$(database)/documents/members/$(memberId)).data.status == 'active' &&
         (
-          get(/databases/$(database)/documents/members/$(email)).data.expiresAt == 'Never' ||
-          get(/databases/$(database)/documents/members/$(email)).data.expiresAt >=
+          get(/databases/$(database)/documents/members/$(memberId)).data.expiresAt == 'Never' ||
+          get(/databases/$(database)/documents/members/$(memberId)).data.expiresAt >=
             string(request.time.year()) + '-' +
             (request.time.month() < 10 ? '0' + string(request.time.month()) : string(request.time.month())) + '-' +
             (request.time.day() < 10 ? '0' + string(request.time.day()) : string(request.time.day()))
@@ -109,8 +128,7 @@ service cloud.firestore {
 
     // Whether an arbitrary address holds a staff role — a user_roles document or
     // a place on the support list. The address-based counterpart of isSAHSUser(),
-    // without its claim fast path: a claim belongs to the signed-in token, and
-    // here we are asking about somebody else.
+    // about somebody other than the signed-in user.
     function isStaffAddress(email) {
       return (exists(/databases/$(database)/documents/user_roles/$(email)) &&
               get(/databases/$(database)/documents/user_roles/$(email)).data.role in ['admin', 'curator']) ||
@@ -371,7 +389,7 @@ service cloud.firestore {
       // share target (src/pages/MyResearch.tsx:457) — hence isActiveMember(), which
       // is already the precondition for sharing a folder at all.
       allow get: if isSAHSUser()
-                 || (request.auth != null && request.auth.token.email.lower() == email.lower())
+                 || isOwnMemberRecord(email)
                  || isActiveMember();
       allow list: if isSAHSUser();
       allow write: if isSAHSUser();
@@ -379,10 +397,32 @@ service cloud.firestore {
       // finished the member tour (MemberSetupWizard.tsx). Without it the write
       // was refused and the tour reopened on every visit. Only that key, only to
       // true, so status and expiresAt stay the staff's to set.
-      allow update: if request.auth != null &&
-                       request.auth.token.email.lower() == email.lower() &&
+      allow update: if isOwnMemberRecord(email) &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasCompletedMemberWizard']) &&
                        request.resource.data.hasCompletedMemberWizard == true;
+
+      // The signed-in user's own record: keyed by their address, or listing it
+      // as the secondary email (a spouse or family member on the membership).
+      // Read for an expired record too, so the renewal details can be shown.
+      function isOwnMemberRecord(memberId) {
+        return request.auth != null && request.auth.token.email != null && (
+          request.auth.token.email.lower() == memberId.lower() ||
+          (resource != null && resource.data.get('secondaryEmail', '') == request.auth.token.email.lower())
+        );
+      }
+    }
+
+    // Secondary-email logins: member_logins/{secondary email} = { memberId },
+    // pointing at the member record that lists the address. Written only by
+    // functions/memberLogins.js. Read by AuthContext for the signed-in address,
+    // and by MyResearch to check a share target — the same callers, and the
+    // same reasons, as members/{email} above.
+    match /member_logins/{email} {
+      allow get: if isSAHSUser()
+                 || (request.auth != null && request.auth.token.email != null && request.auth.token.email.lower() == email.lower())
+                 || isActiveMember();
+      allow list: if isSAHSUser();
+      allow write: if false;
     }
 
     // Deprecated research_folders subcollection (retained for backward compatibility/read-only safety if needed)

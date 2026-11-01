@@ -4,10 +4,11 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { db, defaultDb } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
 import { fetchItemsByIds } from '../lib/itemsById';
+import { findMemberRecord } from '../lib/memberLookup';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, query, where, or, addDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { FolderOpen, Plus, Trash2, Edit3, X, ArrowRight, Sparkles, BookOpen, Pin, Users, LayoutGrid, Map } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
-import type { ArchiveItem, Member } from '../types/database';
+import type { ArchiveItem } from '../types/database';
 import { FolderMapView } from '../components/FolderMapView';
 import { OptimizedImage } from '../components/OptimizedImage';
 import { errorCode, errorMessage } from '../lib/errors';
@@ -466,9 +467,8 @@ export function MyResearch() {
 
             if (!isAuthorized) {
                 try {
-                    const memberDoc = await getDoc(doc(db, 'members', emailToShare));
-                    if (memberDoc.exists()) {
-                        const mData = memberDoc.data() as Member;
+                    const mData = await findMemberRecord(emailToShare);
+                    if (mData) {
                         const isExpired = mData.expiresAt !== 'Never' && new Date(mData.expiresAt) < new Date();
                         if (mData.status === 'active' && !isExpired) {
                             isAuthorized = true;
