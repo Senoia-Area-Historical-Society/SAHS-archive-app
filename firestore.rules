@@ -375,6 +375,14 @@ service cloud.firestore {
                  || isActiveMember();
       allow list: if isSAHSUser();
       allow write: if isSAHSUser();
+      // The one field a member writes on their own record: that they have
+      // finished the member tour (MemberSetupWizard.tsx). Without it the write
+      // was refused and the tour reopened on every visit. Only that key, only to
+      // true, so status and expiresAt stay the staff's to set.
+      allow update: if request.auth != null &&
+                       request.auth.token.email.lower() == email.lower() &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasCompletedMemberWizard']) &&
+                       request.resource.data.hasCompletedMemberWizard == true;
     }
 
     // Deprecated research_folders subcollection (retained for backward compatibility/read-only safety if needed)

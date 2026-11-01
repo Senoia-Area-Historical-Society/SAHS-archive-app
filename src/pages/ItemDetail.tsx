@@ -8,6 +8,7 @@ import { OptimizedImage } from '../components/OptimizedImage';
 import { QRCodeDisplay } from '../components/QRCodeDisplay';
 import { db } from '../lib/firebase';
 import { publicOnly, publicOnlyWith } from '../lib/privacyQuery';
+import { fetchItemsByIds } from '../lib/itemsById';
 import { doc, getDoc, collection, query, getDocs, deleteDoc, where, documentId, updateDoc, or, limit, setDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
@@ -394,17 +395,7 @@ export function ItemDetail() {
                     // 1) Forward explicit references defined on THIS item
                     const fetchForward = async (ids: string[] | undefined) => {
                         if (!ids || ids.length === 0) return [];
-                        // Firestore 'in' has a 30 item limit
-                        const chunkedIds = ids.slice(0, 30);
-                        const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), where(documentId(), 'in', chunkedIds));
-                        const snap = await getDocs(q);
-                        let results = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
-                        
-                        // Filter private items for non-SAHS users
-                        if (!isSAHSUser) {
-                            results = results.filter(i => !i.is_private);
-                        }
-                        return results;
+                        return fetchItemsByIds(ids, isSAHSUser);
                     };
 
                     // 2) Backward references (items that link TO this item)

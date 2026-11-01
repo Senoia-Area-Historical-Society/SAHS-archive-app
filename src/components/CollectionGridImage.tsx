@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { publicOnly } from '../lib/privacyQuery';
+import { publicOnly, publicOnlyWith } from '../lib/privacyQuery';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, limit, getDocs, or } from 'firebase/firestore';
 import { FolderOpen } from 'lucide-react';
@@ -60,7 +60,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
                 } else {
                     q = query(
                         collection(db, 'archive_items'),
-                        or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId)),
+                        publicOnlyWith(isSAHSUser, or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId))),
                         limit(20)
                     );
                 }

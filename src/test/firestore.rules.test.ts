@@ -126,6 +126,23 @@ describe('members — membership must not be an oracle', () => {
         await assertSucceeds(getDoc(doc(db, 'members', 'other@example.com')));
     });
 
+    it('lets a member mark their own member tour finished', async () => {
+        const db = member().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'members', 'member@example.com'), { hasCompletedMemberWizard: true }));
+    });
+
+    it('refuses a member changing anything else on their record', async () => {
+        const db = member().firestore();
+        await assertFails(updateDoc(doc(db, 'members', 'member@example.com'), { expiresAt: '2099-01-01' }));
+        await assertFails(updateDoc(doc(db, 'members', 'member@example.com'), { hasCompletedMemberWizard: true, name: 'Someone Else' }));
+        await assertFails(updateDoc(doc(db, 'members', 'member@example.com'), { hasCompletedMemberWizard: 'yes' }));
+    });
+
+    it('refuses marking the tour finished on someone else\'s record', async () => {
+        await assertFails(updateDoc(doc(member().firestore(), 'members', 'other@example.com'), { hasCompletedMemberWizard: true }));
+        await assertFails(setDoc(doc(stranger().firestore(), 'members', 'stranger@example.com'), { hasCompletedMemberWizard: true }));
+    });
+
     it('still refuses a stranger writing a membership', async () => {
         const db = stranger().firestore();
         await assertFails(setDoc(doc(db, 'members', 'stranger@example.com'), { status: 'active' }));

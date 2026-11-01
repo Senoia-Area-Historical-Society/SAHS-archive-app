@@ -11,6 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
+import { freeTextDateSortKey } from '../lib/freeTextDate';
 
 export function BrowseArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -125,6 +126,16 @@ export function BrowseArchive() {
 
     // Unified client-side sorting - Memoized
     const sortedItems = useMemo(() => {
+        // "Date of origin": the item's own date, or for people, organizations and
+        // interviews the date that stands for it. Undated items go last either way.
+        const originKey = (item: ArchiveItem) =>
+            freeTextDateSortKey(item.date || item.birth_date || item.founding_date || item.interview_date);
+        const byOrigin = (a: ArchiveItem, b: ArchiveItem, direction: 1 | -1) => {
+            const keyA = originKey(a);
+            const keyB = originKey(b);
+            if (keyA === null || keyB === null) return (keyA === null ? 1 : 0) - (keyB === null ? 1 : 0);
+            return (keyA - keyB) * direction;
+        };
         return [...filteredItems].sort((a, b) => {
             switch (sortBy) {
                 case 'created_desc':
@@ -132,9 +143,9 @@ export function BrowseArchive() {
                 case 'created_asc':
                     return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
                 case 'date_desc':
-                    return (b.date || '').localeCompare(a.date || '');
+                    return byOrigin(a, b, -1);
                 case 'date_asc':
-                    return (a.date || '').localeCompare(b.date || '');
+                    return byOrigin(a, b, 1);
                 case 'title_asc':
                     return (a.title || '').localeCompare(b.title || '');
                 case 'title_desc':
@@ -143,13 +154,13 @@ export function BrowseArchive() {
                     const idA = parseInt(a.artifact_id || '0', 10);
                     const idB = parseInt(b.artifact_id || '0', 10);
                     if (!isNaN(idA) && !isNaN(idB)) return idA - idB;
-                    return (a.artifact_id || '').localeCompare(a.artifact_id || '');
+                    return (a.artifact_id || '').localeCompare(b.artifact_id || '', undefined, { numeric: true });
                 }
                 case 'id_desc': {
                     const idA = parseInt(a.artifact_id || '0', 10);
                     const idB = parseInt(b.artifact_id || '0', 10);
                     if (!isNaN(idA) && !isNaN(idB)) return idB - idA;
-                    return (b.artifact_id || '').localeCompare(b.artifact_id || '');
+                    return (b.artifact_id || '').localeCompare(a.artifact_id || '', undefined, { numeric: true });
                 }
                 default:
                     return 0;

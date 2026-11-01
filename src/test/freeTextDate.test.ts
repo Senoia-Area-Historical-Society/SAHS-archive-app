@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { formatFreeTextDate, parseIsoDateLocal } from '../lib/freeTextDate';
+import { formatFreeTextDate, freeTextDateSortKey, parseIsoDateLocal } from '../lib/freeTextDate';
 
 /**
  * The bug these guard: interview dates are free text, and the item page showed
@@ -74,5 +74,31 @@ describe('parseIsoDateLocal', () => {
 
     it('keeps years below 100 rather than moving them to the 1900s', () => {
         expect(parseIsoDateLocal('0050-06-01')?.getFullYear()).toBe(50);
+    });
+});
+
+describe('freeTextDateSortKey', () => {
+    it('orders the shapes curators type chronologically', () => {
+        const typed = ['1940', 'March 3, 1911', 'c. 1890', '1934', '1901-06-15', 'Spring 1901', '3 March 1911'];
+        const sorted = [...typed].sort((a, b) => freeTextDateSortKey(a)! - freeTextDateSortKey(b)!);
+        expect(sorted).toEqual(['c. 1890', 'Spring 1901', '1901-06-15', 'March 3, 1911', '3 March 1911', '1934', '1940']);
+    });
+
+    it('reads year, month and day', () => {
+        expect(freeTextDateSortKey('March 3, 1911')).toBe(19110303);
+        expect(freeTextDateSortKey('Sept. 21st 1899')).toBe(18990921);
+        expect(freeTextDateSortKey('2026-04-12T10:00:00Z')).toBe(20260412);
+        expect(freeTextDateSortKey('1850-1900')).toBe(18500000);
+        expect(freeTextDateSortKey('04/12/1858')).toBe(18580412);
+    });
+
+    it('does not take a month from a longer word', () => {
+        expect(freeTextDateSortKey('Mayor\'s report 1902')).toBe(19020000);
+    });
+
+    it('is null when there is no year', () => {
+        expect(freeTextDateSortKey('')).toBeNull();
+        expect(freeTextDateSortKey(undefined)).toBeNull();
+        expect(freeTextDateSortKey('Unknown')).toBeNull();
     });
 });

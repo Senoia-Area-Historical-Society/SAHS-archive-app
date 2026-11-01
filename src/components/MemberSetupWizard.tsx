@@ -289,7 +289,7 @@ export function MemberSetupWizard() {
                                 </button>
 
                                 <button
-                                    onClick={() => handleComplete('/research')}
+                                    onClick={() => handleComplete('/my-research')}
                                     className="p-4 rounded-xl border border-tan-light bg-white hover:bg-tan/5 text-left transition-colors flex items-center justify-between group"
                                 >
                                     <div>
