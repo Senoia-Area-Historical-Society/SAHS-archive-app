@@ -10,16 +10,20 @@
  * Configuration:
  *   RESEND_API_KEY            secret (Secret Manager) — the same Resend account
  *                             the website sends from
- *   INVITATION_FROM_ADDRESS   an address on a Resend-verified domain. For SAHS
- *                             only updates.senoiahistory.com is verified — the
- *                             apex is not (see sahs-website CLAUDE.md).
+ *   INVITATION_FROM_ADDRESS   optional environment variable (functions/.env) —
+ *                             an address on a Resend-verified domain. Defaults
+ *                             to the SAHS one: only updates.senoiahistory.com is
+ *                             verified, not the apex (see sahs-website CLAUDE.md).
+ *                             Not a defineString() param: CI deploys
+ *                             non-interactively, and the CLI refuses a param with
+ *                             no stored value there even when it has a default.
  *
  * The emulator never sends: it logs the email instead, so `npm run demo` cannot
  * mail a real address.
  */
 
 const { onDocumentUpdatedWithAuthContext } = require("firebase-functions/v2/firestore");
-const { defineSecret, defineString } = require("firebase-functions/params");
+const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const { getFirestore } = require("firebase-admin/firestore");
@@ -28,10 +32,7 @@ const { newCollaborators, buildInvitationEmail, resendRequest } = require("./sha
 
 const DATABASE = "sahs-archives";
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
-const INVITATION_FROM_ADDRESS = defineString("INVITATION_FROM_ADDRESS", {
-    default: "archives@updates.senoiahistory.com",
-    description: "Sender address for research-folder invitations; must be on a Resend-verified domain.",
-});
+const INVITATION_FROM_ADDRESS = process.env.INVITATION_FROM_ADDRESS || "archives@updates.senoiahistory.com";
 
 /**
  * The person who made the share: the signed-in user behind the write when the
@@ -78,7 +79,7 @@ exports.sendShareInvitation = onDocumentUpdatedWithAuthContext({
     for (const to of invitees) {
         const email = buildInvitationEmail({
             to,
-            fromAddress: INVITATION_FROM_ADDRESS.value(),
+            fromAddress: INVITATION_FROM_ADDRESS,
             museumName,
             siteUrl: SITE_URL,
             folderName: after.name,
