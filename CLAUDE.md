@@ -134,7 +134,7 @@ a thumbnail is public only if its item is.
 | `syncItemMediaVisibility` | Firestore | item media ACLs and tokens follow `is_private` |
 | `syncUserRoleClaims` | Firestore | mirrors a role onto the Auth claim |
 | `syncMyRoleClaim` | callable | self-heals a missing claim on sign-in |
-| `sendShareInvitation` | Firestore | emails a folder's new collaborator via Resend (`RESEND_API_KEY` secret, `INVITATION_FROM_ADDRESS` param) |
+| `sendShareInvitation` | Firestore | emails a folder's new collaborator via Resend (`RESEND_API_KEY` secret, optional `INVITATION_FROM_ADDRESS` env var) |
 | `syncMemberLogins` | Firestore | `member_logins/{secondary email}` → member record, so spouses get member access |
 | `restrictedMediaUrl` | callable | short-lived signed URLs for staff-only media |
 | `lookupIsbnFallback` | callable | ISBN lookup for the library |
