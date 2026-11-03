@@ -8,17 +8,19 @@ import type { ArchiveItem } from '../types/database';
 
 interface Props {
     collectionId: string;
-    fallbackImage?: string | null;
+    /** The collection's own chosen image. When set it is shown instead of the item mosaic. */
+    coverImage?: string | null;
     items?: ArchiveItem[];
     className?: string;
 }
 
-export function CollectionGridImage({ collectionId, fallbackImage, items: prefetchedItems, className = '' }: Props) {
+export function CollectionGridImage({ collectionId, coverImage, items: prefetchedItems, className = '' }: Props) {
     const { isSAHSUser } = useAuth();
     const [images, setImages] = useState<string[]>([]);
-    const [loading, setLoading] = useState(!prefetchedItems);
+    const [loading, setLoading] = useState(!prefetchedItems && !coverImage);
 
     useEffect(() => {
+        if (coverImage) return;
         if (prefetchedItems) {
             const urls = prefetchedItems
                 .map(item => {
@@ -82,7 +84,7 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
         };
 
         fetchImages();
-    }, [collectionId, prefetchedItems, isSAHSUser]);
+    }, [collectionId, coverImage, prefetchedItems, isSAHSUser]);
     const containerStyle = `absolute inset-0 w-full h-full overflow-hidden bg-tan-light/10 ${className}`;
 
     if (loading) {
@@ -93,12 +95,13 @@ export function CollectionGridImage({ collectionId, fallbackImage, items: prefet
         );
     }
 
+    if (coverImage) {
+        return (
+            <img src={coverImage} alt="Collection Cover" className={`${containerStyle} object-cover`} />
+        );
+    }
+
     if (images.length === 0) {
-        if (fallbackImage) {
-            return (
-                <img src={fallbackImage} alt="Collection Cover" className={`${containerStyle} object-cover`} />
-            );
-        }
         return (
             <div className={`absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center text-white/30 bg-charcoal/80 ${className}`}>
                 <FolderOpen size={48} className="opacity-40" />

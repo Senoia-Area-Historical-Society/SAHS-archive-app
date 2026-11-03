@@ -312,7 +312,7 @@ export function CollectionDetail() {
                 <div className="md:w-1/3 bg-tan-light/20 relative min-h-[250px] md:min-h-full flex-shrink-0">
                     <CollectionGridImage 
                         collectionId={collectionData.id}
-                        fallbackImage={collectionData.featured_image_url || collectionData.file_urls?.[0]}
+                        coverImage={collectionData.featured_image_url || collectionData.file_urls?.[0]}
                         items={items}
                     />
                 </div>

@@ -168,7 +168,7 @@ function CollectionsBrowser() {
                             <div className={`aspect-[16/9] relative overflow-hidden ${isVirtual ? 'bg-[#3a2d1d]' : 'bg-tan-light/20'}`}>
                                 <CollectionGridImage 
                                     collectionId={col.id}
-                                    fallbackImage={col.featured_image_url || col.file_urls?.[0]}
+                                    coverImage={col.featured_image_url || col.file_urls?.[0]}
                                     className="group-hover:scale-105 transition-transform duration-700"
                                 />
                                 <div className={`absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent ${isVirtual ? 'opacity-90' : 'opacity-60'} group-hover:opacity-80 transition-opacity`} />
