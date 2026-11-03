@@ -134,6 +134,7 @@ a thumbnail is public only if its item is.
 | `syncItemMediaVisibility` | Firestore | item media ACLs and tokens follow `is_private` |
 | `syncUserRoleClaims` | Firestore | mirrors a role onto the Auth claim |
 | `syncMyRoleClaim` | callable | self-heals a missing claim on sign-in |
+| `sendShareInvitation` | Firestore | emails a folder's new collaborator via Resend (`RESEND_API_KEY` secret, `INVITATION_FROM_ADDRESS` param) |
 | `syncMemberLogins` | Firestore | `member_logins/{secondary email}` → member record, so spouses get member access |
 | `restrictedMediaUrl` | callable | short-lived signed URLs for staff-only media |
 | `lookupIsbnFallback` | callable | ISBN lookup for the library |
@@ -159,11 +160,14 @@ because the functions' Firestore triggers are bound to it. Run the functions
 emulator alongside auth, firestore and storage (`npm run demo` does): a function
 calling a service with no emulator running reaches production.
 
-**Two Firestore databases, one Auth instance.** `src/lib/firebase.ts` exports both
-`db` (named `sahs-archives`) and `defaultDb` (the website's). The only current use
-of `defaultDb` is `MyResearch.tsx` writing to the website's `mail` collection for
-the Trigger Email extension. `firestore.rules` in this repo governs the *named*
-database only — a rule written here has no effect on anything in `defaultDb`.
+**Two Firestore databases, one Auth instance.** The app talks only to the named
+`sahs-archives` database (`db` in `src/lib/firebase.ts`); the website's default
+database is not reachable from this app's browser code. `firestore.rules` in this
+repo governs the named database only. The website's `mail` queue is closed to
+every client (`allow read, write: if false`) — the research-folder invitation is
+sent by `sendShareInvitation` through Resend, not queued from the browser.
+Firebase Extensions stop accepting installs and edits on 2027-03-31, which is
+one more reason not to build on the Trigger Email queue.
 
 **`firestore.indexes.json` is deployed declaratively and deletes anything not in
 it.** Add a composite index there *before* shipping a query that needs it, or

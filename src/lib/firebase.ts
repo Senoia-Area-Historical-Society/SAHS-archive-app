@@ -25,7 +25,6 @@ const app = initializeApp(firebaseConfig);
 // the default database they never fired locally — no role claims, so no uploads.
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 export const db = getFirestore(app, 'sahs-archives');
-export const defaultDb = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
@@ -34,7 +33,6 @@ export const googleProvider = new GoogleAuthProvider();
 if (useEmulator) {
   console.log("🔥 CONNECTING TO FIREBASE EMULATORS 🔥");
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectFirestoreEmulator(defaultDb, '127.0.0.1', 8080);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099');
   connectStorageEmulator(storage, '127.0.0.1', 9199);
   // Without this, callables such as syncMyRoleClaim went to the production
