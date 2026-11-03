@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useAppearance } from '../contexts/AppearanceContext';
-import { db, defaultDb } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
 import { fetchItemsByIds } from '../lib/itemsById';
 import { findMemberRecord } from '../lib/memberLookup';
@@ -25,7 +24,6 @@ interface ResearchFolder {
 
 export function MyResearch() {
     const { user, hasResearchAccess, isSAHSUser } = useAuth();
-    const { settings } = useAppearance();
     
     const [folders, setFolders] = useState<ResearchFolder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -501,47 +499,15 @@ export function MyResearch() {
                 throw err;
             }
             
-            // Trigger collaborative email notification
-            await addDoc(collection(defaultDb, 'mail'), {
-                to: emailToShare,
-                from: `${settings.museumName || 'Senoia Area Historical Society'} <noreply@senoiahistory.com>`,
-                ownerEmail: user.email.toLowerCase(),
-                message: {
-                    subject: `${settings.museumShortName || 'SAHS'} Archives: Collaborative Folder Shared!`,
-                    text: `${user.email} has shared the research folder "${sharingFolder.name}"${sharingFolder.description ? ` (${sharingFolder.description})` : ''} with you. Visit your ${settings.museumShortName || 'SAHS'} Archives Research Workspace to collaborate!`,
-                    html: `
-                        <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; background-color: #faf7f2; border: 1px solid #e1d8c7; border-radius: 8px;">
-                            <h2 style="color: #2b2b2b; font-family: serif; border-bottom: 1px solid #e1d8c7; padding-bottom: 12px; margin-top: 0;">${settings.museumShortName || 'SAHS'} Research Workspace</h2>
-                            <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6;">
-                                <strong>${user.email}</strong> has shared a collaborative research folder with you:
-                            </p>
-                            <div style="background-color: #ffffff; padding: 16px; border-left: 4px solid #c8b89c; border-radius: 4px; margin: 20px 0;">
-                                <h3 style="margin: 0; color: #2b2b2b; font-family: serif;">📁 ${sharingFolder.name}</h3>
-                                ${sharingFolder.description ? `
-                                <p style="margin: 8px 0 0 0; color: #666666; font-size: 13px; font-style: italic; line-height: 1.4; border-top: 1px solid #f0f0f0; padding-top: 8px;">
-                                    ${sharingFolder.description}
-                                </p>
-                                ` : ''}
-                            </div>
-                            <p style="color: #4a4a4a; font-size: 14px; line-height: 1.6;">
-                                You can now actively view, add historical archive documents/photographs, and share collaborative notes inside this folder.
-                            </p>
-                            <a href="https://senoiahistory.com/research" style="display: inline-block; background-color: #2b2b2b; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 16px;">
-                                Open Workspace
-                            </a>
-                            <hr style="border: 0; border-top: 1px solid #e1d8c7; margin: 24px 0;" />
-                            <p style="font-size: 11px; color: #8c8c8c; margin-bottom: 0;">
-                                Sent automatically by the ${settings.museumName || 'Senoia Area Historical Society'} Archives platform.
-                            </p>
-                        </div>
-                    `
-                }
-            });
-            
+            // The invitation email is sent by functions/shareInvitation.js once
+            // this write lands. It used to be queued from here, into the website's
+            // `mail` collection — closed since Sept 2026, so that write was refused
+            // and a share that had worked was reported as "Failed to share folder".
+
             // Sync local state
             setSharingFolder(prev => prev ? { ...prev, sharedWith: newSharedWith } : null);
             setShareEmail('');
-            showToast(`Shared folder with ${emailToShare} and sent invitation email!`);
+            showToast(`Shared folder with ${emailToShare}. They'll get an email invitation.`);
             fetchFolders();
         } catch (err) {
             console.error("Error sharing folder:", err);

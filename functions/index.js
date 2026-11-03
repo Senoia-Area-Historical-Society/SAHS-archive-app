@@ -246,6 +246,10 @@ exports.syncMyRoleClaim = require("./userRoles").syncMyRoleClaim;
 // that record, so they can sign in as a member — see functions/memberLogins.js.
 exports.syncMemberLogins = require("./memberLogins").syncMemberLogins;
 
+// Emails a research folder's new collaborator an invitation, through Resend —
+// see functions/shareInvitation.js.
+exports.sendShareInvitation = require("./shareInvitation").sendShareInvitation;
+
 
 // Server-rendered <head> for archive detail pages. Social scrapers don't execute
 // JavaScript, so without this every shared link previews as the generic site title.
