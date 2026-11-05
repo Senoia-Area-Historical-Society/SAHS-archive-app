@@ -134,7 +134,9 @@ export const FIRST_RUN_VALUES: WizardValues = {
         exploreSearchDesc: "Looking for something specific? Use our advanced search tool to query the archive by keyword, date, location, or subject tags.",
         qrTitle: "Archive Website",
         qrSubtitle: "Scan to Visit",
-        qrValue: "https://example.com",
+        // Blank means "this site's own address": Home falls back to the origin it
+        // is served from, so a museum that never edits it gets a QR code to itself.
+        qrValue: "",
         storiesTitle: "Community Stories",
         storiesTitleItalic: "Stories",
         storiesDesc: "A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped our community over the decades.",

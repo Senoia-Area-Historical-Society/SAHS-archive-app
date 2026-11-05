@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import indexHtml from '../../index.html?raw';
 import appearanceContext from '../contexts/AppearanceContext.tsx?raw';
 import home from '../pages/Home.tsx?raw';
-import { DEFAULT_DESCRIPTION, DEFAULT_SITE_NAME, buildItemSeo, describeItem } from '../lib/seo';
+import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, DEFAULT_SITE_NAME, SITE_URL, buildItemSeo, buildPageSeo, describeItem } from '../lib/seo';
+import { FIRST_RUN_VALUES } from '../lib/setupWizardFields';
 import { buildOrganizationJsonLd } from '../lib/structuredData';
 
 /**
@@ -17,8 +18,24 @@ describe('what a newly set-up museum sees', () => {
         ['the default site name', DEFAULT_SITE_NAME],
         ['the default description', DEFAULT_DESCRIPTION],
         ['the museum description', String(buildOrganizationJsonLd('Example Museum').description)],
+        ['the site address', SITE_URL],
+        ['the default share image', String(DEFAULT_OG_IMAGE)],
+        ['the museum structured data', JSON.stringify(buildOrganizationJsonLd('Example Museum'))],
+        ['the Setup Wizard first-run values', JSON.stringify(FIRST_RUN_VALUES)],
     ])('%s does not name Senoia or SAHS', (_label, text) => {
         expect(text).not.toMatch(/senoia|coweta|\bSAHS\b/i);
+    });
+
+    // These run without SITE_URL or SITE_OG_IMAGE, as a museum's first build does.
+    it('takes its address from where it is served, and has no default share image', () => {
+        expect(SITE_URL).toBe(globalThis.location?.origin ?? '');
+        expect(DEFAULT_OG_IMAGE).toBeUndefined();
+        expect(buildPageSeo('Archive', 'd', '/archive').image).toBeUndefined();
+    });
+
+    it('points an unedited QR code at the site itself', () => {
+        // Home.tsx and EditableText both fall back to window.location.origin on a blank value.
+        expect(FIRST_RUN_VALUES.contentBlocks.qrValue).toBe('');
     });
 
     it('describes an item with the museum it belongs to', () => {

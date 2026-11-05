@@ -11,20 +11,12 @@ import { useJsonLd } from '../hooks/useJsonLd';
 import { buildWebSiteJsonLd } from '../lib/structuredData';
 
 
-// WebP versions: 404 KB -> 216 KB across the four slides. home-old-main was a
-// photograph stored as PNG, which alone went from 135 KB to 13 KB.
-// The first entry is preloaded via a Link header on "/" (see firebase.json),
-// so keep it first — it is the LCP element.
-//
-// Only a fallback: site_settings/appearance.backgroundImages takes precedence
-// and now holds these same paths (scripts/set-hero-backgrounds.cjs). The two
-// lists have to be changed together.
-const BACKGROUND_IMAGES = [
-    "/home-pharmacy.webp",
-    "/home-street-view.webp",
-    "/home-old-main.webp",
-    "/home-industrial.webp"
-];
+// What a museum that has stored no slides of its own shows: none, so the hero is a
+// solid theme colour (the Setup Wizard says as much). Production's slides are its
+// own site_settings/appearance.backgroundImages (scripts/set-hero-backgrounds.cjs);
+// the /home-*.webp files they point at stay in public/ for that reason, and the
+// first is preloaded on "/" by a Link header in firebase.json.
+const BACKGROUND_IMAGES: string[] = [];
 
 export function Home() {
     const { settings } = useAppearance();
@@ -58,23 +50,28 @@ export function Home() {
 
     useJsonLd([buildWebSiteJsonLd(settings.museumName)]);
 
+    // Keyed on the count: Home can mount before the settings arrive, when there
+    // are no slides yet, and a timer started then would divide by zero.
+    const slideCount = backgroundImagesList.length;
     useEffect(() => {
+        if (slideCount < 2) return;
         const timer = setInterval(() => {
-            setCurrentSlide((prev) => (prev + 1) % backgroundImagesList.length);
+            setCurrentSlide((prev) => (prev + 1) % slideCount);
         }, 15000);
         return () => clearInterval(timer);
-    }, []);
+    }, [slideCount]);
+    const visibleSlide = slideCount > 0 ? currentSlide % slideCount : 0;
 
     return (
         <div className="w-full h-full flex flex-col font-sans">
             <GettingStarted />
 
             {/* Hero Section */}
-            <div className="relative w-full min-h-screen flex flex-col justify-center items-center text-center p-8 overflow-hidden">
+            <div className="relative w-full min-h-screen flex flex-col justify-center items-center text-center p-8 overflow-hidden bg-charcoal">
                  {backgroundImagesList.map((img, index) => (
                     <div
                         key={index}
-                        className={`absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${index === currentSlide ? 'opacity-100' : 'opacity-0'
+                        className={`absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${index === visibleSlide ? 'opacity-100' : 'opacity-0'
                             }`}
                         style={{ backgroundImage: `url("${img}")` }}
                     />

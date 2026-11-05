@@ -67,7 +67,11 @@ export function useSeo(meta: SeoMeta | null) {
         upsertTag('meta', 'name', 'description', 'content', resolvedDescription);
         upsertTag('meta', 'property', 'og:title', 'content', resolvedTitle);
         upsertTag('meta', 'property', 'og:description', 'content', resolvedDescription);
-        upsertTag('meta', 'property', 'og:image', 'content', resolvedImage);
+        if (resolvedImage) {
+            upsertTag('meta', 'property', 'og:image', 'content', resolvedImage);
+        } else {
+            removeTag('meta[property="og:image"]');
+        }
 
         // index.html declares width/height/alt for the default share image. Once
         // a page swaps in its own og:image those describe the wrong file, so drop
@@ -81,7 +85,11 @@ export function useSeo(meta: SeoMeta | null) {
         upsertTag('meta', 'property', 'og:site_name', 'content', siteName);
         upsertTag('meta', 'name', 'twitter:title', 'content', resolvedTitle);
         upsertTag('meta', 'name', 'twitter:description', 'content', resolvedDescription);
-        upsertTag('meta', 'name', 'twitter:image', 'content', resolvedImage);
+        if (resolvedImage) {
+            upsertTag('meta', 'name', 'twitter:image', 'content', resolvedImage);
+        } else {
+            removeTag('meta[name="twitter:image"]');
+        }
 
         if (noindex) {
             upsertTag('meta', 'name', 'robots', 'content', 'noindex, nofollow');

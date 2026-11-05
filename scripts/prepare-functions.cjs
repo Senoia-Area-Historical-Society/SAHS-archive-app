@@ -17,12 +17,15 @@
  *
  * Both outputs are committed so the repo stays deployable on its own, and CI
  * regenerates them before every deploy so they cannot go stale in production.
- * Run after `npm run build`.
+ * Run after `npm run build`, with the same SITE_URL and SITE_OG_IMAGE as that
+ * build (scripts/site-url.cjs): esbuild does not see Vite's `define`, so the
+ * deployment's address is baked in here separately.
  */
 
 const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
+const { siteBuildDefines } = require('./site-url.cjs');
 
 const ROOT = path.join(__dirname, '..');
 const SHARED_DIR = path.join(ROOT, 'functions', 'shared');
@@ -64,11 +67,14 @@ function buildShared() {
         target: 'node20',
         format: 'cjs',
         banner: { js: BANNER },
+        define: siteBuildDefines(),
         logLevel: 'warning',
     });
 
     const bytes = fs.statSync(SHARED_OUT).size;
     console.log(`  functions/shared/seo.cjs   ${(bytes / 1024).toFixed(1)} KB`);
+    const { SITE_URL } = require(SHARED_OUT);
+    console.log(`  site address               ${SITE_URL || '(none: set SITE_URL for a deploy)'}`);
 }
 
 function copyShell() {

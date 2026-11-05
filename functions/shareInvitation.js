@@ -75,6 +75,12 @@ exports.sendShareInvitation = onDocumentUpdatedWithAuthContext({
     const museumName = appearance.exists ? appearance.data().museumName : "";
     const emulated = process.env.FUNCTIONS_EMULATOR === "true";
     const apiKey = emulated ? "" : RESEND_API_KEY.value();
+    if (apiKey && !SITE_URL) {
+        // seo.cjs was bundled without SITE_URL (scripts/site-url.cjs), so the
+        // email's only link would be relative and lead nowhere.
+        logger.error(`shareInvitation: functions were built without SITE_URL — not sending invitations for folder ${folderId}`);
+        return;
+    }
 
     for (const to of invitees) {
         const email = buildInvitationEmail({

@@ -29,6 +29,15 @@ concurrency:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+
+    # This deployment's identity, for every step: the build bakes it into the app,
+    # prepare-functions into renderMeta, and the sitemap and list-page scripts read
+    # it back from there. Unset, the build is the neutral one other museums get.
+    # See vite.config.ts and scripts/site-url.cjs.
+    env:
+      SITE_HEAD_FILE: deploy/sahs-head.html
+      SITE_URL: https://archives.senoiahistory.com
+      SITE_OG_IMAGE: /home-street-view.jpg
     
     # 🛡️ Required for OIDC authentication
     permissions:
@@ -55,9 +64,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # Puts SAHS's name and social card in the static <head>; without it the
-          # build is the neutral one other museums get. See vite.config.ts.
-          SITE_HEAD_FILE: deploy/sahs-head.html
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}

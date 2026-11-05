@@ -22,9 +22,12 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const SITE_URL = 'https://archives.senoiahistory.com';
+const { requireSiteUrl } = require('./site-url.cjs');
+// The address the app and renderMeta were built with, so the sitemap cannot disagree with their canonicals.
+const SITE_URL = requireSiteUrl(require('../functions/shared/seo.cjs').SITE_URL, 'The sitemap');
 const DATABASE_ID = 'sahs-archives';
 const OUT_PATH = path.join(__dirname, '..', 'dist', 'sitemap.xml');
+const ROBOTS_PATH = path.join(__dirname, '..', 'dist', 'robots.txt');
 
 /** Public, indexable routes. Must stay in sync with robots.txt. */
 const STATIC_ROUTES = [
@@ -166,6 +169,12 @@ async function main() {
 
     fs.writeFileSync(OUT_PATH, buildSitemap(entries), 'utf8');
     console.log(`Wrote ${entries.length} URLs to ${OUT_PATH}`);
+
+    // robots.txt needs the sitemap's absolute address, which public/ cannot know.
+    const robots = fs.readFileSync(ROBOTS_PATH, 'utf8');
+    if (!/^Sitemap:/m.test(robots)) {
+        fs.writeFileSync(ROBOTS_PATH, `${robots.replace(/\n*$/, '\n')}Sitemap: ${SITE_URL}/sitemap.xml\n`, 'utf8');
+    }
 
     if (dynamicEntries.length === 0) {
         // Surface this as a GitHub Actions annotation rather than a buried log

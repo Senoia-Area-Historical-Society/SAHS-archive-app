@@ -21,6 +21,10 @@ ENV VITE_USE_FIREBASE_EMULATOR=true \
 # `vite build` alone: `tsc -b` follows src/test, which is left out of the context,
 # and type checking is CI's job rather than the image's.
 RUN npx vite build
+# The committed functions/shared/seo.cjs and functions/shell.html are production's,
+# with its address baked in. Rebuild both from this build, which has no SITE_URL,
+# so the image names no other museum's site.
+RUN node scripts/prepare-functions.cjs
 
 # --- The runtime: Java for the emulators, and only what they need ---------------
 FROM node:22-trixie-slim
@@ -42,6 +46,8 @@ RUN node -e "const l=require('/tmp/root-lock.json').packages,v=n=>n+'@'+l['node_
     && npm install --omit=dev --no-package-lock --no-audit --no-fund $(cat /tmp/pins)
 
 COPY --chown=node:node functions/ functions/
+COPY --from=build --chown=node:node /src/functions/shared/seo.cjs functions/shared/seo.cjs
+COPY --from=build --chown=node:node /src/functions/shell.html functions/shell.html
 RUN cd functions && npm ci --omit=dev --no-audit --no-fund
 
 # Download the emulators now, so starting needs no internet.
