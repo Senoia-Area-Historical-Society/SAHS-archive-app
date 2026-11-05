@@ -1,0 +1,30 @@
+# An allowlist, not a blocklist: .env holds a billable Maps key, and this image is
+# meant to be public. A new secret file at the repo root stays out by default.
+*
+
+!docker/
+!functions/
+!public/
+!scripts/set-setup-admins.cjs
+!scripts/set-support-admins.cjs
+!scripts/lib/
+!src/
+!firestore.indexes.json
+!firestore.rules
+!index.html
+!package-lock.json
+!package.json
+!postcss.config.js
+!storage.rules
+!tailwind.config.js
+!tsconfig.app.json
+!tsconfig.json
+!tsconfig.node.json
+!vite.config.ts
+
+**/node_modules
+**/.env*
+**/*.log
+**/*.local
+**/.secret*
+src/test/

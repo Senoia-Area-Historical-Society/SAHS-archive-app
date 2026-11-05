@@ -1,0 +1,39 @@
+{
+  "firestore": [
+    {
+      "database": "sahs-archives",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "hosting": {
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "redirects": [
+      { "source": "/senoia-stories", "destination": "/stories", "type": 301 },
+      { "source": "/figures/:id", "destination": "/items/:id", "type": 301 }
+    ],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "archives",
+      "disallowLegacyRuntimeConfig": true
+    }
+  ],
+  "emulators": {
+    "auth": { "host": "0.0.0.0", "port": 9099 },
+    "firestore": { "host": "0.0.0.0", "port": 8080, "websocketPort": 9150 },
+    "storage": { "host": "0.0.0.0", "port": 9199 },
+    "functions": { "host": "0.0.0.0", "port": 5001 },
+    "hosting": { "host": "0.0.0.0", "port": 5174 },
+    "ui": { "enabled": true, "host": "0.0.0.0", "port": 4000 },
+    "hub": { "host": "0.0.0.0", "port": 4400 },
+    "logging": { "host": "0.0.0.0", "port": 4500 },
+    "singleProjectMode": true
+  }
+}

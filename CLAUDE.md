@@ -25,6 +25,7 @@ claims about *this* app are wrong.
 npm run dev              # Vite dev server
 npm run dev:emulators    # dev server pointed at the Firebase emulators
 npm run demo             # blank archive on all four emulators, for demos — see scripts/demo.cjs
+docker compose up        # the same, needing only Docker, for evaluators — see docs/DOCKER.md
 npm run build            # tsc -b && vite build
 npm run lint             # ESLint (44 pre-existing warnings, 0 errors)
 npm test                 # unit tests — no emulator needed
@@ -159,6 +160,11 @@ code in this repo at all).
 because the functions' Firestore triggers are bound to it. Run the functions
 emulator alongside auth, firestore and storage (`npm run demo` does): a function
 calling a service with no emulator running reaches production.
+
+**The CLI's emulator export skips the named database.** `--export-on-exit` and
+`--import` save Auth and Storage but only the `(default)` Firestore database, so
+adding them to `npm run demo` would keep accounts and files and lose the archive.
+`docker/start.cjs` saves and restores the named database through the emulator's API.
 
 **Two Firestore databases, one Auth instance.** The app talks only to the named
 `sahs-archives` database (`db` in `src/lib/firebase.ts`); the website's default

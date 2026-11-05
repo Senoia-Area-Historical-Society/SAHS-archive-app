@@ -1,0 +1,31 @@
+# Try the archive: `docker compose up`, then open http://localhost:5174.
+# See docs/DOCKER.md.
+services:
+  archive:
+    build: .
+    image: archive-demo
+    environment:
+      DIRECTOR_EMAIL: ${DIRECTOR_EMAIL:-director@examplemuseum.org}
+      SUPPORT_ADMINS: ${SUPPORT_ADMINS:-}
+      ARCHIVE_DATA_DIR: /data
+    # 127.0.0.1 on every port, on purpose. The emulators have no real sign-in — anyone
+    # who can reach them can be anyone — so they must not be open to a venue's Wi-Fi.
+    # The host and container numbers must match: the built app has them hard-coded.
+    ports:
+      - "127.0.0.1:5174:5174" # the archive
+      - "127.0.0.1:4000:4000" # emulator UI
+      - "127.0.0.1:8080:8080" # Firestore
+      - "127.0.0.1:9099:9099" # Auth
+      - "127.0.0.1:9199:9199" # Storage
+      - "127.0.0.1:5001:5001" # Functions
+      - "127.0.0.1:4400:4400" # emulator hub, used by the UI
+      - "127.0.0.1:4500:4500" # emulator logs, used by the UI
+      - "127.0.0.1:9150:9150" # Firestore requests tab, used by the UI
+    volumes:
+      - archive-data:/data
+    # Saving the archive happens on the way out, and Docker's default 10 seconds
+    # before killing a container is not always enough for it.
+    stop_grace_period: 2m
+
+volumes:
+  archive-data:

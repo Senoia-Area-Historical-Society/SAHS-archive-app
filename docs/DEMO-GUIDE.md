@@ -8,6 +8,13 @@ rehearsals, including the February 2027 demonstration.
 and starts empty each time. Nothing you do in the demo can change
 archives.senoiahistory.com, and it costs nothing.
 
+> **On a laptop with Docker, or handing this to another museum?** See
+> [DOCKER.md](DOCKER.md): it needs only Docker, not WSL, Node or Java, and the same
+> walkthrough below applies. Two differences: it remembers your work until you run
+> `docker compose down -v`, and it lists no support administrators. To show the
+> **Support access** box, run this in PowerShell before `docker compose up`:
+> `$env:SUPPORT_ADMINS="catnolan@senoiahistory.com,jeremywarren@senoiahistory.com"`
+
 ---
 
 ## Quick start

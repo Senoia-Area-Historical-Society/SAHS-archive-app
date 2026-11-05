@@ -22,6 +22,11 @@ The official digital archives platform for the **Senoia Area Historical Society 
 - **Icons**: Lucide React
 - **AI**: Google Generative AI (Gemini)
 
+## 🐳 Try it with Docker
+
+Run a private, blank copy for your own museum with `docker compose up`, with no
+Firebase account needed. See [docs/DOCKER.md](docs/DOCKER.md).
+
 ## 📦 Development
 
 ### Prerequisites
