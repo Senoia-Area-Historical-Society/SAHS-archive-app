@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — plain CommonJS, deliberately untyped and import-free so this
 // test does not drag firebase-functions into the site build. See the module header.
-import { CACHE_CONTROL, virtualCollection, isPublicFlag } from '../../functions/renderMetaRules.js';
+import { CACHE_CONTROL, virtualCollection, isPublicFlag, siteNameFrom } from '../../functions/renderMetaRules.js';
 
 /**
  * The bugs these guard: renderMeta answered `/collections/on-loan` — linked from
@@ -44,5 +44,17 @@ describe('CACHE_CONTROL', () => {
         const swr = Number(/stale-while-revalidate=(\d+)/.exec(CACHE_CONTROL)?.[1] ?? 0);
         expect(sMaxAge).toBeLessThanOrEqual(300);
         expect(sMaxAge + swr).toBeLessThanOrEqual(600);
+    });
+});
+
+describe('siteNameFrom', () => {
+    it('uses the name the museum stored', () => {
+        expect(siteNameFrom({ museumName: 'Example Museum' }, 'Fallback')).toBe('Example Museum');
+    });
+
+    it('falls back when there is no usable name', () => {
+        for (const appearance of [null, {}, { museumName: '' }, { museumName: '  ' }, { museumName: 7 }]) {
+            expect(siteNameFrom(appearance, 'Fallback')).toBe('Fallback');
+        }
     });
 });

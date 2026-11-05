@@ -106,7 +106,7 @@ export function BulkQRPrint() {
                     <body>
             `;
 
-            const origin = window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin;
+            const origin = window.location.origin;
 
             for (const item of items) {
                 const url = `${origin}/items/${item.id}`;
@@ -125,7 +125,7 @@ export function BulkQRPrint() {
                         <img src="${dataUrl}" />
                         <h1>${label}</h1>
                         ${subLabel ? `<p>${subLabel}</p>` : ''}
-                        ${!isSmall ? `<p style="margin-top: 20px; font-size: 12px; color: #999;">${settings.museumShortName || 'SAHS'} Archive Tracking System</p>` : ''}
+                        ${!isSmall ? `<p style="margin-top: 20px; font-size: 12px; color: #999;">${settings.museumShortName} Archive Tracking System</p>` : ''}
                     </div>
                 `;
             }

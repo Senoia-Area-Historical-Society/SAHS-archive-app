@@ -16,7 +16,7 @@ export function BrowseMap() {
 
     useSeo(buildPageSeo(
         'Map Discovery',
-        'Explore the archive geographically — historic photographs, buildings and documents plotted across Senoia and Coweta County, Georgia.',
+        'Explore the archive geographically — historic photographs, buildings and documents plotted on a map.',
         '/map',
         settings.museumName
     ));
@@ -81,7 +81,7 @@ function MapBrowser() {
                     Map View
                 </h1>
                 <p className="text-xl text-charcoal-light max-w-3xl leading-relaxed">
-                    Explore the history of {settings.museumShortName || "Senoia"} through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
+                    Explore the history of {settings.museumShortName} through space. This map displays archive items, historic figures, and organizations based on their historical geographic locations.
                 </p>
             </div>
 

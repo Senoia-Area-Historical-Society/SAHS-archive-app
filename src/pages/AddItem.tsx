@@ -1240,7 +1240,7 @@ export function AddItem() {
                                 </div>
                             <div>
                                 <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Display Title / Name *</label>
-                                <input required type="text" name="title" id="title" placeholder={itemType === 'Historic Figure' ? "e.g. John Doe" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "Descriptive title for the archive"} className="w-full bg-white border border-tan-light/50 px-4 py-4 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-lg font-medium" />
+                                <input required type="text" name="title" id="title" placeholder={itemType === 'Historic Figure' ? "e.g. John Doe" : itemType === 'Historic Organization' ? "e.g. Main Street General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "Descriptive title for the archive"} className="w-full bg-white border border-tan-light/50 px-4 py-4 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-lg font-medium" />
                             </div>
 
                             {itemType === 'Historic Organization' && (
@@ -1300,7 +1300,7 @@ export function AddItem() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <div>
                                         <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
-                                        <input type="text" name="historical_address" id="historical_address" placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                        <input type="text" name="historical_address" id="historical_address" placeholder="e.g. 123 Main St, Springfield" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                     </div>
                                     {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                         <div>
@@ -1419,12 +1419,12 @@ export function AddItem() {
                                                     <div className="relative">
                                                         <select required name="physical_location" id="physical_location" value={physicalLocationValue} onChange={(e) => setPhysicalLocationValue(e.target.value)} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                             <option value="" disabled>Choose a location…</option>
-                                                            <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
+                                                            <option value={`${settings.museumShortName} (Physical Archive)`}>{settings.museumShortName} (Physical Archive)</option>
                                                             <option value="Digital Archive">Digital Archive</option>
                                                         </select>
                                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
                                                     </div>
-                                                    {(physicalLocationValue === `${settings.museumShortName || 'SAHS'} (Physical Archive)` || physicalLocationValue === '') && (
+                                                    {(physicalLocationValue === `${settings.museumShortName} (Physical Archive)` || physicalLocationValue === '') && (
                                                         <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                                             <label htmlFor="archive_specific_location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Specific Location in Archive</label>
                                                             <input type="text" name="archive_specific_location" id="archive_specific_location" placeholder="e.g. Filing Cabinet 3, Drawer B, Folder 12" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
@@ -1510,7 +1510,7 @@ export function AddItem() {
                                 <>
                                     <div>
                                         <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Code</label>
-                                        <input type="text" name="archive_reference" id="archive_reference" placeholder="e.g. SAHS-2024-001" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                                        <input type="text" name="archive_reference" id="archive_reference" placeholder="e.g. ARC-2024-001" className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
                                     </div>
                                     <div>
                                         <label htmlFor="identifier" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Reference</label>
@@ -1521,7 +1521,7 @@ export function AddItem() {
                             {(itemType !== 'Historic Figure' && itemType !== 'Historic Organization') && (
                                 <div>
                                     <label htmlFor="location" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Origin Location</label>
-                                    <input type="text" name="location" id="location" placeholder="e.g. Senoia, Main St." className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
+                                    <input type="text" name="location" id="location" placeholder="e.g. Springfield, Main St." className="w-full bg-cream/30 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all text-sm" />
                                 </div>
                             )}
                             <div>
@@ -2510,7 +2510,7 @@ export function OralHistoryAddForm({
                                 type="text" 
                                 name="archive_reference" 
                                 id="archive_reference" 
-                                placeholder="e.g. SAHS-OH-1995-001" 
+                                placeholder="e.g. OH-1995-001" 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2522,7 +2522,7 @@ export function OralHistoryAddForm({
                                 type="text" 
                                 name="subject" 
                                 id="subject" 
-                                placeholder="e.g. WWII, Senoia High School, Farming" 
+                                placeholder="e.g. WWII, Local High School, Farming" 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2534,7 +2534,7 @@ export function OralHistoryAddForm({
                                 type="text" 
                                 name="creator" 
                                 id="creator" 
-                                defaultValue={settings.museumName || "Senoia Area Historical Society"} 
+                                defaultValue={settings.museumName} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2546,7 +2546,7 @@ export function OralHistoryAddForm({
                                 type="text" 
                                 name="publisher" 
                                 id="publisher" 
-                                defaultValue={settings.museumName || "Senoia Area Historical Society"} 
+                                defaultValue={settings.museumName} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -2558,7 +2558,7 @@ export function OralHistoryAddForm({
                                 type="text" 
                                 name="rights" 
                                 id="rights" 
-                                defaultValue={`Copyright ${settings.museumName || "Senoia Area Historical Society"}. All rights reserved.`} 
+                                defaultValue={`Copyright ${settings.museumName}. All rights reserved.`} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>

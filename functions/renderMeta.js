@@ -5,7 +5,7 @@
  * only a generic title and no per-page metadata. Googlebot executes JavaScript
  * and eventually sees the real tags; social scrapers (Facebook, iMessage, Slack,
  * LinkedIn, WhatsApp, X) do not. Every shared archive link therefore rendered as
- * "Senoia Area Historical Society | Digital Archive" with no image.
+ * "<museum name> | Digital Archive" with no image.
  *
  * This function intercepts the detail routes, reads the Firestore document, and
  * injects real title/description/og tags plus JSON-LD into the shell before
@@ -26,10 +26,32 @@ const { logger } = require('firebase-functions');
 const { getFirestore } = require('firebase-admin/firestore');
 
 const seo = require('./shared/seo.cjs');
-const { CACHE_CONTROL, virtualCollection, isPublicFlag } = require('./renderMetaRules');
+const { CACHE_CONTROL, virtualCollection, isPublicFlag, siteNameFrom } = require('./renderMetaRules');
 
 const DATABASE_ID = 'sahs-archives';
-const SITE_NAME = 'Senoia Area Historical Society';
+
+/** Long enough to spare a read per render, short enough that a rename shows soon. */
+const SITE_NAME_TTL_MS = 5 * 60 * 1000;
+let cachedSiteName = null;
+let cachedSiteNameAt = 0;
+
+function rememberSiteName(name) {
+    cachedSiteName = name;
+    cachedSiteNameAt = Date.now();
+    return name;
+}
+
+/** The museum's own name, the one the app shows. Never fails a render over it. */
+async function readSiteName(db) {
+    if (cachedSiteName && Date.now() - cachedSiteNameAt < SITE_NAME_TTL_MS) return cachedSiteName;
+    try {
+        const snap = await db.collection('site_settings').doc('appearance').get();
+        return rememberSiteName(siteNameFrom(snap.exists ? snap.data() : null, seo.DEFAULT_SITE_NAME));
+    } catch (err) {
+        logger.warn('renderMeta: could not read the museum name', { error: err.message });
+        return cachedSiteName || seo.DEFAULT_SITE_NAME;
+    }
+}
 
 /** Route prefix -> how to load and describe that kind of document. */
 const ROUTES = {
@@ -70,11 +92,11 @@ const RESERVED_SEGMENTS = new Set(['add', 'edit', 'new']);
  * app deliberately hides — and make it trivially scrapable. Private documents get
  * the generic site description and nothing document-specific.
  */
-const PRIVATE_META = {
-    title: `${SITE_NAME} | Digital Archive`,
+const privateMeta = (siteName) => ({
+    title: `${siteName} | Digital Archive`,
     description: seo.DEFAULT_DESCRIPTION,
     noindex: true,
-};
+});
 
 /**
  * An item is hidden if it is private itself or belongs to a private collection —
@@ -260,11 +282,12 @@ exports.renderMeta = onRequest(
 
         try {
             const db = getFirestore(DATABASE_ID);
+            const siteName = await readSiteName(db);
 
             // /collections/on-loan and friends have no document; see
             // VIRTUAL_COLLECTIONS. They used to fall through to the 404 below.
             const virtual = parsed.key === 'collections'
-                ? virtualCollection(parsed.id, SITE_NAME)
+                ? virtualCollection(parsed.id, siteName)
                 : null;
             const snap = virtual
                 ? null
@@ -276,7 +299,7 @@ exports.renderMeta = onRequest(
                 // 200-status blank page.
                 const head = renderHead(
                     {
-                        title: `Page Not Found | ${SITE_NAME}`,
+                        title: `Page Not Found | ${siteName}`,
                         description: 'The page you are looking for could not be found in the digital archive.',
                         noindex: true,
                     },
@@ -297,15 +320,15 @@ exports.renderMeta = onRequest(
             else hidden = data.is_private === true;
 
             if (hidden) {
-                res.status(200).send(injectIntoShell(shell, renderHead(PRIVATE_META, [])));
+                res.status(200).send(injectIntoShell(shell, renderHead(privateMeta(siteName), [])));
                 return;
             }
 
-            const meta = parsed.route.buildSeo(data, SITE_NAME);
+            const meta = parsed.route.buildSeo(data, siteName);
 
             const jsonLd = [];
             if (!meta.noindex) {
-                jsonLd.push(parsed.route.buildJsonLd(data, SITE_NAME));
+                jsonLd.push(parsed.route.buildJsonLd(data, siteName));
                 jsonLd.push(
                     seo.buildBreadcrumbJsonLd([
                         { name: 'Home', path: '/' },

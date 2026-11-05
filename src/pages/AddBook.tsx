@@ -570,7 +570,7 @@ export function AddBook() {
                                     id="title"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="e.g. History of Senoia (1860-1920)"
+                                    placeholder="e.g. History of Springfield (1860-1920)"
                                     className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 focus:border-tan transition-all font-sans text-charcoal font-medium text-sm"
                                 />
                             </div>

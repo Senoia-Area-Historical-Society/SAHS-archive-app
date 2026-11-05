@@ -1,3 +1,4 @@
+import { useAppearance } from '../contexts/AppearanceContext';
 import { useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
@@ -23,6 +24,7 @@ function locationsOf(item: StagedTagItem): string[] {
 }
 
 export function TaggingHub() {
+    const { settings } = useAppearance();
     const { user } = useAuth();
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     
@@ -133,7 +135,7 @@ export function TaggingHub() {
                     setMessage({ type: 'error', text: "Location code not recognized." });
                 }
             } else {
-                setMessage({ type: 'error', text: "Invalid QR code format. Please scan a SAHS tracking code or Item/Book URL." });
+                setMessage({ type: 'error', text: `Invalid QR code format. Please scan a ${settings.museumShortName} tracking code or Item/Book URL.` });
             }
         } catch (error) {
             console.error("Scan processing error:", error);

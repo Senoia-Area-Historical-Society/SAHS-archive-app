@@ -100,7 +100,7 @@ copyShell();
 const shared = require(SHARED_OUT);
 const probe = shared.buildItemSeo(
     { id: 'probe', title: 'Probe', description: 'Probe item.', item_type: 'Artifact' },
-    'Senoia Area Historical Society'
+    'Probe Museum'
 );
 if (!probe.title || !probe.canonical) {
     throw new Error('Bundled seo module did not produce a usable result.');

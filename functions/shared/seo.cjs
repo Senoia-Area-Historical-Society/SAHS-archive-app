@@ -47,8 +47,8 @@ module.exports = __toCommonJS(stdin_exports);
 
 // src/lib/seo.ts
 var SITE_URL = "https://archives.senoiahistory.com";
-var DEFAULT_SITE_NAME = "Senoia Area Historical Society";
-var DEFAULT_DESCRIPTION = "Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia.";
+var DEFAULT_SITE_NAME = "Digital Archive";
+var DEFAULT_DESCRIPTION = "Explore this digital archive of photographs, documents, oral histories, and artifacts.";
 var DEFAULT_OG_IMAGE = `${SITE_URL}/home-street-view.jpg`;
 var DESCRIPTION_MAX = 155;
 var TITLE_MAX = 60;
@@ -72,7 +72,7 @@ function firstNonEmpty(...values) {
   }
   return void 0;
 }
-function describeItem(item) {
+function describeItem(item, siteName = DEFAULT_SITE_NAME) {
   const described = firstNonEmpty(item.description, item.transcription);
   if (described) return truncate(described, DESCRIPTION_MAX);
   const parts = [
@@ -82,7 +82,7 @@ function describeItem(item) {
     item.historical_address ? `at ${item.historical_address}` : void 0
   ].filter(Boolean);
   return truncate(
-    `${parts.join(" ")} from the ${DEFAULT_SITE_NAME} archive.`,
+    `${parts.join(" ")} from the ${siteName} archive.`,
     DESCRIPTION_MAX
   );
 }
@@ -90,7 +90,7 @@ function buildItemSeo(item, siteName = DEFAULT_SITE_NAME) {
   const name = firstNonEmpty(item.title, item.full_name, item.org_name) ?? "Archive Item";
   return {
     title: formatTitle(name, siteName),
-    description: describeItem(item),
+    description: describeItem(item, siteName),
     canonical: item.id ? absoluteUrl(`/items/${item.id}`) : void 0,
     image: firstNonEmpty(item.featured_image_url, item.file_urls?.[0]) ?? DEFAULT_OG_IMAGE,
     type: "article",
@@ -197,13 +197,7 @@ function buildOrganizationJsonLd(siteName = DEFAULT_SITE_NAME) {
     name: siteName,
     url: SITE_URL,
     logo: `${SITE_URL}/logo2.png`,
-    description: "The Senoia Area Historical Society preserves and shares the history of Senoia and Coweta County, Georgia through a digital archive of photographs, documents, artifacts and oral histories.",
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: "Senoia",
-      addressRegion: "GA",
-      addressCountry: "US"
-    }
+    description: `${siteName} preserves and shares local history through a digital archive of photographs, documents, artifacts and oral histories.`
   };
 }
 function buildWebSiteJsonLd(siteName = DEFAULT_SITE_NAME) {
@@ -236,7 +230,7 @@ function buildItemJsonLd(item, siteName = DEFAULT_SITE_NAME) {
     "@context": "https://schema.org",
     "@type": type,
     name: item.title,
-    description: describeItem(item),
+    description: describeItem(item, siteName),
     url,
     image,
     identifier: item.archive_reference || item.identifier,

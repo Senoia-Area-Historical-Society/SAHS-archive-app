@@ -1053,7 +1053,7 @@ export function LocationDetail() {
         
         return list.map(item => ({
             key: item.id || '',
-            qrValue: `${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`,
+            qrValue: `${window.location.origin}/items/${item.id}`,
             title: item.title,
             subtitle: item.artifact_id || item.id || ''
         }));

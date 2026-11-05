@@ -19,7 +19,7 @@ export function Collections() {
 
     useSeo(buildPageSeo(
         'Collections',
-        'Browse curated collections of photographs, documents and artifacts from the Senoia and Coweta County historical archive.',
+        `Browse curated collections of photographs, documents and artifacts from the ${settings.museumName} archive.`,
         '/collections',
         settings.museumName
     ));
@@ -76,7 +76,7 @@ function CollectionsBrowser() {
                     {
                         id: 'on-loan',
                         title: 'Items on Loan',
-                        description: `A curated showcase of items currently on loan to the ${settings.museumName || "Senoia Area Historical Society"} for temporary exhibition.`,
+                        description: `A curated showcase of items currently on loan to the ${settings.museumName} for temporary exhibition.`,
                         is_private: false,
                         created_at: new Date(0).toISOString()
                     }

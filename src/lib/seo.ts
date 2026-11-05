@@ -11,10 +11,11 @@ import type { ArchiveItem, Collection, LibraryBook } from '../types/database';
 
 export const SITE_URL = 'https://archives.senoiahistory.com';
 
-export const DEFAULT_SITE_NAME = 'Senoia Area Historical Society';
+/** Only until a museum's name is known. Real names come from site_settings/appearance. */
+export const DEFAULT_SITE_NAME = 'Digital Archive';
 
 export const DEFAULT_DESCRIPTION =
-    "Explore the Senoia Area Historical Society's digital archive: photographs, documents, oral histories, and artifacts documenting the history of Senoia and Coweta County, Georgia.";
+    'Explore this digital archive of photographs, documents, oral histories, and artifacts.';
 
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/home-street-view.jpg`;
 
@@ -52,7 +53,7 @@ export function absoluteUrl(path: string): string {
     return `${SITE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-/** "Page Title | Senoia Area Historical Society", trimming the page part if long. */
+/** "Page Title | Museum Name", trimming the page part if long. */
 export function formatTitle(pageTitle: string | undefined, siteName: string): string {
     if (!pageTitle || pageTitle.trim() === '') return siteName;
     return `${truncate(pageTitle, TITLE_MAX)} | ${siteName}`;
@@ -72,7 +73,7 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string | un
  * Dublin Core fields so that items with sparse metadata still get something
  * more useful than the site default.
  */
-export function describeItem(item: Partial<ArchiveItem>): string {
+export function describeItem(item: Partial<ArchiveItem>, siteName: string = DEFAULT_SITE_NAME): string {
     const described = firstNonEmpty(item.description, item.transcription);
     if (described) return truncate(described, DESCRIPTION_MAX);
 
@@ -84,7 +85,7 @@ export function describeItem(item: Partial<ArchiveItem>): string {
     ].filter(Boolean);
 
     return truncate(
-        `${parts.join(' ')} from the ${DEFAULT_SITE_NAME} archive.`,
+        `${parts.join(' ')} from the ${siteName} archive.`,
         DESCRIPTION_MAX
     );
 }
@@ -97,7 +98,7 @@ export function buildItemSeo(
 
     return {
         title: formatTitle(name, siteName),
-        description: describeItem(item),
+        description: describeItem(item, siteName),
         canonical: item.id ? absoluteUrl(`/items/${item.id}`) : undefined,
         image: firstNonEmpty(item.featured_image_url, item.file_urls?.[0]) ?? DEFAULT_OG_IMAGE,
         type: 'article',

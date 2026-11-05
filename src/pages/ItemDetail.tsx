@@ -1864,7 +1864,7 @@ export function ItemDetail() {
                             </div>
                             <h4 className="font-serif font-bold text-lg text-charcoal">Join the Historical Circle</h4>
                             <p className="text-charcoal/60 font-sans text-xs max-w-sm leading-relaxed">
-                                Only verified, active members of the {settings.museumName || 'Senoia Area Historical Society'} can post comments and contribute transcript annotations. Visitors are welcome to read existing comments.
+                                Only verified, active members of the {settings.museumName} can post comments and contribute transcript annotations. Visitors are welcome to read existing comments.
                             </p>
                             <div className="flex gap-4 mt-2">
                                 <Link
@@ -1888,7 +1888,7 @@ export function ItemDetail() {
                     <div className="bg-white border border-tan-light/50 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
                         <div className="bg-white p-2 rounded-xl border border-tan-light/20 shadow-sm shrink-0">
                             <QRCodeDisplay 
-                                value={`${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`} 
+                                value={`${window.location.origin}/items/${item.id}`} 
                                 label={item.title} 
                                 subLabel={item.artifact_id || item.id}
                                 size={140}
@@ -2008,7 +2008,7 @@ export function ItemDetail() {
                             <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    placeholder="e.g. Senoia Families, Civil War Documents"
+                                    placeholder="e.g. Local Families, Civil War Documents"
                                     value={newFolderName}
                                     onChange={e => setNewFolderName(e.target.value)}
                                     className="flex-1 bg-white border border-tan-light/50 p-2.5 rounded-xl text-sm outline-none focus:border-tan font-sans"
@@ -2369,7 +2369,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>${settings.contentBlocks?.storiesTitle || 'Senoia Stories'} - Transcription - ${narratorName}</title>
+                    <title>${settings.contentBlocks?.storiesTitle || 'Community Stories'} - Transcription - ${narratorName}</title>
                     <style>
                         @page {
                             margin: 20mm;
@@ -2443,7 +2443,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                 <body>
                     <div class="header">
                         <div class="header-left">
-                            <h1>${settings.contentBlocks?.storiesTitle || 'Senoia Stories'} Oral Histories</h1>
+                            <h1>${settings.contentBlocks?.storiesTitle || 'Community Stories'} Oral Histories</h1>
                             <p>Official Archive Transcription</p>
                         </div>
                         <div style="font-size: 12px; color: #8c7662; font-family: monospace;">
@@ -2466,7 +2466,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                         </div>
                         <div class="meta-item">
                             <strong>Publisher</strong>
-                            <span>${settings.museumName || 'Senoia Area Historical Society'}</span>
+                            <span>${settings.museumName}</span>
                         </div>
                     </div>
                     
@@ -2475,7 +2475,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                     </div>
                     
                     <div class="footer">
-                        ${settings.museumName || 'Senoia Area Historical Society'} Archive &bull; Copyright &copy; All rights reserved. &bull; Printed on ${new Date().toLocaleDateString()}
+                        ${settings.museumName} Archive &bull; Copyright &copy; All rights reserved. &bull; Printed on ${new Date().toLocaleDateString()}
                     </div>
                     
                     <script>

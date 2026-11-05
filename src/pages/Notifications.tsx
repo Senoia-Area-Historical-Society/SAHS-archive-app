@@ -26,7 +26,7 @@ export function Notifications() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        document.title = `Moderation Notifications | ${settings.museumShortName || 'SAHS'} Digital Archive`;
+        document.title = `Moderation Notifications | ${settings.museumShortName} Digital Archive`;
     }, [settings.museumShortName]);
 
     // Subscribe to notifications collection in real-time
@@ -129,7 +129,7 @@ export function Notifications() {
                 </div>
                 <h1 className="text-3xl font-serif font-bold text-charcoal">Access Denied</h1>
                 <p className="text-charcoal/70 font-sans">
-                    You must be a {settings.museumName || 'Senoia Area Historical Society'} curator or administrator to moderate comments.
+                    You must be a {settings.museumName} curator or administrator to moderate comments.
                 </p>
                 <Link
                     to="/"

@@ -18,8 +18,8 @@ export function SenoiaStories() {
     const { settings, loading } = useAppearance();
 
     useSeo(buildPageSeo(
-        settings.contentBlocks?.storiesTitle || 'Senoia Stories',
-        'Listen to oral histories from the Senoia area — first-hand accounts and recorded memories preserved by the Senoia Area Historical Society.',
+        settings.contentBlocks?.storiesTitle || 'Community Stories',
+        `Listen to oral histories — first-hand accounts and recorded memories preserved by the ${settings.museumName}.`,
         '/stories',
         settings.museumName
     ));
@@ -35,7 +35,11 @@ export function SenoiaStories() {
 function StoriesBrowser() {
     const { isSAHSUser, realIsAdmin } = useAuth();
     const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
-    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
+    const storiesTitle = settings.contentBlocks?.storiesTitle || 'Community Stories';
+    // SAHS has never uploaded a logo: it shows this image, bundled with the app,
+    // which spells out its own project's name. Nobody else should get it.
+    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl
+        || (storiesTitle === 'Senoia Stories' ? '/senoia_stories_logo.png' : '');
     const [logoUploading, setLogoUploading] = useState(false);
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +52,7 @@ function StoriesBrowser() {
             const url = await getDownloadURL(storageRef);
             await updateContentBlock('storiesLogoUrl', url);
         } catch (err) {
-            console.error('Failed to upload Senoia Stories logo:', err);
+            console.error('Failed to upload stories logo:', err);
             alert('Upload failed. Please try again.');
         } finally {
             setLogoUploading(false);
@@ -203,7 +207,7 @@ function StoriesBrowser() {
                     <h1 className="text-4xl sm:text-5xl lg:text-7xl font-serif font-bold leading-tight tracking-tight text-white">
                         <EditableText
                             textKey="storiesTitle"
-                            defaultText="Senoia Stories"
+                            defaultText="Community Stories"
                             containerType="span"
                             className=""
                         />
@@ -211,7 +215,7 @@ function StoriesBrowser() {
                     
                     <EditableText
                         textKey="storiesDesc"
-                        defaultText="A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped the Senoia Area community over the decades."
+                        defaultText="A collection of oral history interviews dedicated to preserving the voices, memories, and personal histories that shaped our community over the decades."
                         multiline={true}
                         containerType="p"
                         className="text-base sm:text-lg text-cream font-sans max-w-xl leading-relaxed opacity-70"
@@ -233,14 +237,14 @@ function StoriesBrowser() {
 
                 {/* Hero Right Content: Logo */}
                 <div className="w-full lg:w-auto shrink-0 relative z-10 flex flex-col justify-center lg:justify-end items-center gap-3 animate-in fade-in duration-1000">
-                    <div className="relative group bg-white rounded-3xl p-5 border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
+                    {storiesLogoUrl && <div className="relative group bg-white rounded-3xl p-5 border border-white/20 shadow-2xl flex items-center justify-center overflow-hidden">
                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                         <img 
-                            src={storiesLogoUrl || "/senoia_stories_logo.png"} 
-                            alt="Senoia Stories Logo" 
+                            src={storiesLogoUrl} 
+                            alt={`${storiesTitle} Logo`} 
                             className="h-32 sm:h-40 lg:h-44 w-auto object-contain opacity-95 transition-all duration-300 transform group-hover:scale-105"
                         />
-                    </div>
+                    </div>}
                     {realIsAdmin && isAppearanceEditMode && (
                         <label className="cursor-pointer flex items-center gap-2 text-xs font-bold text-tan border border-tan/30 bg-tan/10 hover:bg-tan/20 px-3 py-1.5 rounded-full transition-all">
                             {logoUploading ? 'Uploading...' : <><Upload size={12} /> Change Logo</>}
@@ -271,7 +275,7 @@ function StoriesBrowser() {
                             Coming Soon
                         </h2>
                         <p className="text-base text-charcoal/70 font-sans max-w-md mx-auto leading-relaxed">
-                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the {settings.museumShortName || 'Senoia Area'} community over the decades. 
+                            We are currently gathering, transcribing, and preserving the voices, memories, and personal histories of the residents who built and shaped the {settings.museumShortName} community over the decades. 
                         </p>
                         <p className="text-sm text-tan font-sans font-medium italic pt-2">
                             Check back soon to listen to our first published interviews.
