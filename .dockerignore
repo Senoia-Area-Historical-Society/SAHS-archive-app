@@ -5,7 +5,9 @@
 !docker/
 !functions/
 !public/
+!scripts/prepare-functions.cjs
 !scripts/set-setup-admins.cjs
+!scripts/site-url.cjs
 !scripts/set-support-admins.cjs
 !scripts/lib/
 !src/
