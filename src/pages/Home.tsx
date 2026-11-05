@@ -4,6 +4,7 @@ import { Search, Library, Users, FileText, Building, Box, Linkedin, Instagram, F
 import { QRCodeSVG } from 'qrcode.react';
 import { useAppearance } from '../contexts/AppearanceContext';
 import { EditableText } from '../components/EditableText';
+import { GettingStarted } from '../components/GettingStarted';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo, DEFAULT_DESCRIPTION } from '../lib/seo';
 import { useJsonLd } from '../hooks/useJsonLd';
@@ -66,6 +67,8 @@ export function Home() {
 
     return (
         <div className="w-full h-full flex flex-col font-sans">
+            <GettingStarted />
+
             {/* Hero Section */}
             <div className="relative w-full min-h-screen flex flex-col justify-center items-center text-center p-8 overflow-hidden">
                  {backgroundImagesList.map((img, index) => (
