@@ -29,8 +29,8 @@ export function MemberSetupWizard() {
     const [step, setStep] = useState(1);
     const [isSaving, setIsSaving] = useState(false);
 
-    const museumName = settings?.museumName || 'Senoia Area Historical Society';
-    const museumShortName = settings?.museumShortName || 'SAHS';
+    const museumName = settings.museumName;
+    const museumShortName = settings.museumShortName;
 
     if (!isMemberWizardOpen) return null;
 

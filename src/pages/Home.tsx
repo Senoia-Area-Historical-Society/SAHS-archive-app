@@ -40,7 +40,7 @@ export function Home() {
     
     const copyLink = async () => {
         try {
-            await navigator.clipboard.writeText(settings.contentBlocks?.qrValue || 'https://sahs-archives.web.app');
+            await navigator.clipboard.writeText(settings.contentBlocks?.qrValue || window.location.origin);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -97,7 +97,7 @@ export function Home() {
 
                     <EditableText
                         textKey="homeIntro"
-                        defaultText="Explore our digital archive of historical documents, photographs, and stories that chronicle the heritage of the Senoia area."
+                        defaultText="Explore our digital archive of historical documents, photographs, and stories that chronicle the heritage of our community."
                         multiline={true}
                         containerType="p"
                         className="text-lg md:text-xl text-cream/90 max-w-3xl mx-auto leading-relaxed mb-16 font-medium"
@@ -204,7 +204,7 @@ export function Home() {
                             />
                             <EditableText
                                 textKey="exploreDocDesc"
-                                defaultText="Dive into primary sources including letters, ledgers, meeting minutes, and local government records. These documents offer a firsthand look at the daily life, governance, and development of Senoia throughout the decades."
+                                defaultText="Dive into primary sources including letters, ledgers, meeting minutes, and local government records. These documents offer a firsthand look at the daily life, governance, and development of our community throughout the decades."
                                 multiline={true}
                                 containerType="p"
                                 className="text-charcoal-light leading-relaxed"
@@ -223,7 +223,7 @@ export function Home() {
                             />
                             <EditableText
                                 textKey="exploreFigDesc"
-                                defaultText="Read about the individuals who have left a lasting impact on our community. Discover the history behind the names of local landmarks and the pioneers who built Senoia."
+                                defaultText="Read about the individuals who have left a lasting impact on our community. Discover the history behind the names of local landmarks and the pioneers who built our community."
                                 multiline={true}
                                 containerType="p"
                                 className="text-charcoal-light leading-relaxed"
@@ -261,7 +261,7 @@ export function Home() {
                             />
                             <EditableText
                                 textKey="exploreArtDesc"
-                                defaultText="Our collection of physical artifacts captures the material history of Senoia. From textiles and furniture to ceramics and historical memorabilia."
+                                defaultText="Our collection of physical artifacts captures the material history of our community. From textiles and furniture to ceramics and historical memorabilia."
                                 multiline={true}
                                 containerType="p"
                                 className="text-charcoal-light leading-relaxed"
@@ -365,7 +365,7 @@ export function Home() {
                         </div>
                         <EditableText
                             textKey="homeShareTitle"
-                            defaultText="Help Us Spread the&#10;History of Senoia"
+                            defaultText="Help Us Spread the&#10;History"
                             multiline={true}
                             containerType="h2"
                             className="text-4xl md:text-5xl font-serif font-bold text-charcoal mb-6 leading-tight"
@@ -421,8 +421,8 @@ export function Home() {
                             <div className="bg-white p-8 rounded-[2rem] shadow-xl relative z-10 flex flex-col items-center">
                                 <div className="mb-6 p-4 bg-tan/5 rounded-2xl border border-tan/10">
                                     <QRCodeSVG 
-                                        title="QR code linking to the Senoia Area Historical Society digital archive"
-                                        value={settings.contentBlocks?.qrValue || "https://sahs-archives.web.app"} 
+                                        title={`QR code linking to the ${settings.museumName} digital archive`}
+                                        value={settings.contentBlocks?.qrValue || window.location.origin} 
                                         size={200}
                                         level="H"
                                         includeMargin={false}
@@ -431,7 +431,7 @@ export function Home() {
                                 <div className="text-center w-full">
                                     <EditableText
                                         textKey="qrTitle"
-                                        defaultText="SAHS Website"
+                                        defaultText="Archive Website"
                                         containerType="h3"
                                         className="text-lg font-serif font-bold text-charcoal mb-1"
                                     />
@@ -444,7 +444,7 @@ export function Home() {
                                     <div className="mt-1 mb-6">
                                         <EditableText
                                             textKey="qrValue"
-                                            defaultText="https://sahs-archives.web.app"
+                                            defaultText={window.location.origin}
                                             containerType="span"
                                             className="text-[11px] text-tan hover:underline break-all font-mono font-medium block"
                                         />
@@ -492,7 +492,7 @@ export function Home() {
                     />
                     <EditableText
                         textKey="footerCopyrightDesc"
-                        defaultText="All information, documents, photographs, and materials provided on this website are the exclusive property of the Senoia Area Historical Society. All rights are reserved. The materials are made available for personal, educational, and non-commercial research purposes only. Any reproduction, distribution, modification, public display, or commercial use of any photographs, scans, documents, or other content found on this website is strictly prohibited without the express written permission of the Senoia Area Historical Society."
+                        defaultText="All information, documents, photographs, and materials provided on this website are the exclusive property of our organization. All rights are reserved. The materials are made available for personal, educational, and non-commercial research purposes only. Any reproduction, distribution, modification, public display, or commercial use of any photographs, scans, documents, or other content found on this website is strictly prohibited without the express written permission of our organization."
                         multiline={true}
                         containerType="p"
                         className="mb-8 leading-loose max-w-3xl opacity-70"
@@ -506,7 +506,7 @@ export function Home() {
                     />
                     <EditableText
                         textKey="footerAiDesc"
-                        defaultText={"The Senoia Area Historical Society is committed to preserving history. No artificial intelligence (AI) is used to generate, transcribe, alter, or enhance the historical documents, photographs, and metadata within this archive. All historical materials are manually curated, researched, and transcribed by our dedicated curators and volunteers to ensure complete authenticity.\n\nWhile AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from altering the historical records themselves."}
+                        defaultText={"We are committed to preserving history. No artificial intelligence (AI) is used to generate, transcribe, alter, or enhance the historical documents, photographs, and metadata within this archive. All historical materials are manually curated, researched, and transcribed by our dedicated curators and volunteers to ensure complete authenticity.\n\nWhile AI tools were utilized to assist our development team in coding and building the software infrastructure of this website, AI is strictly prohibited from altering the historical records themselves."}
                         multiline={true}
                         containerType="p"
                         className="mb-8 leading-loose max-w-3xl opacity-70"
@@ -514,7 +514,7 @@ export function Home() {
                     <div className="w-12 h-px bg-tan-light opacity-20 mb-8"></div>
                     <EditableText
                         textKey="footerCopyright"
-                        defaultText={`© 2026 ${settings.museumName || 'Senoia Area Historical Society'}. All rights reserved.`}
+                        defaultText={`© 2026 ${settings.museumName}. All rights reserved.`}
                         containerType="p"
                         className="text-cream opacity-50 font-medium tracking-wide"
                     />

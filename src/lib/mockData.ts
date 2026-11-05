@@ -15,7 +15,7 @@ export const mockFigures: Partial<ArchiveItem>[] = [
     {
         id: '1',
         title: 'Dr. John Baggarly',
-        description: 'A prominent physician in the Senoia area during the late 19th century.',
+        description: 'A prominent physician in the area during the late 19th century.',
         date: '1850 - 1920',
         file_urls: ['https://images.unsplash.com/photo-1555529733-0e67056058ab?auto=format&fit=crop&w=800&q=80'],
         created_at: new Date().toISOString()

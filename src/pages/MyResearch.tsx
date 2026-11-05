@@ -889,7 +889,7 @@ export function MyResearch() {
                             <label className="text-[10px] font-black text-tan uppercase tracking-[0.2em] font-sans">Folder Name</label>
                             <input
                                 type="text"
-                                placeholder="e.g. Early Senoia Settlers, Railroad Records"
+                                placeholder="e.g. Early Settlers, Railroad Records"
                                 value={newFolderName}
                                 onChange={e => setNewFolderName(e.target.value)}
                                 className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans"
@@ -1020,7 +1020,7 @@ export function MyResearch() {
                             <div className="flex gap-2">
                                 <input
                                     type="email"
-                                    placeholder="e.g. colleague@senoiahistory.com"
+                                    placeholder="e.g. colleague@example.org"
                                     value={shareEmail}
                                     onChange={e => setShareEmail(e.target.value)}
                                     className="w-full bg-white border border-tan-light/50 p-3 rounded-xl text-sm outline-none focus:border-tan font-sans"

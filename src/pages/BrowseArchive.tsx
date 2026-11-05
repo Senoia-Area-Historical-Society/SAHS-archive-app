@@ -197,7 +197,7 @@ export function BrowseArchive() {
             case 'Oral History':
                 return {
                     title: 'Oral Histories',
-                    description: `Listen and read along with ${filteredItems.length} personal stories from the ${settings.museumShortName || "Senoia"} community`,
+                    description: `Listen and read along with ${filteredItems.length} personal stories from the ${settings.museumShortName} community`,
                     placeholder: 'Search oral histories by narrator, interviewer, tags, or transcript...'
                 };
             default:

@@ -97,14 +97,7 @@ export function buildOrganizationJsonLd(siteName: string = DEFAULT_SITE_NAME): J
         name: siteName,
         url: SITE_URL,
         logo: `${SITE_URL}/logo2.png`,
-        description:
-            'The Senoia Area Historical Society preserves and shares the history of Senoia and Coweta County, Georgia through a digital archive of photographs, documents, artifacts and oral histories.',
-        address: {
-            '@type': 'PostalAddress',
-            addressLocality: 'Senoia',
-            addressRegion: 'GA',
-            addressCountry: 'US',
-        },
+        description: `${siteName} preserves and shares local history through a digital archive of photographs, documents, artifacts and oral histories.`,
     };
 }
 
@@ -163,7 +156,7 @@ export function buildItemJsonLd(
         '@context': 'https://schema.org',
         '@type': type,
         name: item.title,
-        description: describeItem(item),
+        description: describeItem(item, siteName),
         url,
         image,
         identifier: item.archive_reference || item.identifier,

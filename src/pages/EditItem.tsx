@@ -1779,7 +1779,7 @@ export default function EditItem() {
 
                             <div>
                                 <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Display Title / Name *</label>
-                                <input required type="text" name="title" id="title" defaultValue={item.title ?? undefined} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : itemType === 'Historic Organization' ? "e.g. Senoia General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "e.g. William Senoia"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
+                                <input required type="text" name="title" id="title" defaultValue={item.title ?? undefined} placeholder={itemType === 'Document' ? "e.g. 1920 City Council Minutes" : itemType === 'Historic Organization' ? "e.g. Main Street General Store" : itemType === 'Artifact' ? "e.g. Civil War Bayonet" : "e.g. John Doe"} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 focus:border-tan/30 transition-all font-sans" />
                             </div>
 
                             {itemType === 'Historic Organization' ? (
@@ -1948,7 +1948,7 @@ export default function EditItem() {
                                     <div className="grid grid-cols-1 gap-4 mt-4">
                                         <div>
                                             <label htmlFor="historical_address" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Historical Physical Address (For Map View)</label>
-                                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Senoia, GA" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
+                                            <input type="text" name="historical_address" id="historical_address" defaultValue={item.historical_address ?? undefined} placeholder="e.g. 123 Main St, Springfield" className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 text-sm transition-all" />
                                         </div>
                                         {!['Historic Figure', 'Historic Organization'].includes(itemType) && (
                                             <div>
@@ -1956,8 +1956,8 @@ export default function EditItem() {
                                                 <div className="relative">
                                                     <select name="physical_location" id="physical_location" defaultValue={item.physical_location ?? ''} className="w-full bg-white border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:ring-2 focus:ring-tan/20 appearance-none text-sm transition-all">
                                                         <option value="">Not recorded</option>
-                                                        {isUnlisted(item.physical_location, [`${settings.museumShortName || 'SAHS'} (Physical Archive)`, 'Digital Archive']) && <option value={item.physical_location}>{item.physical_location}</option>}
-                                                        <option value={`${settings.museumShortName || 'SAHS'} (Physical Archive)`}>{settings.museumShortName || 'SAHS'} (Physical Archive)</option>
+                                                        {isUnlisted(item.physical_location, [`${settings.museumShortName} (Physical Archive)`, 'Digital Archive']) && <option value={item.physical_location}>{item.physical_location}</option>}
+                                                        <option value={`${settings.museumShortName} (Physical Archive)`}>{settings.museumShortName} (Physical Archive)</option>
                                                         <option value="Digital Archive">Digital Archive</option>
                                                     </select>
                                                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal/40 pointer-events-none" size={16} />
@@ -2026,7 +2026,7 @@ export default function EditItem() {
                             <>
                                 <div>
                                     <label htmlFor="archive_reference" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Filing Code</label>
-                                    <input type="text" name="archive_reference" id="archive_reference" defaultValue={item.archive_reference ?? undefined} placeholder="e.g. SAHS-2024-001" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
+                                    <input type="text" name="archive_reference" id="archive_reference" defaultValue={item.archive_reference ?? undefined} placeholder="e.g. ARC-2024-001" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-2.5 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm" />
                                 </div>
                                 <div>
                                     <label htmlFor="identifier" className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider mb-2">Archive Reference</label>
@@ -2335,7 +2335,7 @@ export default function EditItem() {
                         <Camera size={14} /> Museum Tracking (QR)
                     </p>
                     <QRCodeDisplay 
-                        value={`${window.location.hostname === 'localhost' ? 'https://sahs-archives.web.app' : window.location.origin}/items/${item.id}`} 
+                        value={`${window.location.origin}/items/${item.id}`} 
                         label={item.title} 
                         subLabel={item.artifact_id || item.id}
                         size={140}
@@ -3066,7 +3066,7 @@ export function OralHistoryEditForm({
                                 name="archive_reference" 
                                 id="archive_reference" 
                                 defaultValue={item.archive_reference || ""} 
-                                placeholder="e.g. SAHS-OH-1995-001" 
+                                placeholder="e.g. OH-1995-001" 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -3079,7 +3079,7 @@ export function OralHistoryEditForm({
                                 name="subject" 
                                 id="subject" 
                                 defaultValue={item.subject || ""} 
-                                placeholder="e.g. WWII, Senoia High School, Farming" 
+                                placeholder="e.g. WWII, Local High School, Farming" 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -3091,7 +3091,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="creator" 
                                 id="creator" 
-                                defaultValue={item.creator || settings.museumName || "Senoia Area Historical Society"} 
+                                defaultValue={item.creator || settings.museumName} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -3103,7 +3103,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="publisher" 
                                 id="publisher" 
-                                defaultValue={item.publisher || settings.museumName || "Senoia Area Historical Society"} 
+                                defaultValue={item.publisher || settings.museumName} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>
@@ -3115,7 +3115,7 @@ export function OralHistoryEditForm({
                                 type="text" 
                                 name="rights" 
                                 id="rights" 
-                                defaultValue={item.rights || `Copyright ${settings.museumName || "Senoia Area Historical Society"}. All rights reserved.`} 
+                                defaultValue={item.rights || `Copyright ${settings.museumName}. All rights reserved.`} 
                                 className="w-full bg-cream/10 border border-tan-light/50 px-4 py-2.5 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans text-sm text-charcoal" 
                             />
                         </div>

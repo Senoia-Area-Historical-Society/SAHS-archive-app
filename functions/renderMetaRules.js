@@ -73,4 +73,10 @@ function isPublicFlag(data) {
     return data.is_private === false;
 }
 
-module.exports = { CACHE_CONTROL, VIRTUAL_COLLECTIONS, virtualCollection, isPublicFlag };
+/** The name stored in site_settings/appearance, or the fallback if there is none. */
+function siteNameFrom(appearance, fallback) {
+    const name = appearance && appearance.museumName;
+    return typeof name === 'string' && name.trim() !== '' ? name : fallback;
+}
+
+module.exports = { CACHE_CONTROL, VIRTUAL_COLLECTIONS, virtualCollection, isPublicFlag, siteNameFrom };

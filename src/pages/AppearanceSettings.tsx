@@ -341,12 +341,12 @@ export function AppearanceSettings() {
                             </div>
                             <div>
                                 <label className={labelCls}>Museum Full Name</label>
-                                <input type="text" required value={museumName} onChange={e => setMuseumName(e.target.value)} className={inputCls} placeholder="e.g. Senoia Area Historical Society" />
+                                <input type="text" required value={museumName} onChange={e => setMuseumName(e.target.value)} className={inputCls} placeholder="e.g. Springfield Historical Society" />
                                 <p className={hintCls}>Used dynamically throughout the app, including in the page footer, metadata defaults, and copyright disclaimers.</p>
                             </div>
                             <div>
                                 <label className={labelCls}>Museum Short Name</label>
-                                <input type="text" required value={museumShortName} onChange={e => setMuseumShortName(e.target.value)} className={inputCls} placeholder="e.g. Senoia" />
+                                <input type="text" required value={museumShortName} onChange={e => setMuseumShortName(e.target.value)} className={inputCls} placeholder="e.g. Springfield" />
                                 <p className={hintCls}>Used in location-based descriptions, map context, and community section names.</p>
                             </div>
                         </div>
@@ -385,7 +385,7 @@ export function AppearanceSettings() {
                             </div>
                             <div className="border-t border-tan-light/20 pt-6">
                                 <label className={labelCls}>Sidebar Header Title</label>
-                                <textarea required rows={2} value={sidebarTitle} onChange={e => setSidebarTitle(e.target.value)} className="w-full px-4 py-2 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 font-serif" placeholder="e.g. Senoia Area&#10;Historical Society" />
+                                <textarea required rows={2} value={sidebarTitle} onChange={e => setSidebarTitle(e.target.value)} className="w-full px-4 py-2 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10 font-serif" placeholder="e.g. Springfield&#10;Historical Society" />
                                 <p className={hintCls}>Appears at the top of the sidebar. Use a newline to separate lines.</p>
                             </div>
                         </div>
@@ -403,7 +403,7 @@ export function AppearanceSettings() {
                             </div>
                             <div>
                                 <label className={labelCls}>Main Heading Title</label>
-                                <textarea required rows={2} value={heroTitle} onChange={e => setHeroTitle(e.target.value)} className="w-full px-4 py-2 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10" placeholder="e.g. Senoia Area&#10;Historical Society" />
+                                <textarea required rows={2} value={heroTitle} onChange={e => setHeroTitle(e.target.value)} className="w-full px-4 py-2 border border-tan-light rounded-xl focus:outline-none focus:ring-2 focus:ring-tan/50 bg-cream/10" placeholder="e.g. Springfield&#10;Historical Society" />
                                 <p className={hintCls}>Use newlines to break the heading across rows on desktop.</p>
                             </div>
                             <div>

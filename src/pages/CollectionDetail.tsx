@@ -92,7 +92,7 @@ export function CollectionDetail() {
                     setCollectionData({
                         id: 'on-loan',
                         title: 'Items on Loan',
-                        description: `A curated showcase of items currently on loan to the ${settings.museumName || "Senoia Area Historical Society"} for temporary exhibition.`,
+                        description: `A curated showcase of items currently on loan to the ${settings.museumName} for temporary exhibition.`,
                         is_private: false,
                         created_at: new Date(0).toISOString()
                     } as Collection);

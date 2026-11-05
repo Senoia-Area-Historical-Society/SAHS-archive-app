@@ -1,3 +1,4 @@
+import { useAppearance } from '../contexts/AppearanceContext';
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
@@ -6,6 +7,7 @@ import { MapPin, Box, ChevronLeft, Folder, Loader2 } from 'lucide-react';
 import type { MuseumLocation, Room } from '../types/database';
 
 export function RoomDetail() {
+    const { settings } = useAppearance();
     const { id } = useParams();
     const [room, setRoom] = useState<Room | null>(null);
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
@@ -87,7 +89,7 @@ export function RoomDetail() {
                     <div className="p-12 md:p-20 lg:p-24 flex-1 flex flex-col justify-center relative z-10">
                         <div className="flex items-center gap-4 mb-8">
                             <div className="h-px w-10 bg-tan/30" />
-                            <span className="text-[10px] font-black text-tan uppercase tracking-[0.4em]">The SAHS Archive</span>
+                            <span className="text-[10px] font-black text-tan uppercase tracking-[0.4em]">The {settings.museumShortName} Archive</span>
                         </div>
                         <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif font-bold mb-8 text-charcoal tracking-tight leading-[0.9]">
                             {room.name}

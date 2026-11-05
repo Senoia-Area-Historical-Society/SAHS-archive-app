@@ -43,7 +43,7 @@ function MembershipCard() {
     const memberName = displayAsSimulated 
         ? (user?.displayName || 'Jane Doe (Simulated)') 
         : (memberData?.name || user?.displayName || 'Active Researcher');
-    const memberEmail = user?.email || 'member@senoiahistory.com';
+    const memberEmail = user?.email || 'member@example.org';
     const memberTier = displayAsSimulated ? 'Individual Member' : (memberData?.tier || 'Paying Member');
     const memberJoined = displayAsSimulated 
         ? 'May 28, 2026' 
@@ -95,7 +95,7 @@ function MembershipCard() {
                     <div className="text-sm">
                         <p className="font-bold text-amber-800">Your membership has expired</p>
                         <p className="text-amber-700 mt-0.5 leading-relaxed">
-                            You can still view your saved research, but new notes, folders, and comments are paused until you renew. Contact SAHS or use the Stripe portal below to reinstate your membership.
+                            You can still view your saved research, but new notes, folders, and comments are paused until you renew. Contact {settings.museumShortName} or use the Stripe portal below to reinstate your membership.
                         </p>
                     </div>
                 </div>
@@ -113,7 +113,7 @@ function MembershipCard() {
                                 {/* Card Hero Header */}
                                 <div className="bg-cream/40 p-6 md:p-8 border-b border-tan-light/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div className="space-y-1">
-                                        <p className="text-xs font-black text-tan uppercase tracking-widest">{settings.museumName || 'Senoia Area Historical Society'}</p>
+                                        <p className="text-xs font-black text-tan uppercase tracking-widest">{settings.museumName}</p>
                                         <h2 className="text-2xl font-serif font-bold text-charcoal">{memberName}</h2>
                                         <p className="text-sm text-charcoal/60">{memberEmail}</p>
                                     </div>
@@ -221,7 +221,7 @@ function MembershipCard() {
                                             </p>
                                         )}
                                         <p className="text-[11px] text-charcoal/50 pt-2 italic">
-                                            Secondary emails are managed by staff. To update or change this address, please contact SAHS staff.
+                                            Secondary emails are managed by staff. To update or change this address, please contact {settings.museumShortName} staff.
                                         </p>
                                     </div>
                                 ) : (

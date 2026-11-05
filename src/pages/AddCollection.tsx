@@ -177,7 +177,7 @@ export function AddCollection() {
                 <div className="space-y-6">
                     <div>
                         <label htmlFor="title" className="block text-sm font-bold text-charcoal/70 uppercase tracking-wider mb-2">Collection Title *</label>
-                        <input required type="text" name="title" id="title" placeholder="e.g. Senoia High School Yearbooks" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans" />
+                        <input required type="text" name="title" id="title" placeholder="e.g. Local High School Yearbooks" className="w-full bg-cream/50 border border-tan-light/50 px-4 py-3 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-sans" />
                     </div>
 
                     <div>

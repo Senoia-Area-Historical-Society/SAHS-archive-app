@@ -10,7 +10,7 @@
  * through to the catch-all rewrite and shipped the generic shell:
  *
  *     /items/Lap7BJ…   og:title = "Newnan-Coweta Magazine Article on Victor Dallas | …"
- *     /library         og:title = "Senoia Area Historical Society | Digital Archive"
+ *     /library         og:title = "<museum name> | Digital Archive"
  *
  * Google executes JavaScript and sees the title useSeo() sets, so indexing was
  * never affected. Social scrapers do not, so sharing a link to /archive or
@@ -62,8 +62,8 @@ const SHELL = path.join(DIST, 'index.html');
  * `/` is deliberately absent: the shell's own metadata is already the homepage's
  * correct metadata, so writing a second copy would only add drift.
  */
-function routesFor(settings, itemCount) {
-    const stories = (settings.contentBlocks && settings.contentBlocks.storiesTitle) || 'Senoia Stories';
+function routesFor(settings, itemCount, siteName) {
+    const stories = (settings.contentBlocks && settings.contentBlocks.storiesTitle) || 'Community Stories';
     return [
         {
             file: 'archive.html',
@@ -75,25 +75,25 @@ function routesFor(settings, itemCount) {
             file: 'collections.html',
             path: '/collections',
             title: 'Collections',
-            description: 'Browse curated collections of photographs, documents and artifacts from the Senoia and Coweta County historical archive.',
+            description: `Browse curated collections of photographs, documents and artifacts from the ${siteName} archive.`,
         },
         {
             file: 'library.html',
             path: '/library',
             title: 'Reference Library',
-            description: 'Search the reference library of books on Senoia, Coweta County and Georgia history, genealogy and local heritage.',
+            description: 'Search the reference library of books on local history, genealogy and heritage.',
         },
         {
             file: 'stories.html',
             path: '/stories',
             title: stories,
-            description: 'Listen to oral histories from the Senoia area — first-hand accounts and recorded memories preserved by the Senoia Area Historical Society.',
+            description: `Listen to oral histories — first-hand accounts and recorded memories preserved by the ${siteName}.`,
         },
         {
             file: 'map.html',
             path: '/map',
             title: 'Map Discovery',
-            description: 'Explore the archive geographically — historic photographs, buildings and documents plotted across Senoia and Coweta County, Georgia.',
+            description: 'Explore the archive geographically — historic photographs, buildings and documents plotted on a map.',
         },
     ];
 }
@@ -174,7 +174,7 @@ async function main() {
     console.log(`site name: ${siteName}${live ? '' : ' (default — Firestore unreachable)'}`);
     console.log(`archive items: ${itemCount}`);
 
-    for (const route of routesFor(settings, itemCount)) {
+    for (const route of routesFor(settings, itemCount, siteName)) {
         const seo = buildPageSeo(route.title, route.description, route.path, siteName);
         const html = renderShell(shell, seo);
 

@@ -222,6 +222,15 @@ actually holds the role; the stored value alone grants nothing.
 auth application-default set-quota-project`, which changes it for every tool on the
 machine and is what routed the August 2026 Vertex AI spend.
 
+**SAHS's wording lives in its settings and one build input, not in the defaults.**
+Defaults in `AppearanceContext`, `Home.tsx`, `src/lib/seo.ts` and `index.html` are
+what any new museum sees, so they stay neutral (`src/test/noSenoiaDefaults.test.ts`).
+SAHS's text comes from `site_settings/appearance`, which stores every content block.
+Its static `<head>` (tab title, social card, JSON-LD) is `deploy/sahs-head.html`,
+swapped in by `SITE_HEAD_FILE` in `deploy.yml`. **A build without that variable is
+neutral**, so set it for any manual production deploy. Check the live document before
+assuming a default is unused: SAHS's stories logo, for one, is a bundled fallback.
+
 **`renderMeta` serves `/items/**` and friends; the list pages are static.**
 `scripts/generate-static-pages.cjs` pre-renders only the `<head>` of the six public
 list pages, so social scrapers get real metadata while the bodies still hydrate
