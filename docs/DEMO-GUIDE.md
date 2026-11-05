@@ -75,11 +75,16 @@ This order tells the story of a new museum getting started.
 - **Branding:** a homepage title (required to continue), a color theme, and an
   uploaded **logo** and **slideshow images**.
 - **Links, Map, Tabs and Text:** optional. Fill in a couple to show they exist.
-- Finish. You arrive at the museum's own, empty archive home page.
+- Finish. You arrive at the museum's own archive home page, with a **Getting
+  started** checklist at the top showing what to do next.
 
 **3. Adding the first item**
-- Add an archive item with a photo or scanned document attached.
+- Click **Add item** in the checklist, and add an item with a photo or scanned
+  document attached.
 - Open it to show the item page.
+- Go back to the home page: the checklist has ticked that step off by itself.
+- If you close the checklist, **Getting Started** under **Workspace** in the
+  sidebar brings it back.
 
 **4. Managing staff**
 - Go to **Admin Settings** (http://localhost:5174/settings).

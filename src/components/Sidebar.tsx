@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell, QrCode, BookOpen, Palette, Pencil } from 'lucide-react';
+import { Home, Search, Upload, LogOut, LogIn, FolderOpen, FileText, Users, Building, LifeBuoy, Box, X, Settings, MessageSquare, Inbox, Camera, MapPin, Map, Activity, Instagram, Facebook, Youtube, Mic, Bell, QrCode, BookOpen, Palette, Pencil, ListChecks } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, doc, setDoc } from 'firebase/firestore';
@@ -388,6 +388,15 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             <div className="mb-4">
                                 <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Workspace</h2>
                                 <nav className="flex flex-col gap-1">
+                                    {/* A Link, because a NavLink to "/" would look active on the home page. */}
+                                    <Link
+                                        to="/?guide=open"
+                                        className="flex items-center gap-3 px-4 py-3 rounded-lg text-charcoal/70 hover:bg-black/5 hover:text-charcoal font-semibold text-[15px] w-full text-left transition-colors"
+                                        onClick={handleLinkClick}
+                                    >
+                                        <ListChecks size={20} className="text-tan" />
+                                        <EditableLabel tabKey="gettingStarted" defaultLabel="Getting Started" />
+                                    </Link>
                                     <NavLink to="/manage-locations" className={navLinkClass} onClick={handleLinkClick}>
                                         <MapPin size={20} />
                                         <EditableLabel tabKey="locations" defaultLabel="Museum Locations" />
