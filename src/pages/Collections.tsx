@@ -12,6 +12,8 @@ import type { Collection } from '../types/database';
 import { CollectionGridImage } from '../components/CollectionGridImage';
 import { ModuleDisabled } from '../components/ModuleDisabled';
 
+const VIRTUAL_COLLECTION_IDS = ['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'];
+
 export function Collections() {
     const { settings, loading } = useAppearance();
 
@@ -156,9 +158,16 @@ function CollectionsBrowser() {
                     <p className="text-charcoal/60 max-w-md">There are currently no curated collections available. Check back later as we organize more of our archives.</p>
                 </div>
             ) : (
+                <>
+                {/* The list is never empty, because the built-in collections are always in it. */}
+                {isSAHSUser && collections.every((c) => VIRTUAL_COLLECTION_IDS.includes(c.id)) && (
+                    <p className="mb-6 px-5 py-4 bg-white border border-tan-light/50 rounded-xl text-charcoal/70">
+                        These collections are built in and fill themselves from each item's status. Use <strong className="text-charcoal">Add Collection</strong> to create your own around a theme, family or event.
+                    </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                     {collections.map((col) => {
-                        const isVirtual = ['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(col.id);
+                        const isVirtual = VIRTUAL_COLLECTION_IDS.includes(col.id);
                         return (
                         <Link
                             key={col.id}
@@ -226,6 +235,7 @@ function CollectionsBrowser() {
                     );
                     })}
                 </div>
+                </>
             )}
         </div>
     );

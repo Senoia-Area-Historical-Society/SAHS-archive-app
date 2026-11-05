@@ -321,7 +321,29 @@ function LibraryCatalog() {
             </div>
 
             {/* Books Grid */}
-            {sortedBooks.length === 0 ? (
+            {books.length === 0 ? (
+                <div className="bg-white border border-dashed border-tan-light/60 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-4">
+                    <div className="w-16 h-16 bg-tan/10 text-tan rounded-full flex items-center justify-center mx-auto">
+                        <BookOpen size={28} />
+                    </div>
+                    <h3 className="font-serif text-xl font-bold text-charcoal">
+                        {isSAHSUser ? 'Add the first book to your library' : 'The library has no books listed yet'}
+                    </h3>
+                    <p className="text-charcoal/60 text-sm max-w-md mx-auto">
+                        {isSAHSUser
+                            ? 'Catalog the reference books your museum holds, so staff and researchers can find them.'
+                            : 'Please check back as the catalog grows.'}
+                    </p>
+                    {isSAHSUser && (
+                        <Link
+                            to="/library/add"
+                            className="inline-flex items-center gap-2 bg-tan text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-tan-dark transition-all"
+                        >
+                            <Plus size={16} aria-hidden="true" /> Add a book
+                        </Link>
+                    )}
+                </div>
+            ) : sortedBooks.length === 0 ? (
                 <div className="bg-white border border-dashed border-tan-light/60 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-4">
                     <div className="w-16 h-16 bg-tan/10 text-tan rounded-full flex items-center justify-center mx-auto">
                         <BookOpen size={28} />

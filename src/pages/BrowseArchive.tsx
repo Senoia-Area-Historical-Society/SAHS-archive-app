@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, Filter, ArrowUpDown, LayoutGrid, Map as MapIcon } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Search, Filter, ArrowUpDown, LayoutGrid, Map as MapIcon, Plus } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
 import { ArchiveMap } from '../components/ArchiveMap';
 import { db } from '../lib/firebase';
@@ -365,6 +365,26 @@ export function BrowseArchive() {
                         <p className="text-red-800 text-xl font-serif mb-2">The archive could not be loaded.</p>
                         <p className="text-charcoal-light/70 font-sans">This is an error, not an empty archive. Please try again, and report it if it persists.</p>
                         <p className="text-charcoal-light/50 font-sans text-xs mt-3">{loadError}</p>
+                    </div>
+                ) : items.length === 0 ? (
+                    <div className="text-center py-24 px-6 bg-white rounded-xl border border-tan-light/50 shadow-sm">
+                        {isSAHSUser ? (
+                            <>
+                                <p className="text-charcoal text-2xl font-serif font-bold mb-2">Your archive is ready for its first item</p>
+                                <p className="text-charcoal-light/70 font-sans max-w-md mx-auto mb-6">Add a photograph, document or object. You can keep it private until it is ready to share.</p>
+                                <Link
+                                    to={selectedType === 'All Items' ? '/add-item' : `/add-item?type=${encodeURIComponent(selectedType)}`}
+                                    className="inline-flex items-center gap-2 bg-tan text-white px-5 py-2.5 rounded-xl font-bold hover:bg-tan-dark transition-colors"
+                                >
+                                    <Plus size={18} aria-hidden="true" /> Add your first item
+                                </Link>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-charcoal-light text-xl font-serif italic mb-2">Nothing has been published here yet.</p>
+                                <p className="text-charcoal-light/70 font-sans">Please check back as the collection grows.</p>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <div className="text-center py-24 bg-white rounded-xl border border-tan-light/50 shadow-sm">
