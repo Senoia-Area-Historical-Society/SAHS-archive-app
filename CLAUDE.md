@@ -227,9 +227,16 @@ Defaults in `AppearanceContext`, `Home.tsx`, `src/lib/seo.ts` and `index.html` a
 what any new museum sees, so they stay neutral (`src/test/noSenoiaDefaults.test.ts`).
 SAHS's text comes from `site_settings/appearance`, which stores every content block.
 Its static `<head>` (tab title, social card, JSON-LD) is `deploy/sahs-head.html`,
-swapped in by `SITE_HEAD_FILE` in `deploy.yml`. **A build without that variable is
-neutral**, so set it for any manual production deploy. Check the live document before
-assuming a default is unused: SAHS's stories logo, for one, is a bundled fallback.
+swapped in by `SITE_HEAD_FILE`; its address and default share image are `SITE_URL`
+and `SITE_OG_IMAGE` (`scripts/site-url.cjs`), baked into the app by Vite and into
+`functions/shared/seo.cjs` by `prepare-functions.cjs`. All three are job-level env in
+`deploy.yml`. **A build without them is neutral** — canonicals use the serving origin,
+there is no default share image, and the sitemap and list-page scripts refuse to
+run — so set all three for any manual production build or functions deploy. The
+hero slides are SAHS's `backgroundImages` setting, which points at the
+`/home-*.webp` files in `public/`; a museum without slides gets a solid colour.
+Check the live document before assuming a default is unused: SAHS's stories logo,
+for one, is a bundled fallback.
 
 **`renderMeta` serves `/items/**` and friends; the list pages are static.**
 `scripts/generate-static-pages.cjs` pre-renders only the `<head>` of the six public

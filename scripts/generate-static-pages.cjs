@@ -48,7 +48,10 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const { buildPageSeo, DEFAULT_SITE_NAME } = require('../functions/shared/seo.cjs');
+const { buildPageSeo, DEFAULT_SITE_NAME, SITE_URL } = require('../functions/shared/seo.cjs');
+const { requireSiteUrl } = require('./site-url.cjs');
+
+requireSiteUrl(SITE_URL, 'The list pages\' canonical URLs');
 
 const DATABASE_ID = 'sahs-archives';
 const DIST = path.join(__dirname, '..', 'dist');

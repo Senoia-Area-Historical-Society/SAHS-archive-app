@@ -1,6 +1,3 @@
-# https://archives.senoiahistory.com/robots.txt
-# Senoia Area Historical Society — Digital Archive
-
 User-agent: *
 Allow: /
 
@@ -31,5 +28,5 @@ Disallow: /my-research
 # indexable at its canonical URL.
 Disallow: /search
 
-# Generated at deploy time by scripts/generate-sitemap.cjs
-Sitemap: https://archives.senoiahistory.com/sitemap.xml
+# The Sitemap line is added at deploy time by scripts/generate-sitemap.cjs, which
+# knows this deployment's address.

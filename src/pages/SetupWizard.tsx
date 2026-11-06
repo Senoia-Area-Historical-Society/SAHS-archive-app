@@ -743,6 +743,7 @@ export function SetupWizard() {
                                                 value={value}
                                                 onChange={e => updateContentBlock(key, e.target.value)}
                                                 rows={value.length > 50 ? 3 : 1}
+                                                placeholder={key === 'qrValue' ? 'Blank: this site\'s own address' : undefined}
                                                 className="w-full px-3 py-2 bg-cream/30 border border-tan-light/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-tan/30 transition-all text-xs resize-none"
                                             />
                                             {clearedNotice(initial.contentBlocks[key], value, () => updateContentBlock(key, initial.contentBlocks[key]))}

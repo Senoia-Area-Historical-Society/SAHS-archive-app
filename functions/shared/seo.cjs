@@ -49,7 +49,7 @@ module.exports = __toCommonJS(stdin_exports);
 var SITE_URL = "https://archives.senoiahistory.com";
 var DEFAULT_SITE_NAME = "Digital Archive";
 var DEFAULT_DESCRIPTION = "Explore this digital archive of photographs, documents, oral histories, and artifacts.";
-var DEFAULT_OG_IMAGE = `${SITE_URL}/home-street-view.jpg`;
+var DEFAULT_OG_IMAGE = false ? void 0 : /^https?:\/\//.test("/home-street-view.jpg") ? "/home-street-view.jpg" : `${SITE_URL}${"/home-street-view.jpg".startsWith("/") ? "" : "/"}${"/home-street-view.jpg"}`;
 var DESCRIPTION_MAX = 155;
 var TITLE_MAX = 60;
 function truncate(text, max) {

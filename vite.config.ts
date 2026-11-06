@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+
+const { siteBuildDefines } = createRequire(import.meta.url)('./scripts/site-url.cjs')
 
 const SITE_HEAD_BLOCK = /[ \t]*<!-- site-head:start -->[\s\S]*?<!-- site-head:end -->\n/
 
@@ -33,6 +36,8 @@ function siteHead(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), siteHead()],
+  // The deployment's own address for canonical, og and JSON-LD URLs (src/lib/seo.ts).
+  define: siteBuildDefines(),
   server: {
     host: true, // Listen on all network interfaces
   },

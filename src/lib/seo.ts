@@ -9,7 +9,13 @@
 
 import type { ArchiveItem, Collection, LibraryBook } from '../types/database';
 
-export const SITE_URL = 'https://archives.senoiahistory.com';
+/**
+ * The archive's public origin, for canonical, og and JSON-LD URLs. Set per
+ * deployment at build time (SITE_URL, scripts/site-url.cjs); without it the
+ * browser uses the origin it was served from, and server-side code gets ''.
+ */
+export const SITE_URL: string =
+    __SITE_URL__ || (globalThis as { location?: { origin?: string } }).location?.origin || '';
 
 /** Only until a museum's name is known. Real names come from site_settings/appearance. */
 export const DEFAULT_SITE_NAME = 'Digital Archive';
@@ -17,7 +23,16 @@ export const DEFAULT_SITE_NAME = 'Digital Archive';
 export const DEFAULT_DESCRIPTION =
     'Explore this digital archive of photographs, documents, oral histories, and artifacts.';
 
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/home-street-view.jpg`;
+/**
+ * What a shared link shows when its page has no image of its own (SITE_OG_IMAGE):
+ * a full URL, or a path on SITE_URL. Unset, such a link has no image rather than
+ * another museum's.
+ */
+export const DEFAULT_OG_IMAGE: string | undefined = !__SITE_OG_IMAGE__
+    ? undefined
+    : /^https?:\/\//.test(__SITE_OG_IMAGE__)
+        ? __SITE_OG_IMAGE__
+        : `${SITE_URL}${__SITE_OG_IMAGE__.startsWith('/') ? '' : '/'}${__SITE_OG_IMAGE__}`;
 
 /** Google truncates around 155-160 characters; titles around 60. */
 const DESCRIPTION_MAX = 155;
