@@ -1,5 +1,5 @@
 import { useAppearance } from '../contexts/AppearanceContext';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
 import { Camera, MapPin, Box, CheckCircle2, AlertCircle, ArrowRight, History, Loader2, X, Search, Trash2, Plus, BookOpen } from 'lucide-react';
@@ -43,6 +43,44 @@ export function TaggingHub() {
     const [currentConflictIndex, setCurrentConflictIndex] = useState(-1);
     // The choices made so far, one per conflicted item, saved together after the last.
     const [conflictResolutions, setConflictResolutions] = useState<ConflictResolution[]>([]);
+
+    // Every location, so one can be picked by typing its name instead of scanning its code.
+    const [locations, setLocations] = useState<MuseumLocation[]>([]);
+    const [locationSearch, setLocationSearch] = useState('');
+
+    useEffect(() => {
+        getDocs(collection(db, 'locations'))
+            .then(snap => setLocations(snap.docs.map(d => ({ ...d.data(), id: d.data().id || d.id, docId: d.id }) as MuseumLocation)))
+            .catch(error => console.error("Failed to load locations:", error));
+    }, []);
+
+    const locationMatches = useMemo(() => {
+        const term = locationSearch.trim().toLowerCase();
+        if (!term) return [];
+        return locations
+            .filter(loc => (loc.name || '').toLowerCase().includes(term) || loc.id.toLowerCase().includes(term))
+            .sort((a, b) => {
+                // Names that start with what was typed come first.
+                const aStarts = (a.name || '').toLowerCase().startsWith(term) ? 0 : 1;
+                const bStarts = (b.name || '').toLowerCase().startsWith(term) ? 0 : 1;
+                return aStarts - bStarts || (a.name || '').localeCompare(b.name || '');
+            })
+            .slice(0, 8);
+    }, [locations, locationSearch]);
+
+    /** The name of the location a box or shelf sits in, to tell same-named places apart. */
+    const parentName = (loc: MuseumLocation) =>
+        loc.parent_location_id ? locations.find(l => l.docId === loc.parent_location_id || l.id === loc.parent_location_id)?.name : undefined;
+
+    /** A location's name from its code, or the code when it is not a known location. */
+    const locationName = (id: string) => locations.find(l => l.id === id)?.name || id;
+
+    /** Sets the destination and re-checks which staged items are already there. */
+    const chooseLocation = (loc: MuseumLocation | null) => {
+        setSelectedLocation(loc);
+        setLocationSearch('');
+        setAlreadyHereItems(loc ? selectedItems.filter(item => locationsOf(item).includes(loc.id)).map(item => item.id) : []);
+    };
 
     const parseIdFromData = (data: string): { type: 'item' | 'book' | 'loc' | 'unknown', id: string } => {
         // Handle full URLs (e.g. https://domain.com/items/ID or /library/ID)
@@ -130,7 +168,7 @@ export function TaggingHub() {
                 
                 if (!locSnapshot.empty) {
                     const locData = { id: locSnapshot.docs[0].id, ...locSnapshot.docs[0].data() } as MuseumLocation;
-                    setSelectedLocation(locData);
+                    chooseLocation(locData);
                 } else {
                     setMessage({ type: 'error', text: "Location code not recognized." });
                 }
@@ -334,6 +372,7 @@ export function TaggingHub() {
             // Reset
             setSelectedItems([]);
             setSelectedLocation(null);
+            setAlreadyHereItems([]);
             setConflictedItems([]);
             setCurrentConflictIndex(-1);
         } catch (error) {
@@ -348,6 +387,7 @@ export function TaggingHub() {
         setSelectedItems([]);
         setSelectedLocation(null);
         setAlreadyHereItems([]);
+        setLocationSearch('');
         setMessage(null);
     };
 
@@ -368,7 +408,7 @@ export function TaggingHub() {
                         <div className="p-8">
                             <p className="text-charcoal/80 mb-6 leading-relaxed">
                                 {locationsOf(conflictedItems[currentConflictIndex]).includes(selectedLocation?.id ?? '') ? 'This item is already listed here, and also in ' : 'This item is currently listed in '}
-                                <span className="font-bold text-tan">{locationsOf(conflictedItems[currentConflictIndex]).filter(loc => loc !== selectedLocation?.id).join(', ')}</span>.
+                                <span className="font-bold text-tan">{locationsOf(conflictedItems[currentConflictIndex]).filter(loc => loc !== selectedLocation?.id).map(locationName).join(', ')}</span>.
                                 How would you like to update its records?
                                 {conflictedItems.length > 1 && (
                                     <span className="block mt-2 text-xs text-charcoal/50">Item {currentConflictIndex + 1} of {conflictedItems.length}. Your choices are saved together after the last one.</span>
@@ -554,7 +594,7 @@ export function TaggingHub() {
                                     <p className="text-xs font-black text-tan uppercase tracking-widest">Active Destination</p>
                                 </div>
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setSelectedLocation(null); }}
+                                    onClick={(e) => { e.stopPropagation(); chooseLocation(null); }}
                                     className="text-xs text-charcoal/40 hover:text-red-500 font-bold uppercase tracking-wider bg-black/5 px-4 py-2 rounded-lg"
                                 >
                                     Change Location
@@ -565,7 +605,7 @@ export function TaggingHub() {
                                 <div className="flex-1">
                                     <h3 className="font-serif font-bold text-xl text-charcoal mb-2">Identify Place</h3>
                                     <p className="text-sm text-charcoal/60 px-4 leading-relaxed italic">
-                                        Scan the destination code to stage the batch move.
+                                        Scan the destination code, or type its name, to stage the batch move.
                                     </p>
                                 </div>
                                 <button 
@@ -574,6 +614,48 @@ export function TaggingHub() {
                                 >
                                     <Camera size={24} /> Scan Case/Shelf
                                 </button>
+                                <form
+                                    onSubmit={(e) => { e.preventDefault(); if (locationMatches.length > 0) chooseLocation(locationMatches[0]); }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full text-left cursor-default"
+                                >
+                                    <label htmlFor="tagging-location-search" className="block text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 text-center">or type a location</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal/30" size={18} />
+                                        <input
+                                            id="tagging-location-search"
+                                            type="text"
+                                            autoComplete="off"
+                                            placeholder="e.g. Gallery A, Shelf 1"
+                                            value={locationSearch}
+                                            onChange={(e) => setLocationSearch(e.target.value)}
+                                            className="w-full pl-10 pr-3 py-3 bg-white border-2 border-tan-light/50 rounded-xl focus:ring-2 focus:ring-tan/20 outline-none placeholder:text-charcoal/20"
+                                        />
+                                    </div>
+                                    {locationSearch.trim() && (
+                                        <ul className="mt-2 bg-white border border-tan-light/50 rounded-xl shadow-md overflow-hidden max-h-72 overflow-y-auto">
+                                            {locationMatches.length === 0 ? (
+                                                <li className="px-4 py-3 text-sm text-charcoal/50 italic">
+                                                    {locations.length === 0 ? 'No locations have been set up yet.' : 'No location matches that name.'}
+                                                </li>
+                                            ) : locationMatches.map(loc => (
+                                                <li key={loc.docId || loc.id}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => chooseLocation(loc)}
+                                                        className="w-full text-left px-4 py-3 hover:bg-tan/10 border-b border-tan-light/30 last:border-b-0 flex items-center gap-3"
+                                                    >
+                                                        <MapPin size={16} className="text-tan shrink-0" />
+                                                        <span className="min-w-0">
+                                                            <span className="block font-bold text-charcoal truncate">{loc.name || loc.id}</span>
+                                                            {parentName(loc) && <span className="block text-xs text-charcoal/50 truncate">in {parentName(loc)}</span>}
+                                                        </span>
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </form>
                             </>
                         )}
                     </div>
