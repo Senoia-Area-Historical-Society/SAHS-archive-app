@@ -2,15 +2,18 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, Calendar, MapPin, Tag, SlidersHorizontal, X, ChevronDown, Info } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
+import { ExactMatchToggle } from '../components/ExactMatchToggle';
 import { db } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import type { ArchiveItem, ItemType, Collection } from '../types/database';
 import { useAuth } from '../contexts/AuthContext';
 import { ARTIFACT_TYPES, artifactTypeLabel, normalizeArtifactType } from '../lib/artifactTypes';
+import { buildSearchIndex, searchScores } from '../lib/forgivingSearch';
+import { ARCHIVE_ITEM_SEARCH_FIELDS } from '../lib/searchFields';
 
 /** The sort orders the ?sort= parameter accepts — see the comparator below. */
-type SortOption = 'newest' | 'id_asc' | 'id_desc' | 'az' | 'za';
+type SortOption = 'relevance' | 'newest' | 'id_asc' | 'id_desc' | 'az' | 'za';
 
 export function SearchArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -41,7 +44,11 @@ export function SearchArchive() {
     const [localExcludeTypes, setLocalExcludeTypes] = useState<string[]>(searchParams.get('ex_types')?.split(',').filter(Boolean) || []);
 
     const selectedType = (searchParams.get('type') as ItemType | null) || 'All Items';
-    const sortBy = (searchParams.get('sort') as SortOption | null) || 'newest';
+    // With a keyword the best matches come first, unless another order was chosen.
+    // Exact search: only the text exactly as typed, no typo or word-order forgiveness.
+    const exact = searchParams.get('exact') === '1';
+    const defaultSort: SortOption = localKeyword.trim() ? 'relevance' : 'newest';
+    const sortBy = (searchParams.get('sort') as SortOption | null) || defaultSort;
     const selectedArtifactType = searchParams.get('art_type') || '';
 
     // Debounce effects to sync local state to URL
@@ -188,27 +195,13 @@ export function SearchArchive() {
         fetchItems();
     }, [isSAHSUser]);
 
+    const searchIndex = useMemo(() => buildSearchIndex(items, ARCHIVE_ITEM_SEARCH_FIELDS), [items]);
+    const keywordScores = useMemo(() => searchScores(searchIndex, localKeyword, exact), [searchIndex, localKeyword, exact]);
+
     const filteredItems = useMemo(() => {
         return items.filter(item => {
-            // Keyword match across multiple fields
-            const kw = localKeyword.toLowerCase();
-            const matchesKeyword = !localKeyword ||
-                item.title?.toLowerCase().includes(kw) ||
-                item.description?.toLowerCase().includes(kw) ||
-                item.subject?.toLowerCase().includes(kw) ||
-                item.artifact_id?.toString().toLowerCase().startsWith(kw) ||
-                item.id?.toLowerCase().includes(kw) ||
-                item.identifier?.toLowerCase().includes(kw) ||
-                item.transcription?.toLowerCase().includes(kw) ||
-                item.creator?.toLowerCase().includes(kw) ||
-                item.full_name?.toLowerCase().includes(kw) ||
-                item.also_known_as?.toLowerCase().includes(kw) ||
-                item.birthplace?.toLowerCase().includes(kw) ||
-                item.occupation?.toLowerCase().includes(kw) ||
-                item.org_name?.toLowerCase().includes(kw) ||
-                item.alternative_names?.toLowerCase().includes(kw) ||
-                item.founding_date?.toLowerCase().includes(kw) ||
-                item.dissolved_date?.toLowerCase().includes(kw);
+            // Keyword match across multiple fields, forgiving typos and word order
+            const matchesKeyword = !keywordScores || keywordScores.has(item);
 
             // Type match
             const matchesType = selectedType === 'All Items' || item.item_type === selectedType;
@@ -272,6 +265,10 @@ export function SearchArchive() {
             return matchesKeyword && matchesType && matchesYear && matchesPlace && matchesTag && matchesArtifactId && matchesArtifactType && matchesLocId && matchesStage && matchesMissingLoc &&
                    !isExcludedByKeyword && !isExcludedByTag && !isExcludedByType;
         }).sort((a, b) => {
+            if (sortBy === 'relevance' && keywordScores) {
+                return (keywordScores.get(b) ?? 0) - (keywordScores.get(a) ?? 0);
+            }
+
             if (sortBy === 'newest') {
                 return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
             }
@@ -300,7 +297,7 @@ export function SearchArchive() {
 
             return 0;
         });
-    }, [items, localKeyword, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
+    }, [items, keywordScores, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
 
     const resetFilters = () => {
         setLocalKeyword('');
@@ -347,10 +344,11 @@ export function SearchArchive() {
                             <input
                                 type="text"
                                 placeholder="Search by name, object, or historical event..."
-                                className="w-full bg-cream/50 pl-16 pr-8 py-6 rounded-2xl border-2 border-tan-light/20 focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal text-xl shadow-lg placeholder:text-charcoal/30 placeholder:italic"
+                                className="w-full bg-cream/50 pl-16 pr-28 py-6 rounded-2xl border-2 border-tan-light/20 focus:bg-white focus:border-tan outline-none transition-all font-sans text-charcoal text-xl shadow-lg placeholder:text-charcoal/30 placeholder:italic"
                                 value={localKeyword}
                                 onChange={(e) => setLocalKeyword(e.target.value)}
                             />
+                            <ExactMatchToggle exact={exact} onChange={on => updateParam('exact', on ? '1' : '')} />
                         </div>
                     </div>
 
@@ -446,8 +444,9 @@ export function SearchArchive() {
                             <select
                                 className="w-full bg-cream pl-12 pr-10 py-6 rounded-xl border-2 border-transparent outline-none appearance-none cursor-pointer focus:bg-white focus:border-tan-light transition-all font-sans text-charcoal text-xl shadow-sm"
                                 value={sortBy}
-                                onChange={(e) => updateParam('sort', e.target.value, 'newest')}
+                                onChange={(e) => updateParam('sort', e.target.value, defaultSort)}
                             >
+                                {localKeyword.trim() && <option value="relevance">Best Match</option>}
                                 <option value="newest">Newest First</option>
                                 <option value="az">A-Z (Title)</option>
                                 <option value="za">Z-A (Title)</option>

@@ -10,6 +10,9 @@ import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
 import { EditableText } from '../components/EditableText';
 import { ModuleDisabled } from '../components/ModuleDisabled';
+import { ExactMatchToggle } from '../components/ExactMatchToggle';
+import { buildSearchIndex, searchScores } from '../lib/forgivingSearch';
+import { LIBRARY_BOOK_SEARCH_FIELDS } from '../lib/searchFields';
 
 export function LibraryBrowse() {
     const { settings, loading } = useAppearance();
@@ -39,7 +42,11 @@ function LibraryCatalog() {
     const selectedLocation = searchParams.get('location') || 'All';
     const selectedStatus = searchParams.get('status') || 'All';
     const selectedCondition = searchParams.get('condition') || 'All';
-    const sortBy = searchParams.get('sort') || 'title_asc';
+    // With a search the best matches come first, unless another order was chosen.
+    // Exact search: only the text exactly as typed, no typo or word-order forgiveness.
+    const exact = searchParams.get('exact') === '1';
+    const defaultSort = search.trim() ? 'relevance' : 'title_asc';
+    const sortBy = searchParams.get('sort') || defaultSort;
 
     const [books, setBooks] = useState<LibraryBook[]>([]);
     const [locations, setLocations] = useState<MuseumLocation[]>([]);
@@ -112,16 +119,12 @@ function LibraryCatalog() {
     }, [locations]);
 
     // Filter books
+    const searchIndex = useMemo(() => buildSearchIndex(books, LIBRARY_BOOK_SEARCH_FIELDS), [books]);
+    const scores = useMemo(() => searchScores(searchIndex, search, exact), [searchIndex, search, exact]);
+
     const filteredBooks = useMemo(() => {
         return books.filter(book => {
-            const queryLower = search.toLowerCase();
-            const matchesSearch = 
-                book.title?.toLowerCase().includes(queryLower) ||
-                book.authors?.some(author => author.toLowerCase().includes(queryLower)) ||
-                book.description?.toLowerCase().includes(queryLower) ||
-                book.isbn?.toLowerCase().includes(queryLower) ||
-                book.call_number?.toLowerCase().includes(queryLower) ||
-                book.subjects?.some(sub => sub.toLowerCase().includes(queryLower));
+            const matchesSearch = !scores || scores.has(book);
 
             const matchesLocation = selectedLocation === 'All' || 
                 book.museum_location_ids?.includes(selectedLocation);
@@ -131,12 +134,14 @@ function LibraryCatalog() {
 
             return matchesSearch && matchesLocation && matchesStatus && matchesCondition;
         });
-    }, [books, search, selectedLocation, selectedStatus, selectedCondition]);
+    }, [books, scores, selectedLocation, selectedStatus, selectedCondition]);
 
     // Sort books
     const sortedBooks = useMemo(() => {
         return [...filteredBooks].sort((a, b) => {
             switch (sortBy) {
+                case 'relevance':
+                    return scores ? (scores.get(b) ?? 0) - (scores.get(a) ?? 0) : 0;
                 case 'title_asc':
                     return (a.title || '').localeCompare(b.title || '');
                 case 'title_desc':
@@ -157,7 +162,7 @@ function LibraryCatalog() {
                     return 0;
             }
         });
-    }, [filteredBooks, sortBy]);
+    }, [filteredBooks, sortBy, scores]);
 
     const handleClearFilters = () => {
         setSearchParams(new URLSearchParams(), { replace: true });
@@ -231,17 +236,19 @@ function LibraryCatalog() {
                             placeholder="Search by Title, Author, ISBN, Call Number or Subject..."
                             value={localSearch}
                             onChange={(e) => setLocalSearch(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-cream/20 border border-tan-light/50 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-charcoal text-base font-medium placeholder-charcoal/40"
+                            className="w-full pl-12 pr-24 py-3 bg-cream/20 border border-tan-light/50 rounded-xl outline-none focus:ring-4 focus:ring-tan/10 focus:border-tan transition-all font-sans text-charcoal text-base font-medium placeholder-charcoal/40"
                         />
+                        <ExactMatchToggle exact={exact} onChange={on => updateParam('exact', on ? '1' : '')} />
                     </div>
 
                     {/* Sorting */}
                     <div className="w-full lg:w-64">
                         <select
                             value={sortBy}
-                            onChange={(e) => updateParam('sort', e.target.value)}
+                            onChange={(e) => updateParam('sort', e.target.value, defaultSort)}
                             className="w-full px-4 py-3 bg-cream/20 border border-tan-light/50 rounded-xl outline-none focus:border-tan font-sans text-charcoal font-semibold text-sm transition-all cursor-pointer h-[48px]"
                         >
+                            {search.trim() && <option value="relevance">Sort: Best Match</option>}
                             <option value="title_asc">Sort: Title (A-Z)</option>
                             <option value="title_desc">Sort: Title (Z-A)</option>
                             <option value="author_asc">Sort: Author (A-Z)</option>

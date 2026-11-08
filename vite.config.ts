@@ -5,7 +5,8 @@ import react from '@vitejs/plugin-react'
 
 const { siteBuildDefines } = createRequire(import.meta.url)('./scripts/site-url.cjs')
 
-const SITE_HEAD_BLOCK = /[ \t]*<!-- site-head:start -->[\s\S]*?<!-- site-head:end -->\n/
+// \r?\n: a Windows checkout (core.autocrlf) has CRLF line endings.
+const SITE_HEAD_BLOCK = /[ \t]*<!-- site-head:start -->[\s\S]*?<!-- site-head:end -->\r?\n/
 
 /**
  * Social scrapers and tab titles read index.html before any setting has loaded,
@@ -27,7 +28,7 @@ function siteHead(): Plugin {
           const head = readFileSync(file, 'utf8')
           return html.replace(SITE_HEAD_BLOCK, () => head)
         }
-        return html.replace(/[ \t]*<!-- site-head:(start|end) -->\n/g, '')
+        return html.replace(/[ \t]*<!-- site-head:(start|end) -->\r?\n/g, '')
       },
     },
   }

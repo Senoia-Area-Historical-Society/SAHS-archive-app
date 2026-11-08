@@ -6,6 +6,8 @@ import { Camera, MapPin, Box, CheckCircle2, AlertCircle, ArrowRight, History, Lo
 import { useAuth } from '../contexts/AuthContext';
 import type { MuseumLocation } from '../types/database';
 import { QRScanner } from '../components/QRScanner';
+import { buildSearchIndex, forgivingSearch } from '../lib/forgivingSearch';
+import { LOCATION_SEARCH_FIELDS } from '../lib/searchFields';
 
 export interface StagedTagItem {
     id: string;
@@ -54,19 +56,12 @@ export function TaggingHub() {
             .catch(error => console.error("Failed to load locations:", error));
     }, []);
 
-    const locationMatches = useMemo(() => {
-        const term = locationSearch.trim().toLowerCase();
-        if (!term) return [];
-        return locations
-            .filter(loc => (loc.name || '').toLowerCase().includes(term) || loc.id.toLowerCase().includes(term))
-            .sort((a, b) => {
-                // Names that start with what was typed come first.
-                const aStarts = (a.name || '').toLowerCase().startsWith(term) ? 0 : 1;
-                const bStarts = (b.name || '').toLowerCase().startsWith(term) ? 0 : 1;
-                return aStarts - bStarts || (a.name || '').localeCompare(b.name || '');
-            })
-            .slice(0, 8);
-    }, [locations, locationSearch]);
+    // Sorted by name first, so equally good matches are listed alphabetically.
+    const locationIndex = useMemo(() => buildSearchIndex(
+        [...locations].sort((a, b) => (a.name || '').localeCompare(b.name || '')), LOCATION_SEARCH_FIELDS), [locations]);
+    const locationMatches = useMemo(
+        () => forgivingSearch(locationIndex, locationSearch).slice(0, 8).map(hit => hit.record),
+        [locationIndex, locationSearch]);
 
     /** The name of the location a box or shelf sits in, to tell same-named places apart. */
     const parentName = (loc: MuseumLocation) =>
