@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Filter, ArrowUpDown, LayoutGrid, Map as MapIcon, Plus } from 'lucide-react';
 import { DocumentCard } from '../components/DocumentCard';
+import { ExactMatchToggle } from '../components/ExactMatchToggle';
 import { ArchiveMap } from '../components/ArchiveMap';
 import { db } from '../lib/firebase';
 import { publicOnly } from '../lib/privacyQuery';
@@ -12,6 +13,8 @@ import { useAppearance } from '../contexts/AppearanceContext';
 import { useSeo } from '../hooks/useSeo';
 import { buildPageSeo } from '../lib/seo';
 import { freeTextDateSortKey } from '../lib/freeTextDate';
+import { buildSearchIndex, searchScores } from '../lib/forgivingSearch';
+import { ARCHIVE_ITEM_SEARCH_FIELDS } from '../lib/searchFields';
 
 export function BrowseArchive() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -20,7 +23,11 @@ export function BrowseArchive() {
     const selectedType = (searchParams.get('type') as ItemType | null) || 'All Items';
     const viewMode = (searchParams.get('view') as 'grid'|'map' | null) || 'grid';
     const selectedCollection = searchParams.get('collection') || 'All Collections';
-    const sortBy = searchParams.get('sort') || 'created_desc';
+    // With a search the best matches come first, unless another order was chosen.
+    // Exact search: only the text exactly as typed, no typo or word-order forgiveness.
+    const exact = searchParams.get('exact') === '1';
+    const defaultSort = search.trim() ? 'relevance' : 'created_desc';
+    const sortBy = searchParams.get('sort') || defaultSort;
 
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [collectionPrivacyMap, setCollectionPrivacyMap] = useState<Record<string, boolean>>({});
@@ -99,14 +106,12 @@ export function BrowseArchive() {
     }, [isSAHSUser]);
 
     // Unified client-side filtering - Memoized to prevent heavy re-calculations
+    const searchIndex = useMemo(() => buildSearchIndex(items, ARCHIVE_ITEM_SEARCH_FIELDS), [items]);
+    const scores = useMemo(() => searchScores(searchIndex, search, exact), [searchIndex, search, exact]);
+
     const filteredItems = useMemo(() => {
         return items.filter(item => {
-            const searchLower = search.toLowerCase();
-            const matchesSearch =
-                item.title?.toLowerCase().includes(searchLower) ||
-                item.description?.toLowerCase().includes(searchLower) ||
-                item.subject?.toLowerCase().includes(searchLower) ||
-                item.tags?.some(tag => tag.toLowerCase().includes(searchLower));
+            const matchesSearch = !scores || scores.has(item);
 
             const matchesType = selectedType === 'All Items' || item.item_type === selectedType;
             const matchesCollection = selectedCollection === 'All Collections' || 
@@ -122,7 +127,7 @@ export function BrowseArchive() {
 
             return matchesSearch && matchesType && matchesCollection;
         });
-    }, [items, search, selectedType, selectedCollection, isSAHSUser, collectionPrivacyMap]);
+    }, [items, scores, selectedType, selectedCollection, isSAHSUser, collectionPrivacyMap]);
 
     // Unified client-side sorting - Memoized
     const sortedItems = useMemo(() => {
@@ -138,6 +143,8 @@ export function BrowseArchive() {
         };
         return [...filteredItems].sort((a, b) => {
             switch (sortBy) {
+                case 'relevance':
+                    return scores ? (scores.get(b) ?? 0) - (scores.get(a) ?? 0) : 0;
                 case 'created_desc':
                     return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
                 case 'created_asc':
@@ -166,7 +173,7 @@ export function BrowseArchive() {
                     return 0;
             }
         });
-    }, [filteredItems, sortBy]);
+    }, [filteredItems, sortBy, scores]);
 
     const getHeaderText = () => {
         switch (selectedType) {
@@ -241,10 +248,11 @@ export function BrowseArchive() {
                         name="q"
                         aria-label={headerText.placeholder}
                         placeholder={headerText.placeholder}
-                        className="w-full bg-cream pl-12 pr-4 py-3.5 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
+                        className="w-full bg-cream pl-12 pr-24 py-3.5 rounded-lg border border-transparent focus:bg-white focus:border-tan-light outline-none transition-all font-sans text-charcoal"
                         value={localSearch}
                         onChange={(e) => setLocalSearch(e.target.value)}
                     />
+                    <ExactMatchToggle exact={exact} onChange={on => updateParam('exact', on ? '1' : '')} />
                 </div>
                 <div className="w-px bg-tan-light hidden md:block" />
                 <div className="relative min-w-[220px]">
@@ -279,8 +287,9 @@ export function BrowseArchive() {
                         aria-label="Sort results"
                         className="w-full bg-cream/50 pl-10 pr-10 py-3 rounded-lg outline-none appearance-none cursor-pointer focus:bg-white focus:ring-2 focus:ring-tan/20 transition-all font-medium text-charcoal font-sans"
                         value={sortBy}
-                        onChange={(e) => updateParam('sort', e.target.value, 'created_desc')}
+                        onChange={(e) => updateParam('sort', e.target.value, defaultSort)}
                     >
+                        {search.trim() && <option value="relevance">Best Match</option>}
                         <option value="created_desc">Date Added (Newest)</option>
                         <option value="created_asc">Date Added (Oldest)</option>
                         <option value="date_desc">Date of Origin (Newest)</option>
