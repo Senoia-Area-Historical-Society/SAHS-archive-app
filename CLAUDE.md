@@ -1,9 +1,12 @@
 # archive-app — CLAUDE.md
 
-Digital archives platform at `archives.senoiahistory.com`. Sibling to
-`../sahs-website/` (the public society website); see `../CLAUDE.md` for the
-two-app overview — but read the Gotchas here first, because several of that file's
-claims about *this* app are wrong.
+A digital archives platform for museums and historical societies: browse,
+search, map and manage artifacts and documents, on React and Firebase. Built and
+used by the Senoia Area Historical Society; any museum can run its own install.
+
+This is the contributor guide. Notes about a particular deployment (its project,
+people, extensions and incidents) belong in that deployment's own private repo,
+not here. For SAHS that is `sahs-archive-deploy`.
 
 ## Tech Stack
 
@@ -13,11 +16,15 @@ claims about *this* app are wrong.
 | Frontend | React, React Router |
 | Styling | Tailwind CSS |
 | Auth | Firebase Auth — Google OAuth |
-| Database | Cloud Firestore — **named database `sahs-archives`**, not the default |
+| Database | Cloud Firestore — a **named** database, not `(default)` |
 | Storage | Firebase Storage — the project's **default** bucket |
 | Functions | Cloud Functions v2, JavaScript (CommonJS), codebase `archives` |
 | Maps | Leaflet + react-leaflet |
 | Testing | Vitest — unit (`npm test`) and rules (`npm run test:rules`) |
+
+The named database is currently hardcoded as `sahs-archives` in the app,
+functions, scripts and emulator config. Making it configurable is planned; until
+then every install uses that name.
 
 ## Commands
 
@@ -27,7 +34,7 @@ npm run dev:emulators    # dev server pointed at the Firebase emulators
 npm run demo             # blank archive on all four emulators, for demos — see scripts/demo.cjs
 docker compose up        # the same, needing only Docker, for evaluators — see docs/DOCKER.md
 npm run build            # tsc -b && vite build
-npm run lint             # ESLint (44 pre-existing warnings, 0 errors)
+npm run lint             # ESLint (pre-existing warnings, 0 errors)
 npm test                 # unit tests — no emulator needed
 npm run test:rules       # security-rules tests — wraps `firebase emulators:exec`
 ```
@@ -38,20 +45,19 @@ Before pushing anything that touches rules or `functions/`:
 npm run build && npm test && npm run test:rules && (cd functions && npm run lint)
 ```
 
-## Firebase / GCP
+## Deployment
 
-- **Project:** `sahs-archives`, shared with `sahs-website`
-- **Firestore:** the **named** database `sahs-archives`. The website uses the
-  default one. They do not share data — see the Gotchas.
-- **Storage:** the project's default bucket. The website now has its own
-  (`sahs-website-media`) and is scoped to it via a `website-media` target, so the
-  two repos no longer overwrite each other's rules. **Do not add a bucket target
-  here** without re-reading that history.
-- **Auth:** one Firebase Auth instance shared with the website.
-- **Deploy:** every push to `main` runs
-  `deploy --only hosting,functions,storage,firestore`. **Merging a PR is a
-  production release.** There is a concurrency group, so runs queue rather than
-  race.
+`.github/workflows/deploy.yml` deploys `hosting,functions,storage,firestore` on
+every push to `main`, so **merging a PR is currently a production release** for
+SAHS. That workflow is moving to SAHS's private deploy repo; after that, upstream
+gets a PR-check workflow and versioned releases.
+
+A deployment's identity is three build inputs: `SITE_HEAD_FILE` (its static
+`<head>`), `SITE_URL` and `SITE_OG_IMAGE` (`scripts/site-url.cjs`), baked into the
+app by Vite and into `functions/shared/seo.cjs` by `prepare-functions.cjs`. **A
+build without them is neutral**: canonicals use the serving origin, there is no
+default share image, and the sitemap and list-page scripts refuse to run. Set all
+three for any production build or functions deploy.
 
 ## Access model
 
@@ -65,15 +71,14 @@ access bugs here.
 | `storage.rules` | **no** | `role` claim only |
 | `functions/restrictedMedia.js` | not used | `role` claim, support list |
 
-Storage Rules cannot read Firestore *at all*, let alone a named database. That is
-why `functions/userRoles.js` mirrors each role onto the user's Auth **custom
-claim** — `syncUserRoleClaims` on a role write, `syncSupportAdminClaims` on a
-support-list write, `syncMyRoleClaim` on sign-in. A role holder with no claim is
-invisible to Storage. `functions/roleResolution.js` decides the role.
+Access comes from a `user_roles` document, never from an email domain. Storage
+Rules cannot read Firestore *at all*, let alone a named database, so
+`functions/userRoles.js` mirrors each role onto the user's Auth **custom claim** —
+`syncUserRoleClaims` on a role write, `syncSupportAdminClaims` on a support-list
+write, `syncMyRoleClaim` on sign-in. A role holder with no claim is invisible to
+Storage. `functions/roleResolution.js` decides the role.
 
-**Support admins** replace the two addresses that used to be hardcoded in every
-layer. They are the archive's developers — `catnolan@senoiahistory.com` and
-`jeremywarren@senoiahistory.com` for SAHS — admitted as admin in any install so
+**Support admins** are the archive's developers, admitted as admin in an install so
 they can help with support. The list lives in `deployment_config/support`, is set
 only by `scripts/set-support-admins.cjs`, is shown to the museum's staff in Admin
 Settings, and can be removed (`--none`). Any admin — support or museum-granted —
@@ -121,33 +126,31 @@ tokens revoked and are fetched through `restrictedMediaUrl`.
 `functions/mediaVisibility.js` applies an item's visibility to its media and
 thumbnails whenever its `is_private` or media changes;
 `scripts/reconcile-media-visibility.cjs` keeps the whole bucket in step with
-Firestore and runs fortnightly as the backstop. The resize extension is
+Firestore and should run regularly as the backstop. The resize extension must be
 configured with `MAKE_PUBLIC=false` (`extensions/storage-resize-images.env`), so
 a thumbnail is public only if its item is.
 
 ## Demos and trial installs
 
-The archive is being shown to other museums (a Museum Professionals conference,
-February 2027) as software they can brand for themselves, so a blank install has to
-look like *their* archive, not SAHS's. There are two ways to run one, and both use
-emulators only — nothing reaches production.
+A blank install has to look like the *adopting museum's* archive, not SAHS's.
+There are two ways to run one, and both use emulators only — nothing reaches
+production.
 
 | | `npm run demo` (`scripts/demo.cjs`) | `docker compose up` (`docker/start.cjs`) |
 |---|---|---|
-| For | SAHS rehearsals on a dev machine (WSL on the Dell) | other museums, needing only Docker |
+| For | rehearsals on a dev machine | evaluators, needing only Docker |
 | App | Vite on `:5174` | built app served by the hosting emulator on `:5174` |
-| Project id | `sahs-archives` | `demo-archive` |
 | Setup admin | `--director <email>`, default `director@examplemuseum.org` | `DIRECTOR_EMAIL`, same default |
-| Support admins | the two SAHS addresses | `SUPPORT_ADMINS`, **empty by default** — a trial must not quietly make SAHS its admins |
+| Support admins | set by the script | `SUPPORT_ADMINS`, **empty by default** — a trial must not quietly make anyone else its admins |
 | Data | blank every run | kept in the `archive-data` volume until `docker compose down -v` |
 
 Both write `deployment_config/bootstrap` and `deployment_config/support` on start.
 Compose binds every port to `127.0.0.1` on purpose: emulator sign-in is fake, so
 anyone who could reach the ports could be anyone. Host and container ports must
 match, because the built app has them hard-coded. The image is built with no
-`SITE_*` variables, so it carries no SAHS address (see the Gotchas).
+`SITE_*` variables, so it carries no deployment's identity.
 
-User-facing docs: `docs/DEMO-GUIDE.md` is Cat's non-technical walkthrough;
+User-facing docs: `docs/DEMO-GUIDE.md` is a non-technical walkthrough;
 `docs/DOCKER.md` is for evaluators and holds the save-and-restore check to rerun
 after upgrading the emulator image. Both describe the Setup Wizard and home page
 step by step — update them when either changes.
@@ -198,32 +201,21 @@ public by design, and filters private items itself.
 
 ## Gotchas
 
-**The monorepo `../CLAUDE.md` is wrong about this app in three places.** It says
-neither app checks the email domain (this one did, until the domain grant was
-removed in Sept 2026); that both apps share one `user_roles` collection (they are
-in *different databases* — granting a role in the website admin does nothing
-here, and vice versa); and that `extractMetadata` is a live Gemini function (it
-was deleted in `82f9d81` as part of cost control — there is no Gemini or Vertex
-code in this repo at all).
-
-**The emulators use the named `sahs-archives` database too**, not the default one,
-because the functions' Firestore triggers are bound to it. Run the functions
-emulator alongside auth, firestore and storage (`npm run demo` does): a function
-calling a service with no emulator running reaches production.
+**The emulators use the named database too**, not the default one, because the
+functions' Firestore triggers are bound to it. Run the functions emulator
+alongside auth, firestore and storage (`npm run demo` does): a function calling a
+service with no emulator running reaches production.
 
 **The CLI's emulator export skips the named database.** `--export-on-exit` and
 `--import` save Auth and Storage but only the `(default)` Firestore database, so
 adding them to `npm run demo` would keep accounts and files and lose the archive.
 `docker/start.cjs` saves and restores the named database through the emulator's API.
 
-**Two Firestore databases, one Auth instance.** The app talks only to the named
-`sahs-archives` database (`db` in `src/lib/firebase.ts`); the website's default
-database is not reachable from this app's browser code. `firestore.rules` in this
-repo governs the named database only. The website's `mail` queue is closed to
-every client (`allow read, write: if false`) — the research-folder invitation is
-sent by `sendShareInvitation` through Resend, not queued from the browser.
-Firebase Extensions stop accepting installs and edits on 2027-03-31, which is
-one more reason not to build on the Trigger Email queue.
+**`firestore.rules` governs the named database only.** The app talks only to it
+(`db` in `src/lib/firebase.ts`). Email goes through Resend from
+`sendShareInvitation`, never through a Firestore mail queue written by the browser.
+Firebase Extensions stop accepting installs and edits on 2027-03-31, so don't
+build new features on one.
 
 **`firestore.indexes.json` is deployed declaratively and deletes anything not in
 it.** Add a composite index there *before* shipping a query that needs it, or
@@ -246,19 +238,11 @@ it.
 The site's `tsc -b` follows test imports into `functions/`, where it has neither
 `node` types nor the functions dependencies. That is why the decision logic in
 `collectionPrivacyRules.js` is import-free and the trigger wiring in
-`collectionPrivacy.js` is separate. The same split exists in the website
-(`ticketEmailContent.ts` / `ticketEmail.ts`).
+`collectionPrivacy.js` is separate.
 
-**Installed extensions are mostly not in version control.** Only
-`storage-resize-images` has its config here (`extensions/`), and the CI deploy
-does not apply it — that takes `firebase deploy --only extensions`.
-`firebase ext:list --project sahs-archives` is the only way to see the rest, and `gcloud functions describe ext-<name>-<fn> --region <r>
---format="value(environmentVariables)"` is how to read their configuration.
-Currently active: `storage-resize-images`, `firestore-send-email` (the website's
-`mail` queue), `storage-extract-image-text` (OCRs **every** bucket upload into an
-`extractedText` collection in the *default* database), and
-`firestore-algolia-search`, which is misconfigured — its `COLLECTION_PATH` is a
-document id, so it indexes nothing.
+**Installed extensions are not deployed by CI.** `extensions/` holds only
+`storage-resize-images`'s config, applied with `firebase deploy --only
+extensions`. `firebase ext:list --project <id>` shows what a project has.
 
 **Role simulation is admin-only and derives from `localStorage`.** See
 `src/lib/effectiveRoles.ts`. A simulation is honoured only for an account that
@@ -266,27 +250,18 @@ actually holds the role; the stored value alone grants nothing.
 
 **Scripts default to a dry run and take `--prod` to write.** That applies to
 `migrate-item-privacy-and-paperwork.cjs`, `backfill-role-claims.cjs`,
-`backfill-member-logins.cjs` and
-`normalize-artifact-types.cjs`; all are idempotent. Under bare user ADC the Auth API needs
-`GOOGLE_CLOUD_QUOTA_PROJECT=sahs-archives` set **per command** — not via `gcloud
-auth application-default set-quota-project`, which changes it for every tool on the
-machine and is what routed the August 2026 Vertex AI spend.
+`backfill-member-logins.cjs` and `normalize-artifact-types.cjs`; all are
+idempotent. Under bare user ADC the Auth API needs `GOOGLE_CLOUD_QUOTA_PROJECT=<project>`
+set **per command** — never via `gcloud auth application-default
+set-quota-project`, which changes it for every tool on the machine.
 
-**SAHS's wording lives in its settings and one build input, not in the defaults.**
-Defaults in `AppearanceContext`, `Home.tsx`, `src/lib/seo.ts` and `index.html` are
-what any new museum sees, so they stay neutral (`src/test/noSenoiaDefaults.test.ts`).
-SAHS's text comes from `site_settings/appearance`, which stores every content block.
-Its static `<head>` (tab title, social card, JSON-LD) is `deploy/sahs-head.html`,
-swapped in by `SITE_HEAD_FILE`; its address and default share image are `SITE_URL`
-and `SITE_OG_IMAGE` (`scripts/site-url.cjs`), baked into the app by Vite and into
-`functions/shared/seo.cjs` by `prepare-functions.cjs`. All three are job-level env in
-`deploy.yml`. **A build without them is neutral** — canonicals use the serving origin,
-there is no default share image, and the sitemap and list-page scripts refuse to
-run — so set all three for any manual production build or functions deploy. The
-hero slides are SAHS's `backgroundImages` setting, which points at the
-`/home-*.webp` files in `public/`; a museum without slides gets a solid colour.
-Check the live document before assuming a default is unused: SAHS's stories logo,
-for one, is a bundled fallback.
+**A museum's wording lives in its settings, not in the defaults.** Defaults in
+`AppearanceContext`, `Home.tsx`, `src/lib/seo.ts` and `index.html` are what any new
+museum sees, so they stay neutral (`src/test/noSenoiaDefaults.test.ts`). A
+museum's text comes from `site_settings/appearance`, which stores every content
+block; its static `<head>` comes from `SITE_HEAD_FILE` (see Deployment). Hero
+slides are the `backgroundImages` setting; a museum without slides gets a solid
+colour.
 
 **`renderMeta` serves `/items/**` and friends; the list pages are static.**
 `scripts/generate-static-pages.cjs` pre-renders only the `<head>` of the six public
