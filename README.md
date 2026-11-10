@@ -52,3 +52,16 @@ npm run build
 
 ---
 © 2026 Senoia Area Historical Society
+
+## 📄 License
+
+Copyright © 2026 Senoia Area Historical Society and contributors.
+
+This program is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE) for the full text.
+
+The license covers the software only. Photographs, logos and other collection
+content belonging to the Senoia Area Historical Society are not covered and may
+not be reused without permission.
