@@ -125,6 +125,56 @@ Firestore and runs fortnightly as the backstop. The resize extension is
 configured with `MAKE_PUBLIC=false` (`extensions/storage-resize-images.env`), so
 a thumbnail is public only if its item is.
 
+## Demos and trial installs
+
+The archive is being shown to other museums (a Museum Professionals conference,
+February 2027) as software they can brand for themselves, so a blank install has to
+look like *their* archive, not SAHS's. There are two ways to run one, and both use
+emulators only — nothing reaches production.
+
+| | `npm run demo` (`scripts/demo.cjs`) | `docker compose up` (`docker/start.cjs`) |
+|---|---|---|
+| For | SAHS rehearsals on a dev machine (WSL on the Dell) | other museums, needing only Docker |
+| App | Vite on `:5174` | built app served by the hosting emulator on `:5174` |
+| Project id | `sahs-archives` | `demo-archive` |
+| Setup admin | `--director <email>`, default `director@examplemuseum.org` | `DIRECTOR_EMAIL`, same default |
+| Support admins | the two SAHS addresses | `SUPPORT_ADMINS`, **empty by default** — a trial must not quietly make SAHS its admins |
+| Data | blank every run | kept in the `archive-data` volume until `docker compose down -v` |
+
+Both write `deployment_config/bootstrap` and `deployment_config/support` on start.
+Compose binds every port to `127.0.0.1` on purpose: emulator sign-in is fake, so
+anyone who could reach the ports could be anyone. Host and container ports must
+match, because the built app has them hard-coded. The image is built with no
+`SITE_*` variables, so it carries no SAHS address (see the Gotchas).
+
+User-facing docs: `docs/DEMO-GUIDE.md` is Cat's non-technical walkthrough;
+`docs/DOCKER.md` is for evaluators and holds the save-and-restore check to rerun
+after upgrading the emulator image. Both describe the Setup Wizard and home page
+step by step — update them when either changes.
+
+**The Getting Started checklist** (`src/lib/gettingStarted.ts`, pure and tested;
+`src/components/GettingStarted.tsx`, on Home) is what a new museum's staff see after
+the wizard. Its rules:
+
+- Every step is derived from archive data, never from clicks, so work done any
+  other way still ticks it off. An archive that already has everything never sees
+  the card at all; a failed load shows nothing.
+- Admins see branding (always done — `App.tsx` holds signed-in users at `/setup`
+  until it is complete), item, collection (only if `enableCollections`), location
+  and colleague. Curators see item, collection and location, and their item step
+  counts only items they uploaded (`uploaded_by_email`). Only the admin version
+  reads `user_roles`; keep any new probe to queries the rules allow that role.
+- Closing it is stored in `localStorage` under a key that includes
+  `site_settings/setup.completedAt`, so `docker compose down -v` brings it back for
+  the next rehearsal. **Getting Started** in the sidebar links to `/?guide=open`,
+  which reopens it and clears the closed flag.
+
+Browse, Library and Collections have empty states for a new archive: staff get a
+link to add the first item or book, visitors a neutral "nothing published yet". The
+Collections list is never empty, because it always merges in the built-in virtual
+collections (`pending-acquisitions`, `deaccessioned-artifacts`, `on-loan`), so its
+staff note checks for "only built-ins" instead.
+
 ## Cloud Functions (`functions/`)
 
 | Function | Trigger | Purpose |

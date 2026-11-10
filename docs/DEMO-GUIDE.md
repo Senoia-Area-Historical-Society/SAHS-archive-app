@@ -55,9 +55,6 @@ project's `CLAUDE.md` has the technical details.
 cd ~/SAHS-archive-app && git switch main && git pull
 ```
 
-> Until the demo changes are merged into the main version, use
-> `git switch feat/local-demo` instead of `git switch main`.
-
 ---
 
 ## A suggested demo walkthrough
