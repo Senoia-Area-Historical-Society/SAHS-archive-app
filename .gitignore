@@ -29,8 +29,10 @@ dist-ssr
 .env
 .github/workflows/sahs-archives-website.code-workspace
 .firebase/
-.firebaserc
 *.code-workspace
+
+# Claude Code
+.claude/worktrees/
 
 # Migration data and secrets
 migration/service-account.json

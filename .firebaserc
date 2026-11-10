@@ -11,5 +11,14 @@
       }
     }
   },
-  "etags": {}
+  "etags": {
+    "sahs-archives": {
+      "extensionInstances": {
+        "firestore-algolia-search": "72aba0b6a1933c71cf32ba36651b7938eedfbeed61f3631c95cb5c9b60934924",
+        "firestore-send-email": "c94cbedf92f8c7252bb5a5d5ecd26c0c276dcafbc6d2ce2fdf49558469b42663",
+        "storage-extract-image-text": "33d11fabcfceec416f28e9d04b7d0d2308af1c6f7a755b3f77d8b5929857f96e",
+        "storage-resize-images": "95ee17d2fd1faffd3befa4ba4fd06e7d35cf6dfa32bbf7c06bf36ef261162714"
+      }
+    }
+  }
 }
