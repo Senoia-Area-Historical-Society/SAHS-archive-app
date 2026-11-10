@@ -15,17 +15,11 @@
  * the claim whenever a role document is written, and `syncMyRoleClaim` self-heals
  * on sign-in. Accounts granted a role before those functions existed have neither,
  * and nothing has gone back for them. As of 2026-09-05 four role holders had no
- * claim, and two of them have no `@senoiahistory.com` address either, so they are
- * invisible to Storage Rules entirely:
- *
- *   cathrinennolan@gmail.com      admin    — cannot upload media
- *   kaitlin.carter1108@gmail.com  curator  — cannot upload media
- *   shelleykiley@senoiahistory.com  curator — works only via the domain fallback
- *   calebwalls@senoiahistory.com    curator — works only via the domain fallback
- *
- * The first two are a live bug today. The last two matter for the audit's H2: the
- * plan is to drop the `@senoiahistory.com` clause from the rules, and doing that
- * before this backfill would take their Storage access away with it.
+ * claim. The two without an `@senoiahistory.com` address were invisible to
+ * Storage Rules entirely and could not upload media; the other two worked only
+ * through the domain fallback. Those two mattered for the audit's H2: the plan
+ * was to drop the `@senoiahistory.com` clause from the rules, and doing that
+ * before this backfill would have taken their Storage access away with it.
  *
  * Run this, confirm every role holder reports a claim, and only then remove the
  * domain clause.
