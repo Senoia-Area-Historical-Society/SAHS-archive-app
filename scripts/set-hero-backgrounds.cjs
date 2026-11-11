@@ -30,10 +30,13 @@
  */
 
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DATABASE_ID = 'sahs-archives';
+const PROJECT_ID = 'sahs-archives';
+// From functions/.env.<project id>, where the Cloud Functions read it too.
+const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
 const DOC_PATH = 'site_settings/appearance';
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
@@ -73,7 +76,7 @@ async function main() {
         process.exit(1);
     }
 
-    admin.initializeApp({ projectId: 'sahs-archives' });
+    admin.initializeApp({ projectId: PROJECT_ID });
     const db = admin.firestore();
     db.settings({ databaseId: DATABASE_ID });
     const ref = db.doc(DOC_PATH);

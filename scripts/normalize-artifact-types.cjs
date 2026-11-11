@@ -41,10 +41,13 @@
  */
 
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 const fs = require('fs');
 const path = require('path');
 
-const DATABASE_ID = 'sahs-archives';
+const PROJECT_ID = 'sahs-archives';
+// From functions/.env.<project id>, where the Cloud Functions read it too.
+const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
 const BATCH_LIMIT = 400; // under Firestore's 500-write cap, with headroom
 const REPORT_PATH = path.join(__dirname, '..', 'migration', 'artifact-type-report.csv');
 
@@ -57,7 +60,7 @@ const ALIASES = { textiles: 'textile', printed: 'print', memorabilla: 'memorabil
 
 const PROD = process.argv.slice(2).includes('--prod');
 
-admin.initializeApp({ projectId: 'sahs-archives' });
+admin.initializeApp({ projectId: PROJECT_ID });
 const db = admin.firestore();
 db.settings({ databaseId: DATABASE_ID });
 

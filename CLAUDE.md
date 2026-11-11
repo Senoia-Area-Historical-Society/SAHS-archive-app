@@ -22,9 +22,17 @@ not here. For SAHS that is `sahs-archive-deploy`.
 | Maps | Leaflet + react-leaflet |
 | Testing | Vitest — unit (`npm test`) and rules (`npm run test:rules`) |
 
-The named database is currently hardcoded as `sahs-archives` in the app,
-functions, scripts and emulator config. Making it configurable is planned; until
-then every install uses that name.
+**Each Firebase project names its archive database once**, in
+`functions/.env.<project id>` (`ARCHIVE_DATABASE=...`). The CLI loads that file
+into the Cloud Functions on deploy and in the emulator, and `functions/database.js`
+binds every trigger to it. `scripts/lib/archiveDatabase.cjs` reads the same file
+for the web build (`__ARCHIVE_DATABASE__`, via `VITE_FIREBASE_PROJECT_ID`), the
+scripts and the Docker demo. `scripts/check-firestore-database-target.cjs`, the
+first deploy step, fails unless `firebase.json` targets exactly that database.
+None of these has a default: a trigger bound to the wrong database never fires
+and never errors, so a missing value must stop the build or deploy. A new install
+adds its own `functions/.env.<project id>`; `src/test/archiveDatabase.test.ts`
+fails on a literal database name in the app or functions.
 
 ## Commands
 
@@ -202,7 +210,9 @@ public by design, and filters private items itself.
 ## Gotchas
 
 **The emulators use the named database too**, not the default one, because the
-functions' Firestore triggers are bound to it. Run the functions emulator
+functions' Firestore triggers are bound to it. `npm run demo` (project
+`sahs-archives`) and Docker (`demo-archive`) each read it from their own
+`functions/.env.<project id>`; Docker's is allowlisted in `.dockerignore`. Run the functions emulator
 alongside auth, firestore and storage (`npm run demo` does): a function calling a
 service with no emulator running reaches production.
 

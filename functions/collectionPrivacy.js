@@ -59,13 +59,12 @@
 
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { logger } = require("firebase-functions");
-const { getFirestore } = require("firebase-admin/firestore");
 const { privacyPatch } = require("./collectionPrivacyRules");
 
-const DATABASE = "sahs-archives";
+const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 const BATCH_LIMIT = 400;
 
-const db = () => getFirestore(DATABASE);
+const db = archiveDb;
 
 /** Every collection id currently marked private. */
 async function loadPrivateCollectionIds() {
@@ -84,7 +83,7 @@ async function loadPrivateCollectionIds() {
  */
 exports.syncItemPrivacy = onDocumentWritten({
     document: "archive_items/{itemId}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 10,
     retry: true,
 }, async (event) => {
@@ -118,7 +117,7 @@ exports.syncItemPrivacy = onDocumentWritten({
  */
 exports.syncCollectionPrivacy = onDocumentWritten({
     document: "collections/{collectionId}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 10,
     retry: true,
 }, async (event) => {

@@ -64,7 +64,7 @@ const {
     visibilityActions,
 } = require("./mediaVisibilityRules");
 
-const DATABASE = "sahs-archives";
+const { ARCHIVE_DATABASE } = require("./database");
 
 /** How recent an original must be for its thumbnails to be worth waiting for. */
 const FRESH_UPLOAD_MS = 10 * 60 * 1000;
@@ -114,7 +114,7 @@ async function applyTo(file, visibility) {
 
 exports.syncItemMediaVisibility = onDocumentWritten({
     document: "archive_items/{itemId}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 10,
     retry: true,
     // Room for the bounded wait on late thumbnails.

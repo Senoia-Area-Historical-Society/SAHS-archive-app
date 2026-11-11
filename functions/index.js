@@ -3,10 +3,9 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { Client } = require("@googlemaps/google-maps-services-js");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
 
 admin.initializeApp();
-const db = getFirestore("sahs-archives");
+const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 
 // Initialize Google Maps client
 const mapsClient = new Client({});
@@ -19,7 +18,7 @@ const mapsClient = new Client({});
  */
 exports.geocodeArchiveItemAddress = onDocumentWritten({
     document: "archive_items/{itemId}",
-    database: "sahs-archives",
+    database: ARCHIVE_DATABASE,
     maxInstances: 10
 }, async (event) => {
     const change = event.data;
@@ -92,7 +91,7 @@ exports.geocodeArchiveItemAddress = onDocumentWritten({
  */
 exports.onCommentCreated = onDocumentCreated({
     document: "archive_items/{itemId}/comments/{commentId}",
-    database: "sahs-archives",
+    database: ARCHIVE_DATABASE,
     maxInstances: 10
 }, async (event) => {
     const snapshot = event.data;
@@ -105,7 +104,7 @@ exports.onCommentCreated = onDocumentCreated({
 
     try {
         // Fetch the parent archive item to get its title
-        const itemRef = db.collection("archive_items").doc(itemId);
+        const itemRef = archiveDb().collection("archive_items").doc(itemId);
         const itemSnap = await itemRef.get();
         let itemTitle = "Unknown Archive Item";
         if (itemSnap.exists) {
@@ -113,7 +112,7 @@ exports.onCommentCreated = onDocumentCreated({
         }
 
         // Create the notification document
-        const notificationRef = db.collection("notifications").doc();
+        const notificationRef = archiveDb().collection("notifications").doc();
         await notificationRef.set({
             id: notificationRef.id,
             type: "new_comment",

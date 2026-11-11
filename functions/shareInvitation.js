@@ -26,11 +26,10 @@ const { onDocumentUpdatedWithAuthContext } = require("firebase-functions/v2/fire
 const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
 const { SITE_URL } = require("./shared/seo.cjs");
 const { newCollaborators, buildInvitationEmail, resendRequest } = require("./shareInvitationRules");
 
-const DATABASE = "sahs-archives";
+const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const INVITATION_FROM_ADDRESS = process.env.INVITATION_FROM_ADDRESS || "archives@updates.senoiahistory.com";
 
@@ -50,7 +49,7 @@ async function sharerOf(event, folder) {
     }
     let name = "";
     if (email) {
-        const member = await getFirestore(DATABASE).collection("members").doc(email).get();
+        const member = await archiveDb().collection("members").doc(email).get();
         if (member.exists && typeof member.data().name === "string") name = member.data().name.trim();
     }
     return { email, name };
@@ -58,7 +57,7 @@ async function sharerOf(event, folder) {
 
 exports.sendShareInvitation = onDocumentUpdatedWithAuthContext({
     document: "research_folders/{folderId}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     secrets: [RESEND_API_KEY],
     maxInstances: 5,
 }, async (event) => {
@@ -70,7 +69,7 @@ exports.sendShareInvitation = onDocumentUpdatedWithAuthContext({
 
     const [sharer, appearance] = await Promise.all([
         sharerOf(event, after),
-        getFirestore(DATABASE).collection("site_settings").doc("appearance").get(),
+        archiveDb().collection("site_settings").doc("appearance").get(),
     ]);
     const museumName = appearance.exists ? appearance.data().museumName : "";
     const emulated = process.env.FUNCTIONS_EMULATOR === "true";

@@ -21,9 +21,9 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
 const { randomUUID } = require("node:crypto");
 const { supportEmailsOf } = require("./roleResolution");
+const { archiveDb } = require("./database");
 
 /**
  * Mirrors isSAHSUser() in storage.rules — keep the two in step.
@@ -40,7 +40,7 @@ async function isSAHSUser(auth) {
     if (!email) return false;
     if (auth.token.email_verified === false) return false;
     if (auth.token.role === "admin" || auth.token.role === "curator") return true;
-    const support = await getFirestore("sahs-archives").collection("deployment_config").doc("support").get();
+    const support = await archiveDb().collection("deployment_config").doc("support").get();
     return supportEmailsOf(support.exists ? support.data() : null).includes(email.toLowerCase());
 }
 

@@ -23,12 +23,11 @@ const fs = require('fs');
 const path = require('path');
 const { onRequest } = require('firebase-functions/v2/https');
 const { logger } = require('firebase-functions');
-const { getFirestore } = require('firebase-admin/firestore');
 
 const seo = require('./shared/seo.cjs');
 const { CACHE_CONTROL, virtualCollection, isPublicFlag, siteNameFrom } = require('./renderMetaRules');
 
-const DATABASE_ID = 'sahs-archives';
+const { archiveDb } = require('./database');
 
 /** Long enough to spare a read per render, short enough that a rename shows soon. */
 const SITE_NAME_TTL_MS = 5 * 60 * 1000;
@@ -281,7 +280,7 @@ exports.renderMeta = onRequest(
         }
 
         try {
-            const db = getFirestore(DATABASE_ID);
+            const db = archiveDb();
             const siteName = await readSiteName(db);
 
             // /collections/on-loan and friends have no document; see

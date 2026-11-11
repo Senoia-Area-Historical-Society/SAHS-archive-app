@@ -53,7 +53,9 @@ function buildEmulatorArgs() {
  * the save-and-restore check in docs/DOCKER.md is what to rerun after upgrading it.
  */
 const FIRESTORE_API = `http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}`;
-const FIRESTORE_DATABASE = `projects/${PROJECT}/databases/sahs-archives`;
+// The image's working directory mirrors the repo: scripts/ and functions/ sit beside this file.
+const { archiveDatabaseFor } = require('./scripts/lib/archiveDatabase.cjs');
+const FIRESTORE_DATABASE = `projects/${PROJECT}/databases/${archiveDatabaseFor(PROJECT)}`;
 const firestoreDir = () => path.join(DATA_DIR, 'firestore');
 const firestoreMetadata = (dir) => path.join(dir, 'archive', 'archive.overall_export_metadata');
 
