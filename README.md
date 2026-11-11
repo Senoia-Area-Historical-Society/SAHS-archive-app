@@ -52,3 +52,14 @@ npm run build
 
 ---
 © 2026 Senoia Area Historical Society
+
+## 📄 License
+
+Copyright © 2026 Senoia Area Historical Society and contributors.
+
+This software is released under the MIT License. See [LICENSE](LICENSE) for the
+full text.
+
+The license covers the software only. Photographs, logos and other collection
+content belonging to the Senoia Area Historical Society are not covered and may
+not be reused without permission.
