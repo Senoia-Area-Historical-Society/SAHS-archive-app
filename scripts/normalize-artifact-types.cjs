@@ -13,7 +13,8 @@
  * `'Photo'` matched no option, the browser chose the first, `'textile'`, and
  * saving relabelled the item. About 25 of the 44 lowercase `'textile'` items are
  * not textiles — a piano, a BB gun, bank books, photos. The fix shipped with this
- * script. These items are recovered from their tags: `migration/migrate.js`
+ * script. These items are recovered from their tags: the original import script
+ * (`migration/migrate.js`, removed from the repo but still in its history)
  * copied each item's original type into `tags`, and editing doesn't remove it.
  *
  * ── What it does, per artifact ───────────────────────────────────────────────
@@ -32,7 +33,7 @@
  *   node scripts/normalize-artifact-types.cjs --prod   # write
  *
  * Under bare user ADC this fails with "Could not load the default credentials";
- * prefix the command with GOOGLE_APPLICATION_CREDENTIALS=migration/service-account.json.
+ * prefix the command with GOOGLE_APPLICATION_CREDENTIALS=<path to a service-account key>.
  *
  * Every run writes `migration/artifact-type-report.csv` (git-ignored) with each
  * item's old and new value — that file is the undo record, so keep the one from
@@ -117,6 +118,7 @@ async function run() {
     });
 
     const header = ['doc_id', 'artifact_id', 'title', 'old_type', 'new_type', 'reason', 'tags'];
+    fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
     fs.writeFileSync(REPORT_PATH, [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n');
 
     console.log(`Artifacts read: ${snap.size}`);
