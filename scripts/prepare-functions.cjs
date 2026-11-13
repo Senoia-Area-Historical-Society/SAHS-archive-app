@@ -15,8 +15,13 @@
  * during the same CI run that deploys guarantees the function serves a shell
  * pointing at assets that actually exist.
  *
- * Both outputs are committed so the repo stays deployable on its own, and CI
- * regenerates them before every deploy so they cannot go stale in production.
+ * Neither is committed: both carry the deployment's own address and <head>, so
+ * each deployment generates them from its own build, and CI does so before every
+ * deploy. The functions require seo.cjs when they load, so anything that loads
+ * them without a full build (the emulator in `npm run demo`) runs this with
+ * `--shared-only`, which bundles seo.cjs and skips the shell. renderMeta reads the
+ * shell only when it serves a request.
+ *
  * Run after `npm run build`, with the same SITE_URL and SITE_OG_IMAGE as that
  * build (scripts/site-url.cjs): esbuild does not see Vite's `define`, so the
  * deployment's address is baked in here separately.
@@ -97,9 +102,11 @@ function copyShell() {
     console.log(`  functions/shell.html       ${(html.length / 1024).toFixed(1)} KB`);
 }
 
+const SHARED_ONLY = process.argv.slice(2).includes('--shared-only');
+
 console.log('Preparing Cloud Function inputs…');
 buildShared();
-copyShell();
+if (!SHARED_ONLY) copyShell();
 
 // Smoke-test the bundle so a broken export surface fails here rather than at a
 // cold start in production.

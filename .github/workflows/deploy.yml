@@ -76,10 +76,9 @@ jobs:
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_APP_ID: ${{ secrets.VITE_GOOGLE_APP_ID }}
 
-      # Regenerates functions/shared/seo.cjs and functions/shell.html from the
-      # build that was just produced. Both are committed so the repo deploys
-      # standalone, but regenerating here means the deployed function can never
-      # serve stale metadata logic or a shell pointing at old asset hashes.
+      # Generates functions/shared/seo.cjs and functions/shell.html from the build
+      # that was just produced. Neither is committed, so the deployed function always
+      # carries this build's metadata logic and a shell pointing at its asset hashes.
       - name: Prepare Cloud Function inputs
         run: node scripts/prepare-functions.cjs
 

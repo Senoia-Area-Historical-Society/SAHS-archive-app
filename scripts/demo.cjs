@@ -126,6 +126,16 @@ async function main() {
     }
 
     console.log('Starting a blank archive — this takes about 30 seconds…');
+    // The functions require functions/shared/seo.cjs when they load, and it is not
+    // committed. Bundle it here; the demo serves the app from Vite, so no shell.
+    const prepared = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'prepare-functions.cjs'), '--shared-only'], {
+        cwd: ROOT,
+        encoding: 'utf8',
+    });
+    if (prepared.status !== 0) {
+        console.error(`Could not prepare the Cloud Functions:\n${prepared.stdout}${prepared.stderr}`);
+        process.exit(1);
+    }
     const log = fs.createWriteStream(LOG);
     await startUntil(
         'The Firebase emulators',

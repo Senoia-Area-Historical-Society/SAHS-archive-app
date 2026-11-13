@@ -21,9 +21,8 @@ ENV VITE_USE_FIREBASE_EMULATOR=true \
 # `vite build` alone: `tsc -b` follows src/test, which is left out of the context,
 # and type checking is CI's job rather than the image's.
 RUN npx vite build
-# The committed functions/shared/seo.cjs and functions/shell.html are production's,
-# with its address baked in. Rebuild both from this build, which has no SITE_URL,
-# so the image names no other museum's site.
+# functions/shared/seo.cjs and functions/shell.html are not committed. Generate
+# both from this build, which has no SITE_URL, so the image names no museum's site.
 RUN node scripts/prepare-functions.cjs
 
 # --- The runtime: Java for the emulators, and only what they need ---------------
