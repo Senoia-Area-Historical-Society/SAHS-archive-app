@@ -498,7 +498,7 @@ export function AddBook() {
                                 >
                                     <ImageIcon size={32} className="text-tan/50 mb-2" />
                                     <p className="text-xs font-bold text-tan">Upload Cover Image</p>
-                                    <p className="text-[10px] text-charcoal/40 mt-1">PNG, JPG, or WEBP</p>
+                                    <p className="text-[10px] text-charcoal/60 mt-1">PNG, JPG, or WEBP</p>
                                 </div>
                             )}
 
@@ -736,7 +736,7 @@ export function AddBook() {
                                         );
                                     })}
                                     {locations.length === 0 && (
-                                        <p className="col-span-full text-center text-xs text-charcoal/40 italic py-4">No museum locations found. Create them first.</p>
+                                        <p className="col-span-full text-center text-xs text-charcoal/60 italic py-4">No museum locations found. Create them first.</p>
                                     )}
                                 </div>
                             </div>

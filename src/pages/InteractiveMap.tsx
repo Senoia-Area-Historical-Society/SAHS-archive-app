@@ -2083,7 +2083,7 @@ function InteractiveMapEditor() {
                         <h1 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
                             <MapPin className="text-tan" size={24} /> Museum Blueprint
                         </h1>
-                        <p className="text-[10px] text-charcoal/40 font-bold uppercase tracking-widest mt-0.5 ml-8">Interactive digital floor plan</p>
+                        <p className="text-[10px] text-charcoal/60 font-bold uppercase tracking-widest mt-0.5 ml-8">Interactive digital floor plan</p>
                     </div>
 
                     <div id="tour-floor-selector" className="flex items-center gap-2 border-l border-tan-light/50 pl-6">
@@ -2188,7 +2188,7 @@ function InteractiveMapEditor() {
                                         <p className="font-mono text-xs font-bold text-charcoal">{rooms.length} Loaded</p>
                                     </div>
                                     <div className="bg-charcoal/5 p-2 rounded-lg border border-charcoal/10">
-                                        <p className="text-[10px] font-black uppercase text-charcoal/40 mb-0.5">Locations</p>
+                                        <p className="text-[10px] font-black uppercase text-charcoal/60 mb-0.5">Locations</p>
                                         <p className="font-mono text-xs font-bold text-charcoal">{locations.length} Total</p>
                                     </div>
                                 </div>
@@ -2238,7 +2238,7 @@ function InteractiveMapEditor() {
                                                 if (unplaced.length === 0) {
                                                     return (
                                                         <div className="bg-white border-2 border-dashed border-tan/20 p-4 rounded-lg text-center">
-                                                            <p className="text-xs italic text-charcoal/40 mb-2">No unplaced locations found.</p>
+                                                            <p className="text-xs italic text-charcoal/60 mb-2">No unplaced locations found.</p>
                                                             <Link to="/manage-locations" className="text-[10px] font-black uppercase text-tan hover:text-charcoal underline">Add New Location</Link>
                                                         </div>
                                                     );
@@ -2292,7 +2292,7 @@ function InteractiveMapEditor() {
                                                         <h4 className="text-[10px] font-black uppercase text-tan/80 tracking-[0.2em] mb-4">Edit Room Properties</h4>
                                                         <div className="space-y-6">
                                                             <div>
-                                                                <label className="text-[10px] font-bold text-charcoal/40 uppercase mb-1 block">Room Identity</label>
+                                                                <label className="text-[10px] font-bold text-charcoal/60 uppercase mb-1 block">Room Identity</label>
                                                                 <input 
                                                                     type="text" 
                                                                     value={room.name} 
@@ -2308,7 +2308,7 @@ function InteractiveMapEditor() {
 
                                                             <div className="space-y-3 pb-4">
                                                                 <div className="flex justify-between items-center">
-                                                                    <label className="text-[10px] font-bold text-charcoal/40 uppercase block">Spatial Blocks</label>
+                                                                    <label className="text-[10px] font-bold text-charcoal/60 uppercase block">Spatial Blocks</label>
                                                                     <button 
                                                                         type="button"
                                                                         onClick={() => handleAddSpatialBlock(id)}
@@ -2547,7 +2547,7 @@ function InteractiveMapEditor() {
 
                                         <div className="mt-4 pt-4 border-t border-tan-light/50">
                                             <div className="flex justify-between items-center mb-2">
-                                                <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest leading-none">Unplaced Rooms</h4>
+                                                <h4 className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest leading-none">Unplaced Rooms</h4>
                                                 {rooms.filter(r => 
                                                     r.name?.toLowerCase() !== 'compass rose' && 
                                                     !r.map_coordinates && 
@@ -3412,13 +3412,13 @@ function InteractiveMapEditor() {
                                             <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-tan/80 select-none pointer-events-none">
                                                 <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>N</div>
                                             </div>
-                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-charcoal/60 select-none pointer-events-none">
                                                 <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>S</div>
                                             </div>
-                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                            <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/60 select-none pointer-events-none">
                                                 <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>W</div>
                                             </div>
-                                            <div className="absolute -right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/40 select-none pointer-events-none">
+                                            <div className="absolute -right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-charcoal/60 select-none pointer-events-none">
                                                 <div style={{ transform: `rotate(${-compassRose.rotation}deg)`, transition: 'transform 0.1s linear' }}>E</div>
                                             </div>
                                             
@@ -3429,7 +3429,7 @@ function InteractiveMapEditor() {
 
                                     {isEditMode && (
                                         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 bg-white p-3 rounded-lg shadow-xl border border-tan/30 flex flex-col items-center gap-2 w-48 opacity-0 group-hover:opacity-100 transition-opacity z-[200] cursor-auto">
-                                            <label className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest w-full flex justify-between">
+                                            <label className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest w-full flex justify-between">
                                                 <span>Rotation</span>
                                                 <span className="text-tan">{compassRose.rotation}°</span>
                                             </label>
@@ -3501,7 +3501,7 @@ function InteractiveMapEditor() {
                         <div className="flex justify-between items-center mt-2 border-t border-tan-light/20 pt-3">
                             <button 
                                 onClick={() => setTourStep(null)}
-                                className="text-xs font-bold text-charcoal/40 hover:text-charcoal transition-colors"
+                                className="text-xs font-bold text-charcoal/60 hover:text-charcoal transition-colors"
                             >
                                 Skip Tour
                             </button>
@@ -3684,7 +3684,7 @@ function InteractiveMapEditor() {
                                             >
                                                 <div className="font-bold text-xs text-charcoal">{preset.label}</div>
                                                 <div className="text-xs font-mono font-bold text-tan mt-0.5">{preset.ftW}′ × {preset.ftH}′</div>
-                                                <div className="text-[10px] text-charcoal/40 mt-0.5">{preset.desc}</div>
+                                                <div className="text-[10px] text-charcoal/60 mt-0.5">{preset.desc}</div>
                                             </button>
                                         );
                                     })}

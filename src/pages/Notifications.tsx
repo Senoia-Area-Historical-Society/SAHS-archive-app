@@ -242,7 +242,7 @@ export function Notifications() {
                     {/* Read Feed */}
                     {readNotifications.length > 0 && (
                         <div className="space-y-4">
-                            <h2 className="text-xs font-black uppercase tracking-widest text-charcoal/40 font-sans">
+                            <h2 className="text-xs font-black uppercase tracking-widest text-charcoal/60 font-sans">
                                 Earlier ({readNotifications.length})
                             </h2>
                             <div className="grid gap-4">
@@ -253,7 +253,7 @@ export function Notifications() {
                                     >
                                         <div className="space-y-3 flex-1">
                                             {/* Top info row */}
-                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-sans text-charcoal/40">
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-sans text-charcoal/60">
                                                 <span className="flex items-center gap-1 font-medium text-charcoal/70 bg-cream/30 px-2 py-0.5 rounded">
                                                     <User size={12} /> {notif.authorName}
                                                 </span>

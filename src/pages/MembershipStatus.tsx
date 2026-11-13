@@ -146,7 +146,7 @@ function MembershipCard() {
                                             <Award size={20} />
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Tier</p>
+                                            <p className="text-[11px] font-black text-charcoal/60 uppercase tracking-widest mb-0.5">Membership Tier</p>
                                             <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberTier}</p>
                                         </div>
                                     </div>
@@ -156,7 +156,7 @@ function MembershipCard() {
                                             <Calendar size={20} />
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Joined Date</p>
+                                            <p className="text-[11px] font-black text-charcoal/60 uppercase tracking-widest mb-0.5">Joined Date</p>
                                             <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberJoined}</p>
                                         </div>
                                     </div>
@@ -166,7 +166,7 @@ function MembershipCard() {
                                             <Calendar size={20} />
                                         </div>
                                         <div>
-                                            <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Expiration</p>
+                                            <p className="text-[11px] font-black text-charcoal/60 uppercase tracking-widest mb-0.5">Membership Expiration</p>
                                             <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberExpires}</p>
                                         </div>
                                     </div>
@@ -253,14 +253,14 @@ function MembershipCard() {
                                 <div className="flex gap-3.5 items-start">
                                     <div className="p-2.5 bg-charcoal/5 text-charcoal/40 rounded-lg shrink-0"><Award size={20} /></div>
                                     <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Membership Tier</p>
+                                        <p className="text-[11px] font-black text-charcoal/60 uppercase tracking-widest mb-0.5">Membership Tier</p>
                                         <p className="text-base font-serif font-bold text-charcoal leading-snug">{memberData.tier || 'Member'}</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3.5 items-start">
                                     <div className="p-2.5 bg-charcoal/5 text-charcoal/40 rounded-lg shrink-0"><Calendar size={20} /></div>
                                     <div>
-                                        <p className="text-[11px] font-black text-charcoal/40 uppercase tracking-widest mb-0.5">Originally Joined</p>
+                                        <p className="text-[11px] font-black text-charcoal/60 uppercase tracking-widest mb-0.5">Originally Joined</p>
                                         <p className="text-base font-serif font-bold text-charcoal leading-snug">
                                             {formatMemberDate(memberData.joinedAt)}
                                         </p>

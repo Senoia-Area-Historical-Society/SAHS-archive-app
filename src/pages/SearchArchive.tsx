@@ -356,7 +356,7 @@ export function SearchArchive() {
                     <div className="col-span-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {/* Item Type */}
                         <div>
-                            <label className="block text-xs font-bold text-charcoal/40 uppercase tracking-[0.2em] mb-3">Item Type</label>
+                            <label className="block text-xs font-bold text-charcoal/60 uppercase tracking-[0.2em] mb-3">Item Type</label>
                             <div className="relative group">
                                 <Filter className="absolute left-5 top-1/2 -translate-y-1/2 text-tan transition-colors group-focus-within:text-charcoal" size={24} />
                                 <select

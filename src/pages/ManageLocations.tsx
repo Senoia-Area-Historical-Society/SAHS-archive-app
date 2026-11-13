@@ -507,7 +507,7 @@ export function ManageLocations() {
                                     <div className="space-y-8">
                                         {matchedRooms.length > 0 && (
                                             <div>
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">Matching Wings / Rooms ({matchedRooms.length})</h4>
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/60 mb-4">Matching Wings / Rooms ({matchedRooms.length})</h4>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     {matchedRooms.map(room => (
                                                         <Link 
@@ -533,7 +533,7 @@ export function ManageLocations() {
 
                                         {matchedLocs.length > 0 && (
                                             <div>
-                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/40 mb-4">Matching Locations & Boxes ({matchedLocs.length})</h4>
+                                                <h4 className="text-xs font-black uppercase tracking-widest text-charcoal/60 mb-4">Matching Locations & Boxes ({matchedLocs.length})</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     {matchedLocs.map(loc => {
                                                         const parentRoom = rooms.find(r => r.docId === loc.room_id);
@@ -606,7 +606,7 @@ export function ManageLocations() {
                                                     </span>
                                                 </div>
                                                 <div className="w-1 h-1 rounded-full bg-charcoal/10" />
-                                                <span className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest">
+                                                <span className="text-[10px] font-black text-charcoal/60 uppercase tracking-widest">
                                                     {locations.filter((l: MuseumLocation) => l.room_id === room.docId).length} Artifact Hubs
                                                 </span>
                                             </div>
@@ -643,7 +643,7 @@ export function ManageLocations() {
                                     </div>
                                     <div>
                                         <h3 className="text-3xl font-serif font-bold text-charcoal mb-2 leading-tight">General Repository</h3>
-                                        <p className="text-xs text-charcoal/40 font-bold uppercase tracking-[0.2em]">Drag locations here to unassign them from any wing</p>
+                                        <p className="text-xs text-charcoal/60 font-bold uppercase tracking-[0.2em]">Drag locations here to unassign them from any wing</p>
                                     </div>
                                 </div>
 

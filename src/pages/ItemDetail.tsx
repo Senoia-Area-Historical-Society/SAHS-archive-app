@@ -205,7 +205,7 @@ export function ItemDetail() {
                                 </span>
                             )}
 
-                            <div className="text-xs text-charcoal/40 font-sans ml-auto flex items-center gap-3">
+                            <div className="text-xs text-charcoal/60 font-sans ml-auto flex items-center gap-3">
                                 <span>{new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                 
                                 {/* Reply Trigger Icon */}
@@ -262,7 +262,7 @@ export function ItemDetail() {
                                     className="w-full bg-white border border-tan-light/60 p-3 rounded-lg text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-2xs text-charcoal"
                                     required
                                 />
-                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
+                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/60">
                                     <span>💬 Replying as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
                                     <div className="flex items-center gap-3">
                                         <span>{replyText.length} / 500 characters</span>
@@ -1107,7 +1107,7 @@ export function ItemDetail() {
                             >
                                 <ChevronLeft size={16} strokeWidth={3} /> <span className="hidden sm:inline">Prev</span>
                             </button>
-                            <div className="text-[10px] font-black text-charcoal/40 tracking-widest px-2 whitespace-nowrap">
+                            <div className="text-[10px] font-black text-charcoal/60 tracking-widest px-2 whitespace-nowrap">
                                 {currentIndex + 1} / {galleryIds.length}
                             </div>
                             <button 
@@ -1395,13 +1395,13 @@ export function ItemDetail() {
                                         <div className="space-y-6">
                                             {item.full_name && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Full Name</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Full Name</p>
                                                     <p className="text-xl font-serif text-charcoal leading-tight">{item.full_name}</p>
                                                 </div>
                                             )}
                                             {(item.birth_date || item.death_date) && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Dates of Life</p>
                                                     <div className="flex flex-wrap gap-x-10 gap-y-4">
                                                         {item.birth_date && (
                                                             <div>
@@ -1420,19 +1420,19 @@ export function ItemDetail() {
                                             )}
                                             {item.birthplace && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Birthplace</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Birthplace</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.birthplace}</p>
                                                 </div>
                                             )}
                                             {item.occupation && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Primary Occupation</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Primary Occupation</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.occupation}</p>
                                                 </div>
                                             )}
                                             {item.historical_address && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                         <MapPin size={12} className="text-tan" /> Historical Address
                                                     </p>
                                                     <p className="text-lg font-serif text-charcoal leading-snug break-words">{item.historical_address}</p>
@@ -1450,13 +1450,13 @@ export function ItemDetail() {
                                             <div className="space-y-6">
                                                 {item.artifact_id && (
                                                     <div>
-                                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
+                                                        <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
                                                         <p className="text-xl font-serif font-bold text-tan">{item.artifact_id}</p>
                                                     </div>
                                                 )}
                                                 {(item.archive_reference || item.identifier) && (
                                                     <div>
-                                                        <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
+                                                        <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
                                                         <p className="text-base font-sans text-charcoal/80 leading-relaxed font-medium">
                                                             {item.archive_reference}
                                                             {item.identifier && <span className="block italic opacity-60 mt-1">{item.identifier}</span>}
@@ -1476,13 +1476,13 @@ export function ItemDetail() {
                                         <>
                                             {item.org_name && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Official Name</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Official Name</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.org_name}</p>
                                                 </div>
                                             )}
                                             {(item.founding_date || item.dissolved_date) && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Organization Lifespan</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Organization Lifespan</p>
                                                     <p className="text-lg font-serif text-charcoal">
                                                         {item.founding_date || '?'} — {item.dissolved_date || 'Present'}
                                                     </p>
@@ -1490,7 +1490,7 @@ export function ItemDetail() {
                                             )}
                                             {item.alternative_names && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Alternative / Former Names</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Alternative / Former Names</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.alternative_names}</p>
                                                 </div>
                                             )}
@@ -1498,7 +1498,7 @@ export function ItemDetail() {
                                     )}
                                     {!['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Category</p>
                                             <p className="text-lg font-serif text-charcoal">{item.item_type}</p>
                                             {(item.item_type === 'Artifact' ? item.artifact_type : item.category) && (
                                                 <span className="inline-block bg-tan/10 text-tan px-2.5 py-0.5 rounded-full text-[10px] font-bold border border-tan/20 mt-2 capitalize font-sans">
@@ -1509,7 +1509,7 @@ export function ItemDetail() {
                                     )}
                                         {collectionsData.length > 0 && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                             <div>
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
+                                                <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Part of Collection{collectionsData.length > 1 ? 's' : ''}</p>
                                                 <div className="flex flex-col gap-2">
                                                     {collectionsData.map(col => (
                                                         <Link key={col.id} to={`/collections/${col.id}`} className="text-lg font-serif text-tan hover:underline block break-words leading-snug">
@@ -1522,7 +1522,7 @@ export function ItemDetail() {
                                         )}
                                     {item.condition && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Condition</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Condition</p>
                                             <span className="inline-block bg-tan-light/10 text-charcoal/80 px-2.5 py-0.5 rounded-full text-[12px] font-bold border border-tan-light/30 mt-1 font-sans">
                                                 {item.condition}
                                             </span>
@@ -1530,19 +1530,19 @@ export function ItemDetail() {
                                     )}
                                     {item.date && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Origin Date</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Origin Date</p>
                                             <p className="text-lg font-serif text-charcoal">{item.date}</p>
                                         </div>
                                     )}
                                     {item.creator && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Creator / Author</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Creator / Author</p>
                                             <p className="text-lg font-serif text-charcoal">{item.creator}</p>
                                         </div>
                                     )}
                                     {item.tags && item.tags.length > 0 && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Tags</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Tags</p>
                                             <div className="flex flex-wrap gap-2 mt-1">
                                                 {item.tags.map(tag => (
                                                     <Link
@@ -1565,7 +1565,7 @@ export function ItemDetail() {
                                         <>
                                             {item.donor && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Original Donor</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Original Donor</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.donor}</p>
                                                 </div>
                                             )}
@@ -1575,13 +1575,13 @@ export function ItemDetail() {
                                         <>
                                             {item.creator && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Media / Data Contributor</p>
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Media / Data Contributor</p>
                                                     <p className="text-lg font-serif text-charcoal">{item.creator}</p>
                                                 </div>
                                             )}
                                             {item.historical_address && (
                                                 <div>
-                                                    <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                                    <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                         <MapPin size={12} className="text-tan" /> Historical Address
                                                     </p>
                                                     <p className="text-lg font-serif text-charcoal leading-snug break-words">{item.historical_address}</p>
@@ -1595,13 +1595,13 @@ export function ItemDetail() {
                                 <div className="space-y-6">
                                     {item.artifact_id && item.item_type !== 'Historic Organization' && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans text-tan">Catalog ID #</p>
                                             <p className="text-lg font-serif font-bold text-tan">{item.artifact_id}</p>
                                         </div>
                                     )}
                                     {(item.archive_reference || item.identifier) && item.item_type !== 'Historic Organization' && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans">Archival References</p>
                                             <p className="text-sm font-sans text-charcoal/80 leading-relaxed font-medium">
                                                 {item.archive_reference}
                                                 {item.identifier && <span className="block italic opacity-60 mt-0.5">{item.identifier}</span>}
@@ -1610,7 +1610,7 @@ export function ItemDetail() {
                                     )}
                                     {item.physical_location && item.item_type !== 'Historic Organization' && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                 <MapPin size={12} className="text-tan" /> Origin / Location
                                             </p>
                                             <p className="text-[15px] font-sans text-charcoal leading-snug break-words">{item.physical_location}</p>
@@ -1618,7 +1618,7 @@ export function ItemDetail() {
                                     )}
                                     {item.historical_address && !['Historic Figure', 'Historic Organization'].includes(item.item_type.trim()) && (
                                         <div>
-                                            <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
+                                            <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 font-sans flex items-center gap-1.5 align-top">
                                                 <MapPin size={12} className="text-tan" /> Historical Address
                                             </p>
                                             <p className="text-[15px] font-sans text-charcoal leading-snug break-words">{item.historical_address}</p>
@@ -1627,7 +1627,7 @@ export function ItemDetail() {
                                     {(item.museum_location_id || item.museum_location || isStaff) && item.item_type !== 'Historic Organization' && (
                                         <div>
                                             <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2 mb-2">
-                                                <p className="text-xs font-black text-charcoal/40 uppercase tracking-[0.2em] font-sans flex-1 min-w-[120px]">Physical Museum Shelf/Box</p>
+                                                <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] font-sans flex-1 min-w-[120px]">Physical Museum Shelf/Box</p>
                                                 {isStaff && !isEditingLocation && (
                                                     <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 transition-colors shrink-0">
                                                         <Edit2 size={10} /> Link
@@ -1816,7 +1816,7 @@ export function ItemDetail() {
                     </div>
                 ) : comments.length === 0 ? (
                     <div className="text-center py-12 bg-cream/30 rounded-2xl border border-dashed border-tan-light/50 mb-10 max-w-4xl mx-auto">
-                        <p className="font-serif text-charcoal/50 italic text-base">No comments have been posted yet. Be the first to share an annotation or question!</p>
+                        <p className="font-serif text-charcoal/70 italic text-base">No comments have been posted yet. Be the first to share an annotation or question!</p>
                     </div>
                 ) : (
                     <div className="space-y-8 mb-10 max-w-4xl mx-auto max-h-[600px] overflow-y-auto pr-4 no-scrollbar">
@@ -1842,7 +1842,7 @@ export function ItemDetail() {
                                     className="w-full bg-white border border-tan-light/60 p-4 rounded-xl text-sm outline-none focus:border-tan font-sans leading-relaxed resize-none shadow-xs"
                                     required
                                 />
-                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/40">
+                                <div className="flex justify-between items-center text-[10px] font-sans font-bold text-charcoal/60">
                                     <span>💬 Posting publicly as {isMember ? 'Verified Member' : 'Curator/Admin'}</span>
                                     <div className="flex items-center gap-3">
                                         <span>{newCommentText.length} / 800 characters</span>
@@ -1962,7 +1962,7 @@ export function ItemDetail() {
                                                                 </span>
                                                             )}
                                                         </p>
-                                                        <p className="text-[10px] text-charcoal/40 font-mono tracking-wider mt-0.5">{folder.itemIds.length} bookmarked items</p>
+                                                        <p className="text-[10px] text-charcoal/60 font-mono tracking-wider mt-0.5">{folder.itemIds.length} bookmarked items</p>
                                                     </div>
                                                 </div>
                                                 <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
@@ -2677,7 +2677,7 @@ export function OralHistoryDetail({ item, file_urls, relatedFigureItems, setZoom
                                     <FileText size={12} /> Export PDF
                                 </button>
                             )}
-                            <span className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest font-sans bg-charcoal/5 px-2 py-1.5 rounded-full text-center">
+                            <span className="text-[10px] font-black text-charcoal/60 uppercase tracking-widest font-sans bg-charcoal/5 px-2 py-1.5 rounded-full text-center">
                                 Read along
                             </span>
                         </div>
