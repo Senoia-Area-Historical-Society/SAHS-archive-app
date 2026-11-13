@@ -90,13 +90,18 @@ function publisherRef(siteName: string): Json {
     };
 }
 
-export function buildOrganizationJsonLd(siteName: string = DEFAULT_SITE_NAME): Json {
+/**
+ * `logoUrl` is the museum's own logo (its `logoUrl` appearance setting). With
+ * none, the node has no logo rather than pointing at a file this install may not
+ * have.
+ */
+export function buildOrganizationJsonLd(siteName: string = DEFAULT_SITE_NAME, logoUrl?: string): Json {
     return {
         '@context': 'https://schema.org',
         '@type': 'Museum',
         name: siteName,
         url: SITE_URL,
-        logo: `${SITE_URL}/logo2.png`,
+        ...(logoUrl ? { logo: logoUrl } : {}),
         description: `${siteName} preserves and shares local history through a digital archive of photographs, documents, artifacts and oral histories.`,
     };
 }

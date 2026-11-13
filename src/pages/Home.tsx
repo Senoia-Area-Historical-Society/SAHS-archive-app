@@ -12,10 +12,9 @@ import { buildWebSiteJsonLd } from '../lib/structuredData';
 
 
 // What a museum that has stored no slides of its own shows: none, so the hero is a
-// solid theme colour (the Setup Wizard says as much). Production's slides are its
-// own site_settings/appearance.backgroundImages (scripts/set-hero-backgrounds.cjs);
-// the /home-*.webp files they point at stay in public/ for that reason, and the
-// first is preloaded on "/" by a Link header in firebase.json.
+// solid theme colour (the Setup Wizard says as much). A museum's own slides are its
+// site_settings/appearance.backgroundImages, which can point at uploads or at files
+// it ships from its SITE_PUBLIC_DIR (vite.config.ts).
 const BACKGROUND_IMAGES: string[] = [];
 
 export function Home() {
