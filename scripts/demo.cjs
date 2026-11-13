@@ -28,8 +28,12 @@ const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
+const { resolveProjectId } = require('./lib/archiveProject.cjs');
 
 const ROOT = path.join(__dirname, '..');
+// The emulators run as the .firebaserc project, the one the seed scripts below
+// resolve too, so they read its functions/.env.<project id>.
+const PROJECT = resolveProjectId([]);
 const BIN = path.join(ROOT, 'node_modules', '.bin');
 const APP_PORT = 5174;
 const PORTS = { app: APP_PORT, firestore: 8080, auth: 9099, storage: 9199, functions: 5001, 'emulator UI': 4000 };
@@ -126,7 +130,7 @@ async function main() {
     await startUntil(
         'The Firebase emulators',
         path.join(BIN, 'firebase'),
-        ['emulators:start', '--only', 'auth,firestore,storage,functions', '--project', 'sahs-archives'],
+        ['emulators:start', '--only', 'auth,firestore,storage,functions', '--project', PROJECT],
         {},
         'All emulators ready',
         log,

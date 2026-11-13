@@ -46,7 +46,7 @@
  * "identitytoolkit.googleapis.com API requires a quota project". Set it for the
  * single run rather than globally:
  *
- *   GOOGLE_CLOUD_QUOTA_PROJECT=sahs-archives node scripts/backfill-role-claims.cjs
+ *   GOOGLE_CLOUD_QUOTA_PROJECT=<project id> node scripts/backfill-role-claims.cjs
  *
  * Deliberately scoped to the command: `gcloud auth application-default
  * set-quota-project` changes it for every tool on the machine, and an ADC quota
@@ -64,11 +64,10 @@
  */
 
 const admin = require('firebase-admin');
-const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
+const { archiveProject } = require('./lib/archiveProject.cjs');
 
-const PROJECT_ID = 'sahs-archives';
-// From functions/.env.<project id>, where the Cloud Functions read it too.
-const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
+// --project <id>, else .firebaserc; database from functions/.env.<project id>.
+const { projectId: PROJECT_ID, databaseId: DATABASE_ID } = archiveProject();
 
 /** Mirrors VALID_ROLES in functions/userRoles.js — the only roles Storage honours. */
 const VALID_ROLES = ['admin', 'curator'];

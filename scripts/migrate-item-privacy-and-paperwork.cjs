@@ -69,11 +69,10 @@
  */
 
 const admin = require('firebase-admin');
-const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
+const { archiveProject } = require('./lib/archiveProject.cjs');
 
-const PROJECT_ID = 'sahs-archives';
-// From functions/.env.<project id>, where the Cloud Functions read it too.
-const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
+// --project <id>, else .firebaserc; database from functions/.env.<project id>.
+const { projectId: PROJECT_ID, databaseId: DATABASE_ID } = archiveProject();
 const BATCH_LIMIT = 400; // under Firestore's 500-write cap, with headroom
 
 const args = process.argv.slice(2);
