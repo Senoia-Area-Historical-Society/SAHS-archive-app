@@ -21,7 +21,7 @@ export function CollectionDetail() {
     const [collectionData, setCollectionData] = useState<Collection | null>(null);
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const { settings } = useAppearance();
 
     useSeo(collectionData
@@ -65,7 +65,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'pending')
                     );
@@ -82,7 +82,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'deaccessioned')
                     );
@@ -99,7 +99,7 @@ export function CollectionDetail() {
                     
                     const q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'loan')
                     );
@@ -119,7 +119,7 @@ export function CollectionDetail() {
                     // Fetch items in this collection
                     const q = query(
                         collection(db, 'archive_items'), 
-                        publicOnlyWith(isSAHSUser, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
+                        publicOnlyWith(isStaff, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
                     );
                     
                     const querySnapshot = await getDocs(q);
@@ -133,7 +133,7 @@ export function CollectionDetail() {
                 itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
                 
                 // Filter private items for visitors
-                if (!isSAHSUser) {
+                if (!isStaff) {
                     setItems(itemsData.filter(i => !i.is_private));
                 } else {
                     setItems(itemsData);
@@ -146,7 +146,7 @@ export function CollectionDetail() {
         };
 
         fetchCollectionAndItems();
-    }, [id, isSAHSUser]);
+    }, [id, isStaff]);
 
     const handleOpenAddModal = async () => {
         setIsAddModalOpen(true);
@@ -155,7 +155,7 @@ export function CollectionDetail() {
         
         try {
             // Fetch all items
-            const itemsSnap = await getDocs(query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser)));
+            const itemsSnap = await getDocs(query(collection(db, 'archive_items'), ...publicOnly(isStaff)));
             const allItems = itemsSnap.docs.map(d => ({ id: d.id, ...d.data() } as ArchiveItem));
             
             // Filter out items already in this collection
@@ -166,7 +166,7 @@ export function CollectionDetail() {
             }));
 
             // Fetch all collections for warning context
-            const colsSnap = await getDocs(query(collection(db, 'collections'), ...publicOnly(isSAHSUser)));
+            const colsSnap = await getDocs(query(collection(db, 'collections'), ...publicOnly(isStaff)));
             setAllCollections(colsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Collection)));
         } catch (error) {
             console.error("Failed to load items for modal", error);
@@ -213,7 +213,7 @@ export function CollectionDetail() {
             // Refresh current items
             const q = query(
                 collection(db, 'archive_items'), 
-                publicOnlyWith(isSAHSUser, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
+                publicOnlyWith(isStaff, or(where('collection_id', '==', id), where('collection_ids', 'array-contains', id)))
             );
             const querySnapshot = await getDocs(q);
             const itemsData = querySnapshot.docs.map(d => ({
@@ -222,7 +222,7 @@ export function CollectionDetail() {
             })) as ArchiveItem[];
             itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
             
-            if (!isSAHSUser) {
+            if (!isStaff) {
                 setItems(itemsData.filter(i => !i.is_private));
             } else {
                 setItems(itemsData);
@@ -282,7 +282,7 @@ export function CollectionDetail() {
         return <div className="max-w-6xl mx-auto py-12 text-center text-charcoal/60 font-serif">Loading collection...</div>;
     }
 
-    if (!collectionData || (collectionData.is_private && !isSAHSUser)) {
+    if (!collectionData || (collectionData.is_private && !isStaff)) {
         return (
             <div className="max-w-6xl mx-auto py-12 text-center">
                 <h2 className="text-2xl font-serif text-charcoal mb-4">
@@ -301,7 +301,7 @@ export function CollectionDetail() {
                 <Link to="/collections" className="inline-flex items-center text-sm font-bold text-tan uppercase tracking-wider hover:text-charcoal transition-colors">
                     <ChevronLeft size={16} className="mr-1" /> Back to Collections
                 </Link>
-                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                {isStaff && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                     <Link to={`/edit-collection/${collectionData.id}`} className="inline-flex items-center gap-2 text-sm font-bold bg-tan/10 text-tan hover:bg-tan hover:text-white px-4 py-2 rounded-lg transition-colors">
                         <Edit2 size={16} /> Edit Collection
                     </Link>
@@ -328,12 +328,12 @@ export function CollectionDetail() {
                         <div className="flex items-center gap-4 text-sm font-bold text-charcoal/50 uppercase tracking-wider">
                             <span className="flex items-center gap-2"><ImageIcon size={16} /> {items.length} Items</span>
                         </div>
-                        {collectionData.is_private && isSAHSUser && (
+                        {collectionData.is_private && isStaff && (
                             <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
                                 <Lock size={12} /> Private Collection
                             </div>
                         )}
-                        {!collectionData.is_private && isSAHSUser && (
+                        {!collectionData.is_private && isStaff && (
                             <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 border border-green-100 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">
                                 <Users size={12} /> Public Collection
                             </div>
@@ -352,7 +352,7 @@ export function CollectionDetail() {
                     Items in this Collection
                     <span className="bg-tan/10 text-tan text-sm py-1 px-3 rounded-full font-sans">{items.length}</span>
                 </h2>
-                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                {isStaff && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                     <button 
                         onClick={handleOpenAddModal}
                         className="bg-tan text-white px-4 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors flex items-center gap-2 shadow-sm text-sm"
@@ -368,7 +368,7 @@ export function CollectionDetail() {
                         {items.map(item => (
                             <div key={item.id} className="relative group">
                                 <DocumentCard item={item} galleryIds={items.map(i => i.id || '')} collectionId={id} />
-                                {isSAHSUser && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
+                                {isStaff && !['pending-acquisitions', 'deaccessioned-artifacts', 'on-loan'].includes(id || '') && (
                                     <button 
                                         onClick={(e) => handleRemoveItem(item.id || '', e)}
                                         className="absolute top-3 right-3 p-2 bg-charcoal/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-red-500 shadow-md"

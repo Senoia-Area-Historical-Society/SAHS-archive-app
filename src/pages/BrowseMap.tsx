@@ -32,7 +32,7 @@ export function BrowseMap() {
 function MapBrowser() {
     const [items, setItems] = useState<ArchiveItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const { settings } = useAppearance();
 
     useEffect(() => {
@@ -43,7 +43,7 @@ function MapBrowser() {
                 // filter is the whole check. Reading `collections` to work it out
                 // again was an unfiltered list query, which the rules refuse for
                 // the public, and that failed the whole map for everyone but staff.
-                const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'archive_items'), ...publicOnly(isStaff), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
                 setItems(querySnapshot.docs.map(doc => ({
                     id: doc.id,
@@ -57,7 +57,7 @@ function MapBrowser() {
         };
 
         fetchItems();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     if (loading) {
         return (

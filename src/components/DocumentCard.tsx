@@ -19,7 +19,7 @@ export function DocumentCard({
     priority?: boolean,
     onRemove?: (e: React.MouseEvent) => void
 }) {
-    const { isEditingMode, isSAHSUser } = useAuth();
+    const { isEditingMode, isStaff } = useAuth();
     const imageUrl = item.featured_image_url || (item.file_urls && item.file_urls.length > 0 ? item.file_urls[0] : null);
     const totalImages = item.file_urls ? item.file_urls.length : 0;
 
@@ -51,12 +51,12 @@ export function DocumentCard({
                 {/* Specific preservation status badges - Only for Artifacts */}
                 {item.item_type === 'Artifact' ? (
                     <>
-                        {item.collection_status === 'pending' && isSAHSUser && (
+                        {item.collection_status === 'pending' && isStaff && (
                             <span className="absolute top-3 left-3 bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
                                 <Clock size={10} /> Pending
                             </span>
                         )}
-                        {item.collection_status === 'deaccessioned' && isSAHSUser && (
+                        {item.collection_status === 'deaccessioned' && isStaff && (
                             <span className="absolute top-3 left-3 bg-red-700 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
                                 <XCircle size={10} /> Deaccessioned
                             </span>
@@ -66,21 +66,21 @@ export function DocumentCard({
                                 <Calendar size={10} /> On Loan
                             </span>
                         )}
-                        {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
+                        {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isStaff && (
                             <span className="absolute top-3 left-3 bg-amber-500 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
                                 <Lock size={10} /> Private
                             </span>
                         )}
                     </>
                 ) : (
-                    item.is_private && isSAHSUser && (
+                    item.is_private && isStaff && (
                         <span className="absolute top-3 left-3 bg-amber-500 text-white text-[10px] px-2 py-1 rounded font-black uppercase tracking-widest flex items-center gap-1 z-10 shadow-sm">
                             <Lock size={10} /> Private
                         </span>
                     )
                 )}
                 {totalImages > 1 && (
-                    <span className={`absolute top-3 ${onRemove && isSAHSUser ? 'right-12' : 'right-3'} bg-charcoal/80 text-white text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-widest z-10 transition-all`}>
+                    <span className={`absolute top-3 ${onRemove && isStaff ? 'right-12' : 'right-3'} bg-charcoal/80 text-white text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-widest z-10 transition-all`}>
                         {totalImages} Images
                     </span>
                 )}
@@ -95,7 +95,7 @@ export function DocumentCard({
                         <AlertTriangle size={10} /> Graphic
                     </span>
                 )}
-                {onRemove && isSAHSUser && (
+                {onRemove && isStaff && (
                     <button
                         onClick={onRemove}
                         title="Remove from this location"

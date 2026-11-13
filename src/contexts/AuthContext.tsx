@@ -73,7 +73,7 @@ const SIMULATED_ROLES: readonly SimulatedRole[] = ['admin', 'curator', 'member',
  * to no simulation instead of propagating.
  */
 function storedSimulatedRole(): SimulatedRole | null {
-    const stored = localStorage.getItem('sahs_simulated_role');
+    const stored = localStorage.getItem('archive_simulated_role');
     return SIMULATED_ROLES.find((role) => role === stored) ?? null;
 }
 
@@ -82,7 +82,7 @@ interface AuthContextType {
     loading: boolean;
     loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
-    isSAHSUser: boolean; // Effective role
+    isStaff: boolean; // Effective role
     isAdmin: boolean;    // Effective role
     isCurator: boolean;  // Effective role
     realIsAdmin: boolean; // Actual database role
@@ -135,9 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isAdmin) return; // Only real admins can simulate roles
         setSimulatedRole(role);
         if (role) {
-            localStorage.setItem('sahs_simulated_role', role);
+            localStorage.setItem('archive_simulated_role', role);
         } else {
-            localStorage.removeItem('sahs_simulated_role');
+            localStorage.removeItem('archive_simulated_role');
         }
     };
 
@@ -341,7 +341,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const effective = deriveEffectiveRoles({ isAdmin, isCurator, isMember }, simulatedRole);
     const effectiveIsAdmin = effective.isAdmin;
     const effectiveIsCurator = effective.isCurator;
-    const effectiveIsSAHSUser = effective.isSAHSUser;
+    const effectiveIsStaff = effective.isStaff;
     // NB: the context deliberately continues to expose the *real* `isMember`;
     // only `hasResearchAccess` consumed the effective value. Left as found.
     const hasResearchAccess = effective.hasResearchAccess;
@@ -351,7 +351,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         loginWithGoogle,
         logout,
-        isSAHSUser: effectiveIsSAHSUser,
+        isStaff: effectiveIsStaff,
         isAdmin: effectiveIsAdmin,
         isCurator: effectiveIsCurator,
         realIsAdmin: isAdmin,

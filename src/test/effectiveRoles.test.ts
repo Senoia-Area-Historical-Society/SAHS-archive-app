@@ -5,7 +5,7 @@ import { deriveEffectiveRoles, type SimulatedRole } from '../lib/effectiveRoles'
  * The bug these guard: `effectiveIsMember` was
  * `simulatedRole === 'member' || (isMember && !simulatedRole)`. The first clause
  * referenced no real role, so any signed-in account could set
- * `localStorage['sahs_simulated_role'] = 'member'` and get `hasResearchAccess`.
+ * `localStorage['archive_simulated_role'] = 'member'` and get `hasResearchAccess`.
  * The admin and curator lines beside it were written correctly, which is how one
  * wrong line out of three survived review.
  */
@@ -27,13 +27,13 @@ describe('a simulation is only honoured for someone who may simulate', () => {
         const e = deriveEffectiveRoles(stranger, 'admin');
         expect(e.isAdmin).toBe(false);
         expect(e.isCurator).toBe(false);
-        expect(e.isSAHSUser).toBe(false);
+        expect(e.isStaff).toBe(false);
     });
 
     it('ignores a real member claiming to be an admin', () => {
         const e = deriveEffectiveRoles(realMember, 'admin');
         expect(e.isAdmin).toBe(false);
-        expect(e.isSAHSUser).toBe(false);
+        expect(e.isStaff).toBe(false);
         // Their genuine membership survives — the stray value is ignored, not punitive.
         expect(e.isMember).toBe(true);
     });
@@ -47,7 +47,7 @@ describe('a simulation is only honoured for someone who may simulate', () => {
     it('does not let a stray value remove a real curator\'s access', () => {
         const e = deriveEffectiveRoles(realCurator, 'member');
         expect(e.isCurator).toBe(true);
-        expect(e.isSAHSUser).toBe(true);
+        expect(e.isStaff).toBe(true);
     });
 });
 
@@ -56,7 +56,7 @@ describe('an admin previewing the site', () => {
         const e = deriveEffectiveRoles(realAdmin, 'member');
         expect(e.isAdmin).toBe(false);
         expect(e.isCurator).toBe(false);
-        expect(e.isSAHSUser).toBe(false);
+        expect(e.isStaff).toBe(false);
         expect(e.isMember).toBe(true);
         expect(e.hasResearchAccess).toBe(true);
     });
@@ -79,7 +79,7 @@ describe('an admin previewing the site', () => {
     it('keeps full access when simulating admin, or not simulating at all', () => {
         expect(deriveEffectiveRoles(realAdmin, 'admin').isAdmin).toBe(true);
         expect(deriveEffectiveRoles(realAdmin, null).isAdmin).toBe(true);
-        expect(deriveEffectiveRoles(realAdmin, null).isSAHSUser).toBe(true);
+        expect(deriveEffectiveRoles(realAdmin, null).isStaff).toBe(true);
     });
 });
 
@@ -87,7 +87,7 @@ describe('no simulation in force', () => {
     it('passes the real roles through', () => {
         expect(deriveEffectiveRoles(realMember, null).isMember).toBe(true);
         expect(deriveEffectiveRoles(realMember, null).hasResearchAccess).toBe(true);
-        expect(deriveEffectiveRoles(realCurator, null).isSAHSUser).toBe(true);
+        expect(deriveEffectiveRoles(realCurator, null).isStaff).toBe(true);
         expect(deriveEffectiveRoles(stranger, null).hasResearchAccess).toBe(false);
     });
 

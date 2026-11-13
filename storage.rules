@@ -15,7 +15,7 @@ service firebase.storage {
     // installing this code can see and remove — no address is named here now.
     // A support admin's claim is set on the list's write and on sign-in, so
     // removing one from the list revokes their Storage access too.
-    function isSAHSUser() {
+    function isStaff() {
       return request.auth != null &&
              request.auth.token != null &&
              request.auth.token.email != null &&
@@ -43,7 +43,7 @@ service firebase.storage {
     // for. scripts/reconcile-media-visibility.cjs is what keeps the two in step.
     //
     // Note that a Firebase download token BYPASSES these rules entirely. An object
-    // under accession_paperwork/ — already isSAHSUser()-only below — returned
+    // under accession_paperwork/ — already isStaff()-only below — returned
     // HTTP 200 and 802 KB anonymously because its stored URL carried a token.
     // Tightening a rule therefore protects nothing on its own; the reconcile
     // script revokes tokens on restricted objects, and that is what made the same
@@ -55,45 +55,45 @@ service firebase.storage {
 
     // Archive scans. Public copies are served via their object ACL, not from here.
     match /archive_media/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Video and audio attached to artifacts.
     match /additional_media/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Donor and provenance records. Staff-only by design, and now actually
     // staff-only: the tokens that were bypassing this rule have been revoked.
     match /accession_paperwork/{allPaths=**} {
-      allow read, write: if isSAHSUser();
+      allow read, write: if isStaff();
     }
 
     // Collection artwork.
     match /collections/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Historic figure portraits.
     match /portraits/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Legacy top-level path. Book covers now upload to
     // archive_media/library_covers/, so this covers older objects only.
     match /library_covers/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Logos, hero imagery and other site furniture.
     match /site_assets/{allPaths=**} {
-      allow read: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if isStaff();
+      allow write: if isStaff();
     }
 
     // Default deny for everything else

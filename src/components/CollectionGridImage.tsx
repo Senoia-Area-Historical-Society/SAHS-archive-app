@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function CollectionGridImage({ collectionId, coverImage, items: prefetchedItems, className = '' }: Props) {
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const [images, setImages] = useState<string[]>([]);
     const [loading, setLoading] = useState(!prefetchedItems && !coverImage);
 
@@ -38,7 +38,7 @@ export function CollectionGridImage({ collectionId, coverImage, items: prefetche
                 if (collectionId === 'pending-acquisitions') {
                     q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'pending'),
                         limit(20)
@@ -46,7 +46,7 @@ export function CollectionGridImage({ collectionId, coverImage, items: prefetche
                 } else if (collectionId === 'deaccessioned-artifacts') {
                     q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'deaccessioned'),
                         limit(20)
@@ -54,7 +54,7 @@ export function CollectionGridImage({ collectionId, coverImage, items: prefetche
                 } else if (collectionId === 'on-loan') {
                     q = query(
                         collection(db, 'archive_items'),
-                        ...publicOnly(isSAHSUser),
+                        ...publicOnly(isStaff),
                         where('item_type', '==', 'Artifact'),
                         where('collection_status', '==', 'loan'),
                         limit(20)
@@ -62,7 +62,7 @@ export function CollectionGridImage({ collectionId, coverImage, items: prefetche
                 } else {
                     q = query(
                         collection(db, 'archive_items'),
-                        publicOnlyWith(isSAHSUser, or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId))),
+                        publicOnlyWith(isStaff, or(where('collection_id', '==', collectionId), where('collection_ids', 'array-contains', collectionId))),
                         limit(20)
                     );
                 }
@@ -84,7 +84,7 @@ export function CollectionGridImage({ collectionId, coverImage, items: prefetche
         };
 
         fetchImages();
-    }, [collectionId, coverImage, prefetchedItems, isSAHSUser]);
+    }, [collectionId, coverImage, prefetchedItems, isStaff]);
     const containerStyle = `absolute inset-0 w-full h-full overflow-hidden bg-tan-light/10 ${className}`;
 
     if (loading) {

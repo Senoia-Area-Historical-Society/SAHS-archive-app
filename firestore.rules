@@ -11,7 +11,7 @@ service cloud.firestore {
     // here for up to an hour. Storage Rules still go by the claim, since they
     // cannot read this named database; userRoles.js revokes the person's
     // refresh tokens to cut that short.
-    function isSAHSUser() {
+    function isStaff() {
       return request.auth != null &&
         request.auth.token.email != null && (
           // The bare-domain clause was removed here. It granted curator-equivalent
@@ -47,7 +47,7 @@ service cloud.firestore {
     function isArchiveAdmin() {
       return request.auth != null &&
         request.auth.token.email != null && (
-          // Not the role claim — see isSAHSUser().
+          // Not the role claim — see isStaff().
           isSupportAdmin() ||
           (exists(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())) &&
            get(/databases/$(database)/documents/user_roles/$(request.auth.token.email.lower())).data.role == 'admin')
@@ -125,7 +125,7 @@ service cloud.firestore {
     }
 
     // Whether an arbitrary address holds a staff role — a user_roles document or
-    // a place on the support list. The address-based counterpart of isSAHSUser(),
+    // a place on the support list. The address-based counterpart of isStaff(),
     // about somebody other than the signed-in user.
     function isStaffAddress(email) {
       return (exists(/databases/$(database)/documents/user_roles/$(email)) &&
@@ -170,7 +170,7 @@ service cloud.firestore {
     // (role or support list) is 'Admin', other staff 'Curator', everyone else
     // 'Member'.
     function expectedCommentRole() {
-      return isArchiveAdmin() ? 'Admin' : (isSAHSUser() ? 'Curator' : 'Member');
+      return isArchiveAdmin() ? 'Admin' : (isStaff() ? 'Curator' : 'Member');
     }
 
     // Helper function to check if user has access to a folder
@@ -188,16 +188,16 @@ service cloud.firestore {
       // address and learn who holds admin or curator. Three callers actually need
       // it, and each is covered below:
       //   • AuthContext reads the signed-in user's own document (self).
-      //   • Admin Settings lists them (`list`, already isSAHSUser()).
+      //   • Admin Settings lists them (`list`, already isStaff()).
       //   • MyResearch checks a share target's role before adding a collaborator
       //     (src/pages/MyResearch.tsx ~445) — hence isActiveMember(), since only
       //     an active member can share a folder in the first place.
       // Note get()/exists() inside rules are privileged reads and do NOT re-enter
       // these rules, so isActiveMember() here is not recursive.
-      allow get: if isSAHSUser()
+      allow get: if isStaff()
                  || (request.auth != null && request.auth.token.email.lower() == email.lower())
                  || isActiveMember();
-      allow list: if isSAHSUser();
+      allow list: if isStaff();
       // Only the two hardcoded addresses could write here, so a museum's own
       // admins could not grant a curator role in Admin Settings, and a museum that
       // removed support access could never grant a role again. Any admin may now,
@@ -234,7 +234,7 @@ service cloud.firestore {
     // carried `is_private`, and Firestore does not match documents where a field
     // is absent), and the query filters in src/lib/privacyQuery.ts with their
     // composite indexes. A list query that does not constrain `is_private` is now
-    // REJECTED — so any new public query must carry `...publicOnly(isSAHSUser)`
+    // REJECTED — so any new public query must carry `...publicOnly(isStaff)`
     // and, if it combines that with an orderBy or array-contains, an index in
     // firestore.indexes.json.
     //
@@ -254,8 +254,8 @@ service cloud.firestore {
     // collections carry the field after the backfill, and AddItem, AddCollection
     // and EditCollection all write it. Staff are unaffected either way.
     match /archive_items/{item} {
-      allow read: if resource.data.is_private == false || isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if resource.data.is_private == false || isStaff();
+      allow write: if isStaff();
 
       // Accession paperwork lives here rather than on the parent document.
       //
@@ -268,14 +268,14 @@ service cloud.firestore {
       // `allow read: if true` is the deployed Storage ruleset (see audit C1) —
       // which is exactly the kind of coupling that should not exist.
       match /provenance/{doc} {
-        allow read, write: if isSAHSUser();
+        allow read, write: if isStaff();
       }
     }
 
     // library_books collection: Anyone can read, only staff can write
     match /library_books/{bookId} {
       allow read: if true;
-      allow write: if isSAHSUser();
+      allow write: if isStaff();
     }
 
     // comments subcollection under archive_items: readable when the item is,
@@ -286,7 +286,7 @@ service cloud.firestore {
     // item's existence and the commenters' names. The get() is one document access
     // per query (rules cache it within an evaluation), well inside the limit.
     match /archive_items/{itemId}/comments/{commentId} {
-      allow read: if isSAHSUser() ||
+      allow read: if isStaff() ||
         get(/databases/$(database)/documents/archive_items/$(itemId)).data.is_private == false;
       // Create used to check only "staff or active member", and trusted every
       // field the client sent. A member could therefore post under someone else's
@@ -305,13 +305,13 @@ service cloud.firestore {
         request.auth.token.email != null &&
         request.resource.data.authorEmail == request.auth.token.email.lower() &&
         request.resource.data.role == expectedCommentRole() && (
-          isSAHSUser() || (
+          isStaff() || (
             isActiveMember() &&
             request.resource.data.status == 'approved' &&
             get(/databases/$(database)/documents/archive_items/$(itemId)).data.is_private == false
           )
         );
-      allow delete: if isSAHSUser() || (
+      allow delete: if isStaff() || (
         request.auth != null && 
         request.auth.token.email.lower() == resource.data.authorEmail.lower()
       );
@@ -324,8 +324,8 @@ service cloud.firestore {
     // privacy map, so a private collection's title and membership were public even
     // once its items were not.
     match /collections/{collection} {
-      allow read: if resource.data.is_private == false || isSAHSUser();
-      allow write: if isSAHSUser();
+      allow read: if resource.data.is_private == false || isStaff();
+      allow write: if isStaff();
     }
 
     // site_settings collection: Anyone can read, only staff can write (or a listed setup admin during initial setup)
@@ -336,7 +336,7 @@ service cloud.firestore {
       // and site_settings is where the setup/appearance documents that define
       // isSetupComplete() themselves live. Restricted to isBootstrapAdmin() for
       // the same reason.
-      allow write: if isSAHSUser()
+      allow write: if isStaff()
                    || (!isSetupComplete() && isBootstrapAdmin());
     }
 
@@ -352,25 +352,25 @@ service cloud.firestore {
     // The support list is the exception on reads: a museum's staff must be able
     // to see who outside it has admin access. Still never writable from the app.
     match /deployment_config/support {
-      allow get: if isSAHSUser();
+      allow get: if isStaff();
     }
 
     // settings collection: Anyone can read, only staff can write
     match /settings/{document} {
       allow read: if true;
-      allow write: if isSAHSUser();
+      allow write: if isStaff();
     }
 
     // rooms collection for interactive map: Anyone can read, only staff can write
     match /rooms/{room} {
       allow read: if true;
-      allow write: if isSAHSUser();
+      allow write: if isStaff();
     }
 
     // locations collection for interactive map: Anyone can read, only staff can write
     match /locations/{location} {
       allow read: if true;
-      allow write: if isSAHSUser();
+      allow write: if isStaff();
     }
 
     // members collection: curators and admins can manage all, individuals can read their own membership status
@@ -386,11 +386,11 @@ service cloud.firestore {
       // (self); Admin Settings lists them (`list`); MyResearch validates a folder
       // share target (src/pages/MyResearch.tsx:457) — hence isActiveMember(), which
       // is already the precondition for sharing a folder at all.
-      allow get: if isSAHSUser()
+      allow get: if isStaff()
                  || isOwnMemberRecord(email)
                  || isActiveMember();
-      allow list: if isSAHSUser();
-      allow write: if isSAHSUser();
+      allow list: if isStaff();
+      allow write: if isStaff();
       // The one field a member writes on their own record: that they have
       // finished the member tour (MemberSetupWizard.tsx). Without it the write
       // was refused and the tour reopened on every visit. Only that key, only to
@@ -416,26 +416,26 @@ service cloud.firestore {
     // and by MyResearch to check a share target — the same callers, and the
     // same reasons, as members/{email} above.
     match /member_logins/{email} {
-      allow get: if isSAHSUser()
+      allow get: if isStaff()
                  || (request.auth != null && request.auth.token.email != null && request.auth.token.email.lower() == email.lower())
                  || isActiveMember();
-      allow list: if isSAHSUser();
+      allow list: if isStaff();
       allow write: if false;
     }
 
     // Deprecated research_folders subcollection (retained for backward compatibility/read-only safety if needed)
     match /members/{email}/research_folders/{folderId} {
-      allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+      allow read, write: if isStaff() || (request.auth != null && request.auth.token.email.lower() == email.lower());
     }
 
     // Deprecated research_notes subcollection (retained for backward compatibility/read-only safety if needed)
     match /members/{email}/research_notes/{itemId} {
-      allow read, write: if isSAHSUser() || (request.auth != null && request.auth.token.email.lower() == email.lower());
+      allow read, write: if isStaff() || (request.auth != null && request.auth.token.email.lower() == email.lower());
     }
 
     // Root-level research_folders: Owners, Collaborators, and curators and admins can read/write
     match /research_folders/{folderId} {
-      allow read: if isSAHSUser() || (
+      allow read: if isStaff() || (
         request.auth != null && (
           (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || 
           (resource.data.sharedWith != null && request.auth.token.email.lower() in resource.data.sharedWith)
@@ -446,7 +446,7 @@ service cloud.firestore {
       // update, where sharedWithAdditionsAllowed() checks each; allowing a list on
       // create would be a way around that check.
       allow create: if request.resource.data.get('sharedWith', []) == [] && (
-        isSAHSUser() || (
+        isStaff() || (
           isActiveMember() &&
           request.resource.data.ownerEmail != null &&
           request.resource.data.ownerEmail == request.auth.token.email.lower()
@@ -464,7 +464,7 @@ service cloud.firestore {
       //     `description` (the Edit Folder Details button, shown to collaborators
       //     too). Not `ownerEmail`, not `sharedWith`.
       allow update: if sharedWithAdditionsAllowed() && (
-        isSAHSUser() || (
+        isStaff() || (
           isActiveMember() && (
             (resource.data.ownerEmail != null &&
              resource.data.ownerEmail == request.auth.token.email.lower() &&
@@ -475,7 +475,7 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if isSAHSUser() || (
+      allow delete: if isStaff() || (
         isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
@@ -484,7 +484,7 @@ service cloud.firestore {
 
     // Root-level research_notes: Owners can read/write; Collaborators can read if note is not private
     match /research_notes/{noteId} {
-      allow read: if isSAHSUser() || (
+      allow read: if isStaff() || (
         request.auth != null && (
           (resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower()) || (
             resource.data.isPrivate != null &&
@@ -495,17 +495,17 @@ service cloud.firestore {
           )
         )
       );
-      allow create: if isSAHSUser() || (
+      allow create: if isStaff() || (
         isActiveMember() && 
         request.resource.data.ownerEmail != null &&
         request.resource.data.ownerEmail == request.auth.token.email.lower()
       );
-      allow update: if isSAHSUser() || (
+      allow update: if isStaff() || (
         isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
       );
-      allow delete: if isSAHSUser() || (
+      allow delete: if isStaff() || (
         isActiveMember() && 
         resource.data.ownerEmail != null &&
         resource.data.ownerEmail == request.auth.token.email.lower()
@@ -514,7 +514,7 @@ service cloud.firestore {
 
     // notifications collection: Curators and admins can read and update them (to mark as read / dismiss)
     match /notifications/{notificationId} {
-      allow read, update: if isSAHSUser();
+      allow read, update: if isStaff();
     }
 
     // mail collection for Trigger Email extension: Authenticated users can write emails to trigger notifications
@@ -525,9 +525,9 @@ service cloud.firestore {
     // Root-level personal_pins: Only the owner can read/write their personal pins
     match /personal_pins/{pinId} {
       allow read: if request.auth != null && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
-      allow create: if (isSAHSUser() || isActiveMember()) && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
-      allow update: if (isSAHSUser() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower() && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
-      allow delete: if (isSAHSUser() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
+      allow create: if (isStaff() || isActiveMember()) && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow update: if (isStaff() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower() && request.resource.data.ownerEmail != null && request.resource.data.ownerEmail == request.auth.token.email.lower();
+      allow delete: if (isStaff() || isActiveMember()) && resource.data.ownerEmail != null && resource.data.ownerEmail == request.auth.token.email.lower();
     }
 
     // Default deny for everything else

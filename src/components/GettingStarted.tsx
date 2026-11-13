@@ -32,11 +32,11 @@ function writeStored(key: string, value: StoredGuide) {
 
 /** The staff checklist on the home page. Renders nothing for anyone else. */
 export function GettingStarted() {
-    const { user, isSAHSUser, isAdmin, isSetupComplete } = useAuth();
+    const { user, isStaff, isAdmin, isSetupComplete } = useAuth();
     const { settings } = useAppearance();
     const [searchParams, setSearchParams] = useSearchParams();
     const email = user?.email ?? null;
-    const eligible = Boolean(email && isSAHSUser && isSetupComplete);
+    const eligible = Boolean(email && isStaff && isSetupComplete);
 
     const [facts, setFacts] = useState<GuideFacts | null>(null);
     const [setupStamp, setSetupStamp] = useState<string | null>(null);

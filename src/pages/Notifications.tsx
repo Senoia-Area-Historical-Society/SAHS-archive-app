@@ -20,7 +20,7 @@ interface NotificationItem {
 }
 
 export function Notifications() {
-    const { user, isSAHSUser } = useAuth();
+    const { user, isStaff } = useAuth();
     const { settings } = useAppearance();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -31,7 +31,7 @@ export function Notifications() {
 
     // Subscribe to notifications collection in real-time
     useEffect(() => {
-        if (!isSAHSUser) {
+        if (!isStaff) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setLoading(false);
             return;
@@ -55,7 +55,7 @@ export function Notifications() {
         });
 
         return () => unsubscribe();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     const userEmail = user?.email?.toLowerCase() || '';
 
@@ -121,7 +121,7 @@ export function Notifications() {
         }
     };
 
-    if (!isSAHSUser) {
+    if (!isStaff) {
         return (
             <div className="max-w-md mx-auto py-16 px-6 text-center space-y-6">
                 <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-inner">

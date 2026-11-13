@@ -9,7 +9,7 @@ import { FolderMapView } from '../components/FolderMapView';
 import { errorMessage } from '../lib/errors';
 
 export function MyResearchMap() {
-    const { user, hasResearchAccess, isSAHSUser } = useAuth();
+    const { user, hasResearchAccess, isStaff } = useAuth();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [items, setItems] = useState<ArchiveItem[]>([]);
@@ -56,7 +56,7 @@ export function MyResearchMap() {
                 }
                 
                 // 3. Load the item documents, skipping any since made private or deleted
-                setItems(await fetchItemsByIds(uniqueIds, isSAHSUser));
+                setItems(await fetchItemsByIds(uniqueIds, isStaff));
             } catch (err) {
                 console.error("Error loading research items:", err);
                 setError(errorMessage(err) || "Failed to load research item coordinates.");
@@ -66,7 +66,7 @@ export function MyResearchMap() {
         };
 
         loadAllResearchItems();
-    }, [user, hasResearchAccess, isSAHSUser]);
+    }, [user, hasResearchAccess, isStaff]);
 
     return (
         <div className="flex flex-col min-h-screen animate-in fade-in duration-500 pb-16">

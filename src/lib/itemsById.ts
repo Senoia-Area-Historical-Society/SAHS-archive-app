@@ -20,12 +20,12 @@ import { collection, doc, documentId, getDoc, getDocs, query, where } from 'fire
 import { db } from './firebase';
 import type { ArchiveItem } from '../types/database';
 
-export async function fetchItemsByIds(ids: string[], isSAHSUser: boolean): Promise<ArchiveItem[]> {
+export async function fetchItemsByIds(ids: string[], isStaff: boolean): Promise<ArchiveItem[]> {
     const unique = [...new Set(ids)];
     if (unique.length === 0) return [];
 
     let items: ArchiveItem[];
-    if (isSAHSUser) {
+    if (isStaff) {
         const chunks: string[][] = [];
         for (let i = 0; i < unique.length; i += 30) {
             chunks.push(unique.slice(i, i + 30));

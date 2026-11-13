@@ -45,7 +45,7 @@ export function ItemDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { isSAHSUser, user, hasResearchAccess, realIsAdmin, realIsCurator, isMember, memberData } = useAuth();
+    const { isStaff, user, hasResearchAccess, realIsAdmin, realIsCurator, isMember, memberData } = useAuth();
     const { settings } = useAppearance();
 
     const galleryIds = (location.state?.galleryIds as string[]) || [];
@@ -163,7 +163,7 @@ export function ItemDetail() {
 
     const renderCommentNode = (c: typeof comments[0], depth: number = 0) => {
         const isAuthor = user && user.email && user.email.toLowerCase() === c.authorEmail.toLowerCase();
-        const canDelete = isSAHSUser || isAuthor;
+        const canDelete = isStaff || isAuthor;
         const replies = commentsByParent[c.id] || [];
 
         const indentClass = depth === 0 
@@ -395,17 +395,17 @@ export function ItemDetail() {
                     // 1) Forward explicit references defined on THIS item
                     const fetchForward = async (ids: string[] | undefined) => {
                         if (!ids || ids.length === 0) return [];
-                        return fetchItemsByIds(ids, isSAHSUser);
+                        return fetchItemsByIds(ids, isStaff);
                     };
 
                     // 2) Backward references (items that link TO this item)
                     const fetchBackward = async (field: string) => {
-                        const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), where(field, 'array-contains', id));
+                        const q = query(collection(db, 'archive_items'), ...publicOnly(isStaff), where(field, 'array-contains', id));
                         const snap = await getDocs(q);
                         let results = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                         
                         // Filter private items for visitors
-                        if (!isSAHSUser) {
+                        if (!isStaff) {
                             results = results.filter(i => !i.is_private);
                         }
                         return results;
@@ -474,7 +474,7 @@ export function ItemDetail() {
                     const exploreQuery = cIds.length > 0
                         ? query(
                             collection(db, 'archive_items'), 
-                            publicOnlyWith(isSAHSUser, or(
+                            publicOnlyWith(isStaff, or(
                                 where('collection_ids', 'array-contains-any', cIds),
                                 where('collection_id', 'in', cIds)
                             )),
@@ -482,7 +482,7 @@ export function ItemDetail() {
                           )
                         : query(
                             collection(db, 'archive_items'), 
-                            ...publicOnly(isSAHSUser),
+                            ...publicOnly(isStaff),
                             where('item_type', '==', data.item_type),
                             limit(12)
                           );
@@ -550,7 +550,7 @@ export function ItemDetail() {
                     let eItems = exploreSnap && exploreSnap.docs
                         ? exploreSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as ArchiveItem[]
                         : [];
-                    if (!isSAHSUser) {
+                    if (!isStaff) {
                         eItems = eItems.filter(i => !i.is_private);
                     }
                     const explicitlyLinkedIds = new Set(uniqueLinked.map(i => i.id));
@@ -584,7 +584,7 @@ export function ItemDetail() {
             }
         };
         fetchItemAndRelated();
-    }, [id, isSAHSUser]);
+    }, [id, isStaff]);
 
     const fetchComments = async () => {
         if (!id) return;
@@ -897,7 +897,7 @@ export function ItemDetail() {
         return <div className="flex justify-center items-center h-full text-charcoal/60 font-serif text-lg">{isDeleting ? 'Deleting...' : 'Loading resource...'}</div>;
     }
 
-    if (!item || ((item.is_private || isCollectionPrivate) && !isSAHSUser)) {
+    if (!item || ((item.is_private || isCollectionPrivate) && !isStaff)) {
         return (
             <div className="flex flex-col items-center justify-center h-full py-20">
                 <h2 className="text-2xl font-serif text-charcoal mb-4">
@@ -1132,7 +1132,7 @@ export function ItemDetail() {
                         </button>
                     )}
 
-                    {isSAHSUser && (
+                    {isStaff && (
                         <div className="flex gap-3">
                             {item.item_type === 'Artifact' && item.collection_status === 'pending' && (
                                 <button
@@ -1167,12 +1167,12 @@ export function ItemDetail() {
                     {/* Collection Status Badges - Only for Artifacts */}
                     {item.item_type === 'Artifact' ? (
                         <>
-                            {item.collection_status === 'pending' && isSAHSUser && (
+                            {item.collection_status === 'pending' && isStaff && (
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                                     <Clock size={14} /> Pending Accessioning
                                 </div>
                             )}
-                            {item.collection_status === 'deaccessioned' && isSAHSUser && (
+                            {item.collection_status === 'deaccessioned' && isStaff && (
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-700 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                                     <XCircle size={14} /> Deaccessioned
                                 </div>
@@ -1187,20 +1187,20 @@ export function ItemDetail() {
                                     <Award size={14} /> Permanent Collection
                                 </div>
                             )}
-                            {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isSAHSUser && (
+                            {item.is_private && !['pending', 'deaccessioned'].includes(item.collection_status || '') && isStaff && (
                                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                                     <Lock size={14} /> Private Item
                                 </div>
                             )}
                         </>
                     ) : (
-                        item.is_private && isSAHSUser && (
+                        item.is_private && isStaff && (
                             <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                                 <Lock size={14} /> Private Item
                             </div>
                         )
                     )}
-                    {isCollectionPrivate && isSAHSUser && (
+                    {isCollectionPrivate && isStaff && (
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-md translate-y-[-4px]">
                             <Lock size={14} /> Private Collection
                         </div>
@@ -1624,11 +1624,11 @@ export function ItemDetail() {
                                             <p className="text-[15px] font-sans text-charcoal leading-snug break-words">{item.historical_address}</p>
                                         </div>
                                     )}
-                                    {(item.museum_location_id || item.museum_location || isSAHSUser) && item.item_type !== 'Historic Organization' && (
+                                    {(item.museum_location_id || item.museum_location || isStaff) && item.item_type !== 'Historic Organization' && (
                                         <div>
                                             <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2 mb-2">
                                                 <p className="text-xs font-black text-charcoal/60 uppercase tracking-[0.2em] font-sans flex-1 min-w-[120px]">Physical Museum Shelf/Box</p>
-                                                {isSAHSUser && !isEditingLocation && (
+                                                {isStaff && !isEditingLocation && (
                                                     <button onClick={handleEditLocationClick} className="text-[10px] text-tan hover:text-tan-light bg-tan/10 px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1 transition-colors shrink-0">
                                                         <Edit2 size={10} /> Link
                                                     </button>
@@ -1879,7 +1879,7 @@ export function ItemDetail() {
                 </div>
             </div>
 
-            {isSAHSUser && (item.item_type === 'Artifact' || item.item_type === 'Document') && (
+            {isStaff && (item.item_type === 'Artifact' || item.item_type === 'Document') && (
                 <div className="mt-16 pt-12 border-t border-tan-light/50 w-full max-w-4xl mx-auto flex flex-col items-center sm:items-start animate-in fade-in duration-300">
                     <h3 className="text-2xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
                         <QrCode className="text-tan" size={24} />

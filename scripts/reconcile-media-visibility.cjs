@@ -23,7 +23,7 @@
  * 1. No public ACL, so https://storage.googleapis.com/<bucket>/<path> denies.
  * 2. No Firebase download token, because a token BYPASSES security rules
  *    entirely. This was measured, not assumed: an object under
- *    accession_paperwork/ — whose rule is `allow read: if isSAHSUser()` —
+ *    accession_paperwork/ — whose rule is `allow read: if isStaff()` —
  *    returned HTTP 200 and 802 KB to an anonymous request carrying its stored
  *    token. Tightening rules alone would have left every already-issued URL
  *    working forever.

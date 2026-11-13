@@ -54,7 +54,7 @@ export default function Layout() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const { isSAHSUser, user, logout } = useAuth();
+    const { isStaff, user, logout } = useAuth();
     const { settings } = useAppearance();
     const navigate = useNavigate();
 
@@ -146,7 +146,7 @@ export default function Layout() {
 
                     {/* Right Section (QR and Account Profile Status) */}
                     <div className="flex items-center gap-3 ml-auto">
-                        {isSAHSUser && (
+                        {isStaff && (
                             <button 
                                 onClick={() => setIsScannerOpen(true)}
                                 className="p-2 text-tan hover:bg-tan/10 rounded-lg transition-colors flex items-center justify-center"

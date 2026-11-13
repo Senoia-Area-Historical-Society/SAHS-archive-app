@@ -15,7 +15,7 @@ import { QRCodeDisplay } from '../components/QRCodeDisplay';
 export function LibraryDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
 
     const { settings } = useAppearance();
 
@@ -182,7 +182,7 @@ export function LibraryDetail() {
                 >
                     <ArrowLeft size={16} /> Back to Library
                 </Link>
-                {isSAHSUser && (
+                {isStaff && (
                     <div className="flex gap-3">
                         <button
                             onClick={handleDeleteBook}
@@ -350,7 +350,7 @@ export function LibraryDetail() {
                     )}
 
                     {/* Physical Location Cards - Curator/Admin Only */}
-                    {isSAHSUser && (
+                    {isStaff && (
                         <div className="space-y-3 pt-4">
                             <h2 className="font-serif text-xl font-bold text-charcoal border-b border-tan-light/20 pb-2">
                                 Physical Location inside Museum
@@ -413,7 +413,7 @@ export function LibraryDetail() {
                 </div>
             </div>
 
-            {isSAHSUser && (
+            {isStaff && (
                 <div className="mt-16 pt-12 border-t border-tan-light/50 w-full max-w-4xl mx-auto flex flex-col items-center sm:items-start animate-in fade-in duration-300">
                     <h3 className="text-2xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
                         <QrCode className="text-tan" size={24} />

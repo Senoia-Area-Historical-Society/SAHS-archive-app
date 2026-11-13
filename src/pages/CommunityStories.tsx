@@ -33,7 +33,7 @@ export function CommunityStories() {
 }
 
 function StoriesBrowser() {
-    const { isSAHSUser, realIsAdmin } = useAuth();
+    const { isStaff, realIsAdmin } = useAuth();
     const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
     const storiesTitle = settings.contentBlocks?.storiesTitle || 'Community Stories';
     // The museum's own upload, or none.
@@ -70,7 +70,7 @@ function StoriesBrowser() {
     useEffect(() => {
         const q = query(
             collection(db, 'archive_items'),
-            ...publicOnly(isSAHSUser),
+            ...publicOnly(isStaff),
             where('item_type', '==', 'Oral History')
         );
 
@@ -91,16 +91,16 @@ function StoriesBrowser() {
 
         // Clean up listener when the component unmounts
         return () => unsubscribe();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     // Only real records. This page used to write three sample interviews into
     // archive_items whenever a staff member opened it with none recorded, so a new
     // museum's archive filled with invented people. An empty archive now gets the
     // empty state below. Private stories are filtered out for public users.
     const allStories = useMemo(() => {
-        if (isSAHSUser) return dbStories;
+        if (isStaff) return dbStories;
         return dbStories.filter(story => !story.is_private);
-    }, [dbStories, isSAHSUser]);
+    }, [dbStories, isStaff]);
 
 
     // Handle Inline Playback
@@ -280,7 +280,7 @@ function StoriesBrowser() {
                         </p>
                     </div>
 
-                    {isSAHSUser && (
+                    {isStaff && (
                         <Link
                             to="/add-item?type=Oral History"
                             className="relative z-10 inline-flex items-center gap-1.5 bg-tan hover:bg-charcoal text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md"
@@ -311,7 +311,7 @@ function StoriesBrowser() {
                                 />
                             </div>
 
-                            {isSAHSUser && (
+                            {isStaff && (
                                 <Link 
                                     to="/add-item?type=Oral History" 
                                     className="bg-tan hover:bg-charcoal text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-md hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto justify-center shrink-0"
@@ -373,7 +373,7 @@ function StoriesBrowser() {
                                                 <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-full text-[10px] font-black uppercase tracking-wider font-sans">
                                                     <Mic size={10} /> Oral History
                                                 </div>
-                                                {story.is_private && isSAHSUser && (
+                                                {story.is_private && isStaff && (
                                                     <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider font-sans shadow-sm">
                                                         <Lock size={10} /> Private
                                                     </div>
@@ -381,7 +381,7 @@ function StoriesBrowser() {
                                             </div>
 
                                             {/* Curator Edit Button Overlay */}
-                                            {isSAHSUser && (
+                                            {isStaff && (
                                                 <Link 
                                                     to={`/edit-item/${story.id}`}
                                                     className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md text-white border border-white/20 flex items-center justify-center shadow-lg transition-all hover:bg-tan hover:text-white hover:scale-105 active:scale-95 z-20"
