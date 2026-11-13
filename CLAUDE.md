@@ -67,6 +67,13 @@ build without them is neutral**: canonicals use the serving origin, there is no
 default share image, and the sitemap and list-page scripts refuse to run. Set all
 three for any production build or functions deploy.
 
+**`functions/shared/seo.cjs` and `functions/shell.html` are generated, never
+committed** (they would carry one deployment's address and `<head>`). A functions
+deploy needs `npm run build && npm run prepare:functions` first, with the same
+`SITE_*` values; CI does this. The functions require `seo.cjs` when they load, so
+the emulator needs at least `npm run prepare:functions -- --shared-only`, which
+`npm run demo` and the Docker image run for you.
+
 ## Access model
 
 Three layers see roles differently, and that difference is the source of most
