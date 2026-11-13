@@ -1610,7 +1610,7 @@ export default function EditItem() {
                                         <div>
                                             <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                                 <FileText size={14} /> Accessioning Paperwork
-                                                <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
+                                                <span className="ml-auto text-[9px] text-charcoal/60 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold flex items-center gap-1">
                                                     <Lock size={10} /> Admin & Curators Only
                                                 </span>
                                             </label>
@@ -1691,7 +1691,7 @@ export default function EditItem() {
                                                     ) : (
                                                         <div className="flex flex-col items-center">
                                                             <Upload size={18} className="text-tan/40 mb-1 group-hover:scale-110 transition-transform" />
-                                                            <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Add Paperwork</span>
+                                                            <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest">Add Paperwork</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1702,7 +1702,7 @@ export default function EditItem() {
                                 <div>
                                     <label className="block text-[10px] font-black text-tan uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                         <Camera size={14} /> {(itemType as string) === 'Oral History' ? 'Audio Interview Recording (.mp3 / .wav) *' : 'Additional Media (Video/Audio)'}
-                                        <span className="ml-auto text-[9px] text-charcoal/40 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold">Visible to Visitors</span>
+                                        <span className="ml-auto text-[9px] text-charcoal/60 bg-cream/50 px-2 py-0.5 rounded-full lowercase tracking-normal font-bold">Visible to Visitors</span>
                                     </label>
                                     
                                     <div className="space-y-4">

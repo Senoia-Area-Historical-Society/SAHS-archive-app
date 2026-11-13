@@ -1816,7 +1816,7 @@ export function ItemDetail() {
                     </div>
                 ) : comments.length === 0 ? (
                     <div className="text-center py-12 bg-cream/30 rounded-2xl border border-dashed border-tan-light/50 mb-10 max-w-4xl mx-auto">
-                        <p className="font-serif text-charcoal/50 italic text-base">No comments have been posted yet. Be the first to share an annotation or question!</p>
+                        <p className="font-serif text-charcoal/70 italic text-base">No comments have been posted yet. Be the first to share an annotation or question!</p>
                     </div>
                 ) : (
                     <div className="space-y-8 mb-10 max-w-4xl mx-auto max-h-[600px] overflow-y-auto pr-4 no-scrollbar">
