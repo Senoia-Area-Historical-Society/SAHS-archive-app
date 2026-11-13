@@ -345,7 +345,7 @@ export function AddItem() {
             const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`, {
                 headers: {
                     'Accept-Language': 'en-US,en;q=0.9',
-                    'User-Agent': 'SAHS-Archive-App'
+                    'User-Agent': 'Digital-Archive'
                 }
             });
             const data = await response.json();
@@ -517,7 +517,7 @@ export function AddItem() {
 
                 category: itemType === 'Artifact' ? 'Artifact' : (formData.get('category') as string || ""),
 
-                // SAHS Specific
+                // Archival tracking
                 condition: (formData.get('condition') as ItemCondition | null) || null,
                 physical_location: (formData.get('physical_location') as string | null) || null,
                 historical_address: final_historical_address,

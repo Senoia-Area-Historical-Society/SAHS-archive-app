@@ -45,7 +45,7 @@ const RESIZED_DIR = 'thumbs'; // must match RESIZED_DIR there
 // this list had a top-level 'library_covers/' entry that matched nothing.
 // accession_paperwork/ is deliberately absent: staff-only, never rendered to the
 // public, so it does not need public thumbnails. content_images/, portraits/,
-// posts/ and public/ belong to the sahs-website app sharing this bucket.
+// posts/ and public/ are left to any other app that shares the bucket.
 const PREFIXES = [
     'archive_media/',
     'collections/',

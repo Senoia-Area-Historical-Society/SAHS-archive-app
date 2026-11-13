@@ -10,7 +10,7 @@
  * write that document; only a script with server credentials can, which is what
  * makes the list trustworthy.
  *
- * It replaces a hardcoded `@senoiahistory.com` match, so that another museum can
+ * It replaces a hardcoded email-domain match, so that another museum can
  * install this code without editing the rules.
  *
  * Once setup is complete the list has no further effect — every clause that

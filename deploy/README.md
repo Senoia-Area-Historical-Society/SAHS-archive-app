@@ -1,8 +1,8 @@
 # deploy/
 
 The Senoia Area Historical Society's own deployment files: its `<head>`
-(`sahs-head.html`) and its static files (`sahs-public/`: icons, hero photographs and
-logos). The build uses them only when told to, through `SITE_HEAD_FILE` and
+(`sahs-head.html`), its static files (`sahs-public/`: icons, hero photographs and
+logos), and its demo notes (`DEMO-NOTES.md`). The build uses them only when told to, through `SITE_HEAD_FILE` and
 `SITE_PUBLIC_DIR` (see `vite.config.ts`). Without those settings, a build includes
 none of them.
 

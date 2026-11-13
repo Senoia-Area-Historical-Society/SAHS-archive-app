@@ -404,7 +404,7 @@ export function ItemDetail() {
                         const snap = await getDocs(q);
                         let results = snap.docs.map(d => ({ id: d.id, ...d.data() })) as ArchiveItem[];
                         
-                        // Filter private items for non-SAHS users
+                        // Filter private items for visitors
                         if (!isSAHSUser) {
                             results = results.filter(i => !i.is_private);
                         }

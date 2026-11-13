@@ -708,7 +708,7 @@ export default function EditItem() {
             const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`, {
                 headers: {
                     'Accept-Language': 'en-US,en;q=0.9',
-                    'User-Agent': 'SAHS-Archive-App'
+                    'User-Agent': 'Digital-Archive'
                 }
             });
             const data = await response.json();
@@ -880,7 +880,7 @@ export default function EditItem() {
                     ? { source: (formData.get('source') as string) || (formData.get('source_institution') as string) || "" } : {}),
                 ...formText('coverage'),
 
-                // SAHS Archival Tracking
+                // Archival tracking
                 ...(formData.has('condition') ? { condition: (formData.get('condition') as ItemCondition | null) || null } : {}),
                 ...(formData.has('physical_location') ? { physical_location: (formData.get('physical_location') as string | null) || null } : {}),
                 historical_address: historical_address,

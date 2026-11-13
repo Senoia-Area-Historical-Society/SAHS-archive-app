@@ -160,8 +160,12 @@ production.
 | For | rehearsals on a dev machine | evaluators, needing only Docker |
 | App | Vite on `:5174` | built app served by the hosting emulator on `:5174` |
 | Setup admin | `--director <email>`, default `director@examplemuseum.org` | `DIRECTOR_EMAIL`, same default |
-| Support admins | set by the script | `SUPPORT_ADMINS`, **empty by default** — a trial must not quietly make anyone else its admins |
+| Support admins | `SUPPORT_ADMINS` | `SUPPORT_ADMINS` |
 | Data | blank every run | kept in the `archive-data` volume until `docker compose down -v` |
+
+Both take `SUPPORT_ADMINS` (comma-separated), **empty by default**: a demo or trial
+must not quietly make anyone its admins. A deployment's own demo notes say whom to
+list (SAHS's: `deploy/DEMO-NOTES.md`).
 
 Both write `deployment_config/bootstrap` and `deployment_config/support` on start.
 Compose binds every port to `127.0.0.1` on purpose: emulator sign-in is fake, so
@@ -207,7 +211,7 @@ staff note checks for "only built-ins" instead.
 | `syncItemMediaVisibility` | Firestore | item media ACLs and tokens follow `is_private` |
 | `syncUserRoleClaims` | Firestore | mirrors a role onto the Auth claim |
 | `syncMyRoleClaim` | callable | self-heals a missing claim on sign-in |
-| `sendShareInvitation` | Firestore | emails a folder's new collaborator via Resend (`RESEND_API_KEY` secret, optional `INVITATION_FROM_ADDRESS` env var) |
+| `sendShareInvitation` | Firestore | emails a folder's new collaborator via Resend (`RESEND_API_KEY` secret and `INVITATION_FROM_ADDRESS` in `functions/.env.<project id>`; with no address it logs an error and sends nothing) |
 | `syncMemberLogins` | Firestore | `member_logins/{secondary email}` → member record, so spouses get member access |
 | `restrictedMediaUrl` | callable | short-lived signed URLs for staff-only media |
 | `lookupIsbnFallback` | callable | ISBN lookup for the library |

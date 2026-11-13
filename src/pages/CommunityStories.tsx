@@ -14,7 +14,7 @@ import { EditableText } from '../components/EditableText';
 import { ModuleDisabled } from '../components/ModuleDisabled';
 import { formatFreeTextDate } from '../lib/freeTextDate';
 
-export function SenoiaStories() {
+export function CommunityStories() {
     const { settings, loading } = useAppearance();
 
     useSeo(buildPageSeo(
@@ -36,10 +36,8 @@ function StoriesBrowser() {
     const { isSAHSUser, realIsAdmin } = useAuth();
     const { settings, isAppearanceEditMode, updateContentBlock } = useAppearance();
     const storiesTitle = settings.contentBlocks?.storiesTitle || 'Community Stories';
-    // SAHS has never uploaded a logo: it shows this image, bundled with the app,
-    // which spells out its own project's name. Nobody else should get it.
-    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl
-        || (storiesTitle === 'Senoia Stories' ? '/senoia_stories_logo.png' : '');
+    // The museum's own upload, or none.
+    const storiesLogoUrl = settings.contentBlocks?.storiesLogoUrl || '';
     const [logoUploading, setLogoUploading] = useState(false);
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

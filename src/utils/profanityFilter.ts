@@ -1,5 +1,5 @@
 /**
- * Profanity Filter Utility for the Senoia Area Historical Society Digital Archive
+ * Profanity filter for user-contributed comments
  * 
  * Since comments are contributed by authenticated society members and volunteers, 
  * this filter acts as a guardrail against inappropriate language, slurs, 

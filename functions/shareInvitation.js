@@ -10,10 +10,10 @@
  * Configuration:
  *   RESEND_API_KEY            secret (Secret Manager) — the same Resend account
  *                             the website sends from
- *   INVITATION_FROM_ADDRESS   optional environment variable (functions/.env) —
- *                             an address on a Resend-verified domain. Defaults
- *                             to the SAHS one: only updates.senoiahistory.com is
- *                             verified, not the apex (see sahs-website CLAUDE.md).
+ *   INVITATION_FROM_ADDRESS   environment variable (functions/.env.<project id>) —
+ *                             an address on a domain verified in that Resend
+ *                             account. No default: with a key but no address,
+ *                             nothing is sent and the function logs an error.
  *                             Not a defineString() param: CI deploys
  *                             non-interactively, and the CLI refuses a param with
  *                             no stored value there even when it has a default.
@@ -31,7 +31,7 @@ const { newCollaborators, buildInvitationEmail, resendRequest } = require("./sha
 
 const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
-const INVITATION_FROM_ADDRESS = process.env.INVITATION_FROM_ADDRESS || "archives@updates.senoiahistory.com";
+const INVITATION_FROM_ADDRESS = process.env.INVITATION_FROM_ADDRESS || "";
 
 /**
  * The person who made the share: the signed-in user behind the write when the
@@ -78,6 +78,12 @@ exports.sendShareInvitation = onDocumentUpdatedWithAuthContext({
         // seo.cjs was bundled without SITE_URL (scripts/site-url.cjs), so the
         // email's only link would be relative and lead nowhere.
         logger.error(`shareInvitation: functions were built without SITE_URL — not sending invitations for folder ${folderId}`);
+        return;
+    }
+    if (apiKey && !INVITATION_FROM_ADDRESS) {
+        // Resend refuses a sender on a domain the account hasn't verified, and only
+        // the install knows which domain that is.
+        logger.error(`shareInvitation: INVITATION_FROM_ADDRESS is not set — not sending invitations for folder ${folderId}`);
         return;
     }
 

@@ -2,10 +2,10 @@
 // Guards against firebase.json deploying rules and indexes to a Firestore database
 // other than the archive's own.
 //
-// Incident: this file's firestore config listed "(default)" (the sahs-website app's
-// database) alongside this app's own named database. Every deploy from this repo
-// silently pushed archive-app's rules/indexes to the website's database too,
-// wiping out the website's public-read rules for posts/galleries/bookings/etc.
+// Incident: this file's firestore config listed "(default)" (another app's database
+// in the same project) alongside this app's own named database. Every deploy from this repo
+// silently pushed this app's rules/indexes to that database too, wiping out
+// the other app's own rules.
 //
 // The archive's database is named in functions/.env.<project id> (see
 // scripts/lib/archiveDatabase.cjs), which is also what the Cloud Functions'

@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // makes you write when you know that.
             setUser({
                 uid: 'mock_simulation_user_id',
-                email: 'curator@senoiahistory.com',
+                email: 'curator@example.org',
                 displayName: 'Mock Simulation Curator',
             } as unknown as User);
             setIsAdmin(true);
@@ -207,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const email = currentUser.email.toLowerCase();
                 // No address is special-cased here any more. The two that were
                 // hardcoded are now support admins, read from the list like anyone
-                // else, and the @senoiahistory.com fallback to curator went because
+                // else, and the email-domain fallback to curator went because
                 // firestore.rules stopped honouring the domain in #54 — it only
                 // showed curator screens whose every write the rules then refused.
                 if (await isSupportAdmin(email)) {

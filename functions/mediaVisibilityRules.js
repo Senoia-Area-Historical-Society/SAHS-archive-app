@@ -21,8 +21,8 @@ const THUMB_SIZES = [400, 1000];
 
 /**
  * The only prefixes this code will ever touch. Anything else in the bucket —
- * notably the sahs-website app's content_images/, posts/ and public/, which are
- * served purely by token — is left alone, as the reconcile script leaves it.
+ * such as another app's files in a shared bucket, served purely by token — is
+ * left alone, as the reconcile script leaves it.
  */
 const MANAGED_PREFIXES = [
     "archive_media/",

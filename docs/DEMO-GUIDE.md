@@ -2,18 +2,17 @@
 
 This guide shows how to run a **blank copy of the Online Archive on your own laptop**,
 as if a different museum were setting it up for the first time. It's for demos and
-rehearsals, including the February 2027 demonstration.
+rehearsals. A deployment may keep its own notes for its demo laptop and people
+(SAHS's are in `deploy/DEMO-NOTES.md`).
 
 **It's completely separate from the real archive.** Everything runs on your laptop
 and starts empty each time. Nothing you do in the demo can change
-archives.senoiahistory.com, and it costs nothing.
+your live archive, and it costs nothing.
 
 > **On a laptop with Docker, or handing this to another museum?** See
 > [DOCKER.md](DOCKER.md): it needs only Docker, not WSL, Node or Java, and the same
-> walkthrough below applies. Two differences: it remembers your work until you run
-> `docker compose down -v`, and it lists no support administrators. To show the
-> **Support access** box, run this in PowerShell before `docker compose up`:
-> `$env:SUPPORT_ADMINS="catnolan@senoiahistory.com,jeremywarren@senoiahistory.com"`
+> walkthrough below applies. The difference: it remembers your work until you run
+> `docker compose down -v`.
 
 ---
 
@@ -21,7 +20,7 @@ archives.senoiahistory.com, and it costs nothing.
 
 1. Open **PowerShell**.
 2. Type `wsl` and press Enter. The prompt changes to something like
-   `catnolan@sahs-dell5420:~$`.
+   `you@your-laptop:~$`.
 3. Run:
 
    ```bash
@@ -41,10 +40,10 @@ archives.senoiahistory.com, and it costs nothing.
 
 ## Before your first demo on a laptop
 
-The demo needs the archive's code and a few tools, which are already set up on
-the SAHS Dell (sahs-dell5420). On that laptop, skip this section.
+The demo needs the archive's code and a few tools. If your demo laptop is already
+set up, skip this section.
 
-On a different computer, someone technical needs to set up WSL, Node.js 20,
+Otherwise, someone technical needs to set up WSL, Node.js 20,
 Java 21, the Firebase command-line tools and a copy of the project (with
 `npm install` run in both the project folder and its `functions` folder). The
 project's `CLAUDE.md` has the technical details.
@@ -87,9 +86,10 @@ This order tells the story of a new museum getting started.
 - Go to **Admin Settings** (http://localhost:5174/settings).
 - Add a curator, e.g. `intern@examplemuseum.org` as **Curator**, to show the
   museum managing its own staff.
-- Point out the **Support access** box: the archive's developers (SAHS) have
-  admin access to help with support, the museum can see that, and it can be
-  removed.
+- Point out the **Support access** box: the archive's developers can have admin
+  access to help with support, the museum can see who they are, and it can remove
+  them. It is empty unless the demo was started with support admins (see
+  **Useful options**).
 
 **Optional: showing the security**
 - In a private/incognito window, sign in as `stranger@example.com` and try to
@@ -109,6 +109,15 @@ npm run demo -- --director someone@example.org
 ```
 
 Then sign in with that email instead.
+
+**List support admins**, so the **Support access** box has someone in it:
+
+```bash
+SUPPORT_ADMINS=dev@example.org,helper@example.org npm run demo
+```
+
+With Docker, set it in PowerShell before `docker compose up`:
+`$env:SUPPORT_ADMINS="dev@example.org,helper@example.org"`
 
 **See what's stored behind the scenes:** open **http://localhost:4000** and click
 **Firestore** (the database) or **Storage** (uploaded files).

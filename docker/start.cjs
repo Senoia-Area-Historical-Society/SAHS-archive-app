@@ -8,8 +8,8 @@
  * Environment:
  *   DIRECTOR_EMAIL     who may run first-time setup
  *   SUPPORT_ADMINS     comma-separated; empty means nobody outside the museum.
- *                      The SAHS addresses are deliberately not the default here:
- *                      another museum's trial should not quietly make us its admins.
+ *                      Deliberately empty by default: a museum's trial should not
+ *                      quietly make anyone else its admins.
  *   ARCHIVE_DATA_DIR   keep data here between runs (compose.yaml sets it). Unset,
  *                      every run starts blank.
  */

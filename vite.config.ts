@@ -26,8 +26,8 @@ const SITE_HEAD_BLOCK = /[ \t]*<!-- site-head:start -->[\s\S]*?<!-- site-head:en
 /**
  * Social scrapers and tab titles read index.html before any setting has loaded,
  * so a museum's name there has to arrive at build time. index.html is neutral;
- * SITE_HEAD_FILE names a file to replace its site-head block with. Production's
- * build sets it to deploy/sahs-head.html (see .github/workflows/deploy.yml).
+ * SITE_HEAD_FILE names a file to replace its site-head block with. A
+ * deployment's CI build sets it (see .github/workflows/deploy.yml).
  */
 function siteHead(): Plugin {
   return {
@@ -68,7 +68,7 @@ function filesUnder(dir: string, prefix = ''): string[] {
  * site root beside public/. public/ holds only what every install needs, so a new
  * museum never ships another's images. SITE_PUBLIC_DIR names a directory whose
  * files are emitted into dist/ under the same names, and served in dev.
- * Production's build sets it to deploy/sahs-public.
+ * A deployment's CI build sets it, beside SITE_HEAD_FILE.
  *
  * Its files keep their exact paths because settings and other build inputs point
  * at them (hero slides, SITE_OG_IMAGE, the head file's icons). A missing one would
