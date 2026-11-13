@@ -6,7 +6,7 @@
  * or unlisted value matched no option, so the browser showed the first one and
  * saving the form stored it: an item with no recorded condition became
  * "Excellent", a document with no category became "Manuscript", and an item with
- * no file location became "SAHS (Physical Archive)". The same bug on Artifact
+ * no file location became "<museum> (Physical Archive)". The same bug on Artifact
  * Type is described in `artifactTypes.ts`.
  */
 

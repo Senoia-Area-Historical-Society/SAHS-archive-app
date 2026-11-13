@@ -37,7 +37,7 @@ interface MarkerClusterLike {
     getChildCount(): number;
 }
 
-// Custom Cluster Icon Generator (Matching SAHS brand)
+// Custom cluster icon generator, in the archive palette
 const createClusterCustomIcon = (cluster: MarkerClusterLike) => {
     return L.divIcon({
         html: `<div class="flex items-center justify-center w-10 h-10 rounded-full bg-charcoal text-white font-black text-xs shadow-xl border-2 border-tan-light ring-2 ring-charcoal/10 backdrop-blur-sm transition-transform hover:scale-110">

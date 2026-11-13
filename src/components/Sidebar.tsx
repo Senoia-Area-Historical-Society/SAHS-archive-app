@@ -183,7 +183,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                 <div className="mb-10 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         {/* No logo uploaded means no logo shown. This used to fall back to a
-                            bundled copy of the SAHS logo, which every other museum would see. */}
+                            bundled copy of one museum's logo, which every other museum would see. */}
                         {settings.logoUrl && (
                             <div className="w-12 h-12 bg-white shadow-sm rounded-lg flex items-center justify-center shrink-0 border border-tan-light overflow-hidden">
                                 <img src={settings.logoUrl} alt={`${settings.museumName} logo`} className="w-full h-full object-contain p-1" />

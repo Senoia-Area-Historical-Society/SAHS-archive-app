@@ -4,6 +4,7 @@
  *
  *   npm run demo
  *   npm run demo -- --director someone@example.org
+ *   SUPPORT_ADMINS=a@example.org,b@example.org npm run demo
  *
  * It starts the Firebase emulators (sign-in, database, file storage and Cloud
  * Functions), puts the director on the setup list and the support admins on the
@@ -37,7 +38,9 @@ const PROJECT = resolveProjectId([]);
 const BIN = path.join(ROOT, 'node_modules', '.bin');
 const APP_PORT = 5174;
 const PORTS = { app: APP_PORT, firestore: 8080, auth: 9099, storage: 9199, functions: 5001, 'emulator UI': 4000 };
-const SUPPORT_ADMINS = ['catnolan@senoiahistory.com', 'jeremywarren@senoiahistory.com'];
+// Comma-separated, as in the Docker demo (docker/start.cjs). Empty means nobody
+// outside the museum: a demo should not quietly make anyone its support admins.
+const SUPPORT_ADMINS = (process.env.SUPPORT_ADMINS || '').split(',').map((e) => e.trim()).filter(Boolean);
 const LOG = path.join(os.tmpdir(), 'archive-demo-emulators.log');
 
 const args = process.argv.slice(2);
@@ -147,7 +150,7 @@ async function main() {
     );
 
     seed('set-setup-admins.cjs', [DIRECTOR]);
-    seed('set-support-admins.cjs', SUPPORT_ADMINS);
+    seed('set-support-admins.cjs', SUPPORT_ADMINS.length ? SUPPORT_ADMINS : ['--none']);
 
     await startUntil(
         'The app',

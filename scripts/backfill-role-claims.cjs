@@ -8,21 +8,16 @@
  * `firestore.rules` can consult the `user_roles` collection directly, via
  * `get()`. `storage.rules` cannot — Storage Rules cannot read Firestore at all,
  * and certainly not the *named* database this project uses. So
- * Storage recognises only three things: the `role` custom claim on the ID token,
- * an `@senoiahistory.com` email, and two hardcoded addresses.
+ * Storage recognises only the `role` custom claim on the ID token.
  *
  * `functions/userRoles.js` exists to close that gap — `syncUserRoleClaims` sets
  * the claim whenever a role document is written, and `syncMyRoleClaim` self-heals
  * on sign-in. Accounts granted a role before those functions existed have neither,
- * and nothing has gone back for them. As of 2026-09-05 four role holders had no
- * claim. The two without an `@senoiahistory.com` address were invisible to
- * Storage Rules entirely and could not upload media; the other two worked only
- * through the domain fallback. Those two mattered for the audit's H2: the plan
- * was to drop the `@senoiahistory.com` clause from the rules, and doing that
- * before this backfill would have taken their Storage access away with it.
+ * and nothing goes back for them except this script. A role holder with no claim
+ * is invisible to Storage Rules and cannot upload media.
  *
- * Run this, confirm every role holder reports a claim, and only then remove the
- * domain clause.
+ * Run it after importing role documents, or whenever a role holder reports that
+ * uploads fail.
  *
  * ── What it does ─────────────────────────────────────────────────────────────
  *

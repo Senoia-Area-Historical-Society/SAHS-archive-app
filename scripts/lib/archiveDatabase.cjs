@@ -3,7 +3,7 @@
  *
  * The one place this is written down is `functions/.env.<project id>`:
  *
- *   ARCHIVE_DATABASE=sahs-archives
+ *   ARCHIVE_DATABASE=archive
  *
  * The Firebase CLI loads that file into the Cloud Functions, both when it deploys
  * them (so the triggers bind to it) and in the emulator. Everything else reads the

@@ -122,8 +122,8 @@ const RESTRICTED_FIELDS = new Set(['accession_paperwork_urls']);
  * A prefix is the right tool for exactly this case: it needs no attribution. It is
  * deliberately narrow. archive_media/ orphans are left alone because their
  * visibility genuinely is ambiguous, and content_images/, posts/ and public/
- * belong to the sahs-website app, which uses the default Firestore database rather
- * than this one — they only look unreferenced from here, they are served purely by
+ * are what another app sharing the bucket would use, with its own Firestore
+ * database — they only look unreferenced from here, they are served purely by
  * token, and revoking those would break that site.
  */
 const RESTRICTED_PREFIXES = ['accession_paperwork/'];

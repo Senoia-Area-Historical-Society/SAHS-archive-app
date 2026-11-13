@@ -70,17 +70,17 @@
     "vite": "^7.3.1",
     "vitest": "^5.0.0"
   },
-  "description": "[![Deploy to Firebase Hosting](https://github.com/Senoia-Area-Historical-Society/SAHS-archive-app/actions/workflows/deploy.yml/badge.svg)](https://github.com/Senoia-Area-Historical-Society/SAHS-archive-app/actions/workflows/deploy.yml)",
+  "description": "A digital archive for museums and historical societies: browse, search, map and manage collections on React and Firebase.",
   "main": "eslint.config.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jermdw/SAHS-archive-app.git"
+    "url": "git+https://github.com/Senoia-Area-Historical-Society/SAHS-archive-app.git"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jermdw/SAHS-archive-app/issues"
+    "url": "https://github.com/Senoia-Area-Historical-Society/SAHS-archive-app/issues"
   },
-  "homepage": "https://github.com/jermdw/SAHS-archive-app#readme"
+  "homepage": "https://github.com/Senoia-Area-Historical-Society/SAHS-archive-app#readme"
 }

@@ -132,7 +132,7 @@ export function CollectionDetail() {
                 // Sort client-side to avoid needing a Firestore composite index
                 itemsData.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
                 
-                // Filter private items for non-SAHS users
+                // Filter private items for visitors
                 if (!isSAHSUser) {
                     setItems(itemsData.filter(i => !i.is_private));
                 } else {

@@ -44,3 +44,34 @@ describe('what a newly set-up museum sees', () => {
         expect(buildItemSeo(item, 'Example Museum').description).toContain('Example Museum');
     });
 });
+
+/**
+ * The code itself, not just its defaults. One museum's name, domain or people in
+ * a comment, a label or an example is how a deployment's identity leaks back in.
+ * Tests may use SAHS as fixture data; a deployment's own config (deploy/,
+ * functions/.env.<project id>, .firebaserc, the deploy workflows) is not code and
+ * is not scanned.
+ */
+const sources = {
+    ...import.meta.glob(['../**/*.{ts,tsx,css}', '!../test/**'], { query: '?raw', import: 'default', eager: true }),
+    ...import.meta.glob('../../functions/*.js', { query: '?raw', import: 'default', eager: true }),
+    ...import.meta.glob('../../scripts/**/*.cjs', { query: '?raw', import: 'default', eager: true }),
+    ...import.meta.glob('../../docker/*.cjs', { query: '?raw', import: 'default', eager: true }),
+    ...import.meta.glob(['../../*.rules', '../../vite.config.ts', '../../Dockerfile'], {
+        query: '?raw', import: 'default', eager: true,
+    }),
+} as Record<string, string>;
+
+describe('the code', () => {
+    it('found the files to check', () => {
+        const files = Object.keys(sources);
+        expect(files.length).toBeGreaterThan(100);
+        for (const expected of ['../../firestore.rules', '../../vite.config.ts', '../../scripts/demo.cjs', '../App.tsx']) {
+            expect(files).toContain(expected);
+        }
+    });
+
+    it.each(Object.entries(sources))('%s does not name Senoia or SAHS', (_file, text) => {
+        expect(text).not.toMatch(/senoia|coweta|\bSAHS\b/i);
+    });
+});

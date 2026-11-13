@@ -27,7 +27,7 @@ const RoomDetail = lazy(() => import('./pages/RoomDetail').then(m => ({ default:
 const InteractiveMap = lazy(() => import('./pages/InteractiveMap').then(m => ({ default: m.InteractiveMap })));
 const AuditDashboard = lazy(() => import('./pages/AuditDashboard').then(m => ({ default: m.AuditDashboard })));
 const BrowseMap = lazy(() => import('./pages/BrowseMap').then(m => ({ default: m.BrowseMap })));
-const SenoiaStories = lazy(() => import('./pages/SenoiaStories').then(m => ({ default: m.SenoiaStories })));
+const CommunityStories = lazy(() => import('./pages/CommunityStories').then(m => ({ default: m.CommunityStories })));
 const MyResearch = lazy(() => import('./pages/MyResearch'));
 const MyResearchMap = lazy(() => import('./pages/MyResearchMap').then(m => ({ default: m.MyResearchMap })));
 const MembershipStatus = lazy(() => import('./pages/MembershipStatus').then(m => ({ default: m.MembershipStatus })));
@@ -160,8 +160,8 @@ export default function App() {
 
                 <Route element={<PageWrapper />}>
                   <Route path="archive" element={<BrowseArchive />} />
-                  <Route path="stories" element={<SenoiaStories />} />
-                  {/* /senoia-stories and /figures/:id are consolidated by 301 redirects
+                  <Route path="stories" element={<CommunityStories />} />
+                  {/* /figures/:id, and any legacy URLs a deployment keeps, are 301 redirects
                       in firebase.json so crawlers see a single canonical URL. */}
                   <Route path="collections" element={<Collections />} />
                   <Route path="collections/:id" element={<CollectionDetail />} />

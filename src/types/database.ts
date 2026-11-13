@@ -160,7 +160,7 @@ export interface ArchiveItem {
     identifier?: string | null;    // An unambiguous reference to the resource within a given context (Archive Ref)
     coverage?: string | null;      // The spatial or temporal topic of the resource
 
-    // SAHS Specific
+    // Archival tracking
     condition?: ItemCondition | null;
     physical_location?: string | null;
     historical_address?: string | null; // Physical address for geolocation
@@ -221,7 +221,7 @@ export interface LibraryBook {
     isbn?: string | null;
     call_number?: string | null; // e.g., Dewey Decimal or custom "975.8 SEN"
     description?: string | null;
-    subjects?: string[]; // e.g., Civil War, Genealogies, Senoia History
+    subjects?: string[]; // e.g., Civil War, Genealogies, Local History
     donor?: string | null;
     accession_number?: string | null;
     condition?: BookCondition | null;

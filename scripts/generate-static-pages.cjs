@@ -9,7 +9,7 @@
  * match /library/123 but not /library itself, so the five list pages fell
  * through to the catch-all rewrite and shipped the generic shell:
  *
- *     /items/Lap7BJ…   og:title = "Newnan-Coweta Magazine Article on Victor Dallas | …"
+ *     /items/Lap7BJ…   og:title = "Photograph of the Old Mill | …"
  *     /library         og:title = "<museum name> | Digital Archive"
  *
  * Google executes JavaScript and sees the title useSeo() sets, so indexing was

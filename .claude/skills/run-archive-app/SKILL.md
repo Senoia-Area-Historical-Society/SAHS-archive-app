@@ -1,70 +1,79 @@
 ---
 name: run-archive-app
 description: >
-  Run, start, screenshot, or verify the SAHS digital archives platform.
-  Use when asked to launch the dev server, take a screenshot, confirm a change
-  works in the browser, or test a browse/search/map/admin page. For architecture
-  and edit patterns, see CLAUDE.md in this directory. Sibling: /run-sahs-website.
+  Run, start, screenshot, or verify the digital archive app. Use when asked to
+  launch the dev server or a demo, take a screenshot, confirm a change works in
+  the browser, or test a browse/search/map/admin page. For architecture and edit
+  patterns, see CLAUDE.md at the repo root.
 ---
 
-# Run: SAHS Archive App
+# Run: Digital Archive app
 
-Web app — driven with `chromium-cli` against the Vite dev server. All architectural context (Firestore named database, Gemini AI, Leaflet maps, data model) is in `archive-app/CLAUDE.md`.
+Web app, driven with `chromium-cli` against the Vite dev server. Architecture (the
+named Firestore database, privacy model, Cloud Functions, Leaflet maps, data model)
+is in `CLAUDE.md`.
 
-## Prerequisites
+## Which way to run it
 
-Node and npm must be installed. No emulator setup needed for read-only browsing — the dev server hits the production `sahs-archives` Firestore database.
+| Command | Data | Use for |
+|---|---|---|
+| `npm run demo` | a blank archive on the emulators, at http://localhost:5174 | anything that writes, first-run setup, demos |
+| `npm run dev` | **the live project** named by `VITE_FIREBASE_PROJECT_ID` in `.env` | read-only browsing of real data |
 
-## Start Dev Server
+`npm run dev` talks to production. Don't sign in and edit there to test a change;
+use `npm run demo`.
+
+## Start
 
 ```bash
-# From archive-app/
-npm run dev
-# Vite starts on http://localhost:5173
+npm run demo          # emulators + app on :5174; Ctrl+C stops everything
+# or
+npm run dev           # Vite on http://localhost:5173, live data
 ```
 
-## Browser Verification (Agent Path)
+A worktree needs `.env` copied in before `npm run dev` works.
+
+## Browser verification (agent path)
 
 ```bash
-# Home / landing
 chromium-cli navigate http://localhost:5173
 chromium-cli screenshot --output /tmp/archive-home.png
 
-# Browse archive items
 chromium-cli navigate http://localhost:5173/archive
 chromium-cli screenshot --output /tmp/archive-browse.png
 
-# Collections listing
 chromium-cli navigate http://localhost:5173/collections
 chromium-cli screenshot --output /tmp/archive-collections.png
 
-# Geographic map view
 chromium-cli navigate http://localhost:5173/map
 chromium-cli screenshot --output /tmp/archive-map.png
 
-# Login page (SAHS staff gate)
+# Staff sign-in
 chromium-cli navigate http://localhost:5173/login
 chromium-cli screenshot --output /tmp/archive-login.png
 ```
 
-## Build & Lint
+Use port 5174 for `npm run demo`.
+
+## Build and lint
 
 ```bash
-npm run build    # TypeScript compile + Vite production build — confirms no type errors
+npm run build    # tsc -b && vite build
 npm run lint     # ESLint
+npm test         # unit tests
 ```
 
-## Run-Specific Gotchas
+## Gotchas
 
-**Leaflet CSS must be imported** — `import 'leaflet/dist/leaflet.css'`. If the map page renders but shows blank tiles or missing pin icons, this import is missing somewhere in the component tree.
+**Leaflet CSS must be imported** (`import 'leaflet/dist/leaflet.css'`). A map with
+blank tiles or missing pin icons means the import is missing.
 
-**Vite port** — Default is `5173`. If another process is on that port, Vite increments to `5174` — update your `chromium-cli` URL.
+**Vite port.** The dev server defaults to `5173` and moves to the next free port if
+that one is taken. `npm run demo` insists on `5174`.
 
-**Map page requires geocoded items** — `/map` is blank if no `archive_items` have a `coordinates` field. This field is populated by the `geocodeArchiveItemAddress` Cloud Function trigger when `historical_address` is set on an item.
+**The map needs geocoded items.** `/map` is blank until some `archive_items` have
+`coordinates`, which the `geocodeArchiveItemAddress` trigger sets from
+`historical_address`.
 
-**All pages are lazy-loaded** — First navigation to any page triggers a chunk download. Screenshots taken immediately after navigation may catch a loading spinner. Use `chromium-cli wait-for` or add a short delay before screenshotting.
-
-## See Also
-
-- `archive-app/CLAUDE.md` — architecture, named database, data model, functions, all gotchas
-- `/run-sahs-website` — sibling public website and admin portal
+**Pages are lazy-loaded.** The first visit to a page downloads its chunk, so a
+screenshot taken straight away may catch the loading spinner. Wait first.

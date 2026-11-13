@@ -449,8 +449,8 @@ export function MyResearch() {
             // Folders are shareable only with active members (or staff), and
             // firestore.rules enforces that on the write below — this check is here
             // to give a clear message first, not to decide access. It used to treat
-            // any @senoiahistory.com address as authorised without looking it up;
-            // the domain stopped granting anything in Sept 2026, so such an address
+            // any address on the museum's own email domain as authorised without
+            // looking it up; the domain stopped granting anything in Sept 2026, so such an address
             // passed here and then failed in the rules with a generic error.
             let isAuthorized = false;
 
