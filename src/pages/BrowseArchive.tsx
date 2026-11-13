@@ -38,7 +38,7 @@ export function BrowseArchive() {
     // has to reach the page before those queries change.
     const [loadError, setLoadError] = useState<string | null>(null);
     const [localSearch, setLocalSearch] = useState(search);
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const { settings } = useAppearance();
 
     // Pagination state
@@ -76,7 +76,7 @@ export function BrowseArchive() {
             try {
                 // Fetch collections to determine privacy status
                 const collectionsSnapshot = await getDocs(
-                    query(collection(db, 'collections'), ...publicOnly(isSAHSUser)));
+                    query(collection(db, 'collections'), ...publicOnly(isStaff)));
                 const privacyMap: Record<string, boolean> = {};
                 collectionsSnapshot.docs.forEach(doc => {
                     const data = doc.data() as Collection;
@@ -87,7 +87,7 @@ export function BrowseArchive() {
                 setCollectionPrivacyMap(privacyMap);
 
                 // Fetch all unified archive_items
-                const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'archive_items'), ...publicOnly(isStaff), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
                 const itemsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
@@ -103,7 +103,7 @@ export function BrowseArchive() {
         };
 
         fetchItems();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     // Unified client-side filtering - Memoized to prevent heavy re-calculations
     const searchIndex = useMemo(() => buildSearchIndex(items, ARCHIVE_ITEM_SEARCH_FIELDS), [items]);
@@ -118,7 +118,7 @@ export function BrowseArchive() {
                 item.collection_id === selectedCollection || 
                 item.collection_ids?.includes(selectedCollection);
 
-            if (!isSAHSUser) {
+            if (!isStaff) {
                 const isItemPrivate = item.is_private === true;
                 const cIds = item.collection_ids || (item.collection_id ? [item.collection_id] : []);
                 const isCollectionPrivate = cIds.some(cid => collectionPrivacyMap[cid] === true);
@@ -127,7 +127,7 @@ export function BrowseArchive() {
 
             return matchesSearch && matchesType && matchesCollection;
         });
-    }, [items, scores, selectedType, selectedCollection, isSAHSUser, collectionPrivacyMap]);
+    }, [items, scores, selectedType, selectedCollection, isStaff, collectionPrivacyMap]);
 
     // Unified client-side sorting - Memoized
     const sortedItems = useMemo(() => {
@@ -377,7 +377,7 @@ export function BrowseArchive() {
                     </div>
                 ) : items.length === 0 ? (
                     <div className="text-center py-24 px-6 bg-white rounded-xl border border-tan-light/50 shadow-sm">
-                        {isSAHSUser ? (
+                        {isStaff ? (
                             <>
                                 <p className="text-charcoal text-2xl font-serif font-bold mb-2">Your archive is ready for its first item</p>
                                 <p className="text-charcoal-light/70 font-sans max-w-md mx-auto mb-6">Add a photograph, document or object. You can keep it private until it is ready to share.</p>

@@ -9,7 +9,7 @@
  * of donor and provenance scans to anyone, for no feature's benefit.
  *
  * It now lives at `archive_items/{id}/provenance/paperwork`, gated at
- * `isSAHSUser()`.
+ * `isStaff()`.
  *
  * ── Transition state ─────────────────────────────────────────────────────────
  *

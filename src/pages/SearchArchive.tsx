@@ -25,7 +25,7 @@ export function SearchArchive() {
     // result set, which is exactly how a mistake in the privacy filtering would
     // present. Surface it instead.
     const [loadError, setLoadError] = useState<string | null>(null);
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
 
     // Responsive local states for inputs
     const [localKeyword, setLocalKeyword] = useState(searchParams.get('q') || '');
@@ -167,7 +167,7 @@ export function SearchArchive() {
             try {
                 // Fetch collections to determine privacy status
                 const collectionsSnapshot = await getDocs(
-                    query(collection(db, 'collections'), ...publicOnly(isSAHSUser)));
+                    query(collection(db, 'collections'), ...publicOnly(isStaff)));
                 const privacyMap: Record<string, boolean> = {};
                 collectionsSnapshot.docs.forEach(doc => {
                     const data = doc.data() as Collection;
@@ -177,7 +177,7 @@ export function SearchArchive() {
                 });
                 setCollectionPrivacyMap(privacyMap);
 
-                const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'archive_items'), ...publicOnly(isStaff), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
                 const itemsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
@@ -193,7 +193,7 @@ export function SearchArchive() {
         };
 
         fetchItems();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     const searchIndex = useMemo(() => buildSearchIndex(items, ARCHIVE_ITEM_SEARCH_FIELDS), [items]);
     const keywordScores = useMemo(() => searchScores(searchIndex, localKeyword, exact), [searchIndex, localKeyword, exact]);
@@ -256,7 +256,7 @@ export function SearchArchive() {
             // 3. Exclude Types
             const isExcludedByType = localExcludeTypes.includes(item.item_type as string);
 
-            if (!isSAHSUser) {
+            if (!isStaff) {
                 const isItemPrivate = item.is_private === true;
                 const isCollectionPrivate = item.collection_id ? collectionPrivacyMap[item.collection_id] === true : false;
                 if (isItemPrivate || isCollectionPrivate) return false;
@@ -297,7 +297,7 @@ export function SearchArchive() {
 
             return 0;
         });
-    }, [items, keywordScores, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isSAHSUser, collectionPrivacyMap]);
+    }, [items, keywordScores, localYear, localPlace, localTag, localArtifactId, localLocId, localStage, localMissingLocation, localExcludeKeyword, localExcludeTag, localExcludeTypes, selectedType, selectedArtifactType, sortBy, isStaff, collectionPrivacyMap]);
 
     const resetFilters = () => {
         setLocalKeyword('');

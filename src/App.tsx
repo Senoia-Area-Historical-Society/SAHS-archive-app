@@ -60,7 +60,7 @@ function LoadingSpinner() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, isSAHSUser, realIsAdmin, loading, isSetupComplete } = useAuth();
+  const { user, isStaff, realIsAdmin, loading, isSetupComplete } = useAuth();
   const location = useLocation();
   
   if (loading) {
@@ -76,7 +76,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  if (!user || (!isSAHSUser && isSetupComplete)) {
+  if (!user || (!isStaff && isSetupComplete)) {
     return <Navigate to="/login" replace />;
   }
   

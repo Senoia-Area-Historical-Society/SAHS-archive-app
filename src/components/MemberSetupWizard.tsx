@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export function MemberSetupWizard() {
-    const { user, memberData, isMemberWizardOpen, closeMemberWizard, updateMemberData } = useAuth();
+    const { memberData, isMemberWizardOpen, closeMemberWizard, updateMemberData } = useAuth();
     const { settings } = useAppearance();
     const navigate = useNavigate();
 
@@ -37,10 +37,6 @@ export function MemberSetupWizard() {
     const handleComplete = async (redirectPath?: string) => {
         setIsSaving(true);
         try {
-            if (user?.email) {
-                localStorage.setItem(`sahs_wizard_completed_${user.email.toLowerCase()}`, 'true');
-            }
-
             if (memberData?.id) {
                 await updateDoc(doc(db, 'members', memberData.id), {
                     hasCompletedMemberWizard: true

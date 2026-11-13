@@ -35,14 +35,14 @@ export function Collections() {
 function CollectionsBrowser() {
     const [collections, setCollections] = useState<Collection[]>([]);
     const [loading, setLoading] = useState(true);
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const { settings } = useAppearance();
     const navigate = useNavigate();
 
     useEffect(() => {
         const fetchCollections = async () => {
             try {
-                const q = query(collection(db, 'collections'), ...publicOnly(isSAHSUser), orderBy('created_at', 'desc'));
+                const q = query(collection(db, 'collections'), ...publicOnly(isStaff), orderBy('created_at', 'desc'));
                 const querySnapshot = await getDocs(q);
 
                 const collectionsData = querySnapshot.docs.map(doc => ({
@@ -85,7 +85,7 @@ function CollectionsBrowser() {
                 let merged = [...filteredDbCollections];
                 const activeVirtuals = VIRTUAL_COLLECTIONS.filter(vc => {
                     if (vc.id === 'pending-acquisitions' || vc.id === 'deaccessioned-artifacts') {
-                        return isSAHSUser;
+                        return isStaff;
                     }
                     return true;
                 });
@@ -93,7 +93,7 @@ function CollectionsBrowser() {
                 // Prepend virtual collections so they are highlighted at the top
                 merged = [...activeVirtuals, ...merged];
                 
-                if (!isSAHSUser) {
+                if (!isStaff) {
                     setCollections(merged.filter(c => !c.is_private));
                 } else {
                     setCollections(merged);
@@ -106,7 +106,7 @@ function CollectionsBrowser() {
         };
 
         fetchCollections();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     const handleDelete = async (e: React.MouseEvent, id: string, title: string) => {
         e.preventDefault(); // Stop Link navigation
@@ -137,7 +137,7 @@ function CollectionsBrowser() {
                     </p>
                 </div>
 
-                {isSAHSUser && (
+                {isStaff && (
                     <button
                         onClick={() => navigate('/add-collection')}
                         className="bg-tan text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-medium hover:bg-charcoal transition-colors hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-4 whitespace-nowrap"
@@ -160,7 +160,7 @@ function CollectionsBrowser() {
             ) : (
                 <>
                 {/* The list is never empty, because the built-in collections are always in it. */}
-                {isSAHSUser && collections.every((c) => VIRTUAL_COLLECTION_IDS.includes(c.id)) && (
+                {isStaff && collections.every((c) => VIRTUAL_COLLECTION_IDS.includes(c.id)) && (
                     <p className="mb-6 px-5 py-4 bg-white border border-tan-light/50 rounded-xl text-charcoal/70">
                         These collections are built in and fill themselves from each item's status. Use <strong className="text-charcoal">Add Collection</strong> to create your own around a theme, family or event.
                     </p>
@@ -182,7 +182,7 @@ function CollectionsBrowser() {
                                 />
                                 <div className={`absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent ${isVirtual ? 'opacity-90' : 'opacity-60'} group-hover:opacity-80 transition-opacity`} />
 
-                                {isSAHSUser && !isVirtual && (
+                                {isStaff && !isVirtual && (
                                     <div className="absolute top-3 right-3 flex gap-2 z-10">
                                         <button
                                             onClick={(e) => {
@@ -204,14 +204,14 @@ function CollectionsBrowser() {
                                     </div>
                                 )}
 
-                                {col.is_private && isSAHSUser && (
+                                {col.is_private && isStaff && (
                                     <div className="absolute top-3 left-3 bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10">
                                         <Lock size={10} /> Private
                                     </div>
                                 )}
 
                                 {isVirtual && (
-                                    <div className={`absolute top-3 ${col.is_private && isSAHSUser ? 'left-24' : 'left-3'} bg-tan text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10`}>
+                                    <div className={`absolute top-3 ${col.is_private && isStaff ? 'left-24' : 'left-3'} bg-tan text-white px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-1 shadow-sm z-10`}>
                                         Automatic
                                     </div>
                                 )}

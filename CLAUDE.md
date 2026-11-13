@@ -135,8 +135,8 @@ it is what once pinned items private after their collection went public. The
 artifact-status force is never written into `is_private_own`.
 
 Public reads are gated by `allow read: if resource.data.is_private == false ||
-isSAHSUser()`, so **every public query must carry the filter** — use
-`publicOnly(isSAHSUser)` from `src/lib/privacyQuery.ts`, or `publicOnlyWith` when
+isStaff()`, so **every public query must carry the filter** — use
+`publicOnly(isStaff)` from `src/lib/privacyQuery.ts`, or `publicOnlyWith` when
 the query already uses `or()`.
 
 Media privacy is separate and lives in object ACLs, not rules: public objects are

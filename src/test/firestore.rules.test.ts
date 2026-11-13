@@ -451,7 +451,7 @@ describe('comments follow their item\'s privacy', () => {
 });
 
 /**
- * Audit finding H2. `isSAHSUser()` admitted any @senoiahistory.com address, which
+ * Audit finding H2. `isStaff()` admitted any @senoiahistory.com address, which
  * meant a new volunteer, an intern, or someone mid-offboarding held
  * curator-equivalent write across the archive the moment they first signed in —
  * no role grant, no audit trail. The sibling sahs-website repo refuses to do this

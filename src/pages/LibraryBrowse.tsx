@@ -34,7 +34,7 @@ export function LibraryBrowse() {
 
 function LibraryCatalog() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const { settings } = useAppearance();
 
     // Search and filter parameters from URL
@@ -196,7 +196,7 @@ function LibraryCatalog() {
                         className="font-serif text-charcoal-light/80 italic mt-1.5 text-base"
                     />
                 </div>
-                {isSAHSUser && (
+                {isStaff && (
                     <Link
                         to="/library/add"
                         className="flex items-center gap-2 bg-tan text-white hover:bg-tan-dark px-5 py-3 rounded-xl font-bold transition-all shadow-md hover:shadow-lg text-sm tracking-wide"
@@ -334,14 +334,14 @@ function LibraryCatalog() {
                         <BookOpen size={28} />
                     </div>
                     <h3 className="font-serif text-xl font-bold text-charcoal">
-                        {isSAHSUser ? 'Add the first book to your library' : 'The library has no books listed yet'}
+                        {isStaff ? 'Add the first book to your library' : 'The library has no books listed yet'}
                     </h3>
                     <p className="text-charcoal/60 text-sm max-w-md mx-auto">
-                        {isSAHSUser
+                        {isStaff
                             ? 'Catalog the reference books your museum holds, so staff and researchers can find them.'
                             : 'Please check back as the catalog grows.'}
                     </p>
-                    {isSAHSUser && (
+                    {isStaff && (
                         <Link
                             to="/library/add"
                             className="inline-flex items-center gap-2 bg-tan text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:bg-tan-dark transition-all"

@@ -12,7 +12,7 @@
  *
  * 1. PRIVACY BACKFILL. Of 1,533 items, only 231 carry an `is_private` field at
  *    all. That is the blocker for the real fix: a rule of the form
- *    `allow read: if resource.data.is_private == false || isSAHSUser()` forces
+ *    `allow read: if resource.data.is_private == false || isStaff()` forces
  *    every public query to add `where('is_private','==',false)`, and Firestore
  *    does NOT match documents where the field is absent. Making that change
  *    without this backfill would hide ~1,302 items — 85% of the archive — from
@@ -41,7 +41,7 @@
  *    (see the audit's C1), a disclosed path is a working download.
  *
  *    They move to `archive_items/{id}/provenance/paperwork`, which
- *    `firestore.rules` gates at `isSAHSUser()`.
+ *    `firestore.rules` gates at `isStaff()`.
  *
  * ── Phases, and why they are separate ────────────────────────────────────────
  *

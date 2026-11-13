@@ -158,7 +158,7 @@ export function InteractiveMap() {
 }
 
 function InteractiveMapEditor() {
-    const { isSAHSUser } = useAuth();
+    const { isStaff } = useAuth();
     const [searchParams] = useSearchParams();
 
     const highlightTargetId = searchParams.get('highlight');
@@ -532,7 +532,7 @@ function InteractiveMapEditor() {
 
     useEffect(() => {
         fetchMapData();
-    }, [isSAHSUser]);
+    }, [isStaff]);
 
     const handleFitToScreen = () => {
         if (!wrapperRef.current) return;
@@ -2142,7 +2142,7 @@ function InteractiveMapEditor() {
                         <HelpCircle size={18} />
                     </button>
                     
-                    {isSAHSUser && (
+                    {isStaff && (
                         <div id="tour-save-container" className="flex items-center gap-3 ml-4 border-l border-tan-light/50 pl-4">
                             {isEditMode ? (
                                 <>
@@ -3615,7 +3615,7 @@ function InteractiveMapEditor() {
                                 <button 
                                     onClick={() => {
                                         setShowHelpModal(false);
-                                        if (isSAHSUser && !isEditMode) {
+                                        if (isStaff && !isEditMode) {
                                             handleEnterEditMode();
                                         }
                                         setTourStep(0);

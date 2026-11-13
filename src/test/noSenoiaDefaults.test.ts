@@ -23,7 +23,7 @@ describe('what a newly set-up museum sees', () => {
         ['the museum structured data', JSON.stringify(buildOrganizationJsonLd('Example Museum'))],
         ['the Setup Wizard first-run values', JSON.stringify(FIRST_RUN_VALUES)],
     ])('%s does not name Senoia or SAHS', (_label, text) => {
-        expect(text).not.toMatch(/senoia|coweta|\bSAHS\b/i);
+        expect(text).not.toMatch(/senoia|coweta|sahs/i);
     });
 
     // These run without SITE_URL or SITE_OG_IMAGE, as a museum's first build does.
@@ -72,6 +72,6 @@ describe('the code', () => {
     });
 
     it.each(Object.entries(sources))('%s does not name Senoia or SAHS', (_file, text) => {
-        expect(text).not.toMatch(/senoia|coweta|\bSAHS\b/i);
+        expect(text).not.toMatch(/senoia|coweta|sahs/i);
     });
 });

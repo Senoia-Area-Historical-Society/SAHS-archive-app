@@ -21,7 +21,7 @@ export function LocationDetail() {
     const [books, setBooks] = useState<LibraryBook[]>([]);
     const [activeDisplayTab, setActiveDisplayTab] = useState<'artifacts' | 'books'>('artifacts');
     const [loading, setLoading] = useState(true);
-    const { isSAHSUser, user } = useAuth();
+    const { isStaff, user } = useAuth();
 
     // Print Options Modal State
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -578,7 +578,7 @@ export function LocationDetail() {
         e.preventDefault();
         e.stopPropagation();
         
-        if (!id || !isSAHSUser) return;
+        if (!id || !isStaff) return;
         
         const confirmMsg = `Remove "${book.title}" from this location?`;
         if (!window.confirm(confirmMsg)) return;
@@ -603,7 +603,7 @@ export function LocationDetail() {
         e.preventDefault();
         e.stopPropagation();
         
-        if (!id || !isSAHSUser) return;
+        if (!id || !isStaff) return;
         
         const confirmMsg = `Remove "${item.title}" from this location? \n\n(The artifact will remain in the archive and can be reassigned later)`;
         if (!window.confirm(confirmMsg)) return;
@@ -1199,7 +1199,7 @@ export function LocationDetail() {
                 </h2>
                 
                 <div className="flex items-center gap-3">
-                    {isSAHSUser && (
+                    {isStaff && (
                         <div className="flex items-center gap-2">
                             {!parentLocation && (
                                 <>
@@ -1254,7 +1254,7 @@ export function LocationDetail() {
                             )}
                         </div>
                     )}
-                    {isSAHSUser && items.length > 0 && !isSelectMode && (
+                    {isStaff && items.length > 0 && !isSelectMode && (
                         <button 
                             onClick={() => {
                                 setIsBulkSelectActive(!isBulkSelectActive);
@@ -1272,7 +1272,7 @@ export function LocationDetail() {
                             {isBulkSelectActive ? 'Cancel Selection' : 'Bulk Relocate'}
                         </button>
                     )}
-                    {isSAHSUser && (
+                    {isStaff && (
                         <>
                             <button 
                                 onClick={() => {
@@ -1956,7 +1956,7 @@ export function LocationDetail() {
                                         </div>
                                     </Link>
                                     
-                                    {isSAHSUser && (
+                                    {isStaff && (
                                         <button
                                             onClick={(e) => handleRemoveBookFromLocation(e, book)}
                                             className="absolute top-2 left-2 z-10 w-7 h-7 bg-red-50 hover:bg-red-100 text-red-600 rounded-full flex items-center justify-center border border-red-200/50 opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm"

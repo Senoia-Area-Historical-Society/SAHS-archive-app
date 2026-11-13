@@ -26,7 +26,7 @@ const { supportEmailsOf } = require("./roleResolution");
 const { archiveDb } = require("./database");
 
 /**
- * Mirrors isSAHSUser() in storage.rules — keep the two in step.
+ * Mirrors isStaff() in storage.rules — keep the two in step.
  *
  * The role claim covers everyone: museum-granted roles and support admins alike
  * are mirrored onto it by functions/userRoles.js. The support list is also read
@@ -35,7 +35,7 @@ const { archiveDb } = require("./database");
  * sign out and back in. This replaces the two addresses that used to be
  * hardcoded here.
  */
-async function isSAHSUser(auth) {
+async function isStaff(auth) {
     const email = auth && auth.token && auth.token.email;
     if (!email) return false;
     if (auth.token.email_verified === false) return false;
@@ -68,7 +68,7 @@ exports.restrictedMediaUrl = onCall({
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "You must be signed in.");
     }
-    if (!(await isSAHSUser(request.auth))) {
+    if (!(await isStaff(request.auth))) {
         throw new HttpsError("permission-denied", "Restricted media is available to archive staff only.");
     }
 

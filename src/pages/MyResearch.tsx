@@ -23,7 +23,7 @@ interface ResearchFolder {
 }
 
 export function MyResearch() {
-    const { user, hasResearchAccess, isSAHSUser } = useAuth();
+    const { user, hasResearchAccess, isStaff } = useAuth();
     
     const [folders, setFolders] = useState<ResearchFolder[]>([]);
     const [loading, setLoading] = useState(true);
@@ -274,7 +274,7 @@ export function MyResearch() {
             setLoadingItems(true);
             try {
                 // In the folder's own order, without any item since made private or deleted.
-                setFolderItems(await fetchItemsByIds(selectedFolder.itemIds, isSAHSUser));
+                setFolderItems(await fetchItemsByIds(selectedFolder.itemIds, isStaff));
             } catch (err) {
                 console.error("Error loading folder contents:", err);
                 showToast(`Failed to load historical items: ${errorMessage(err) || String(err)}`);
@@ -284,21 +284,21 @@ export function MyResearch() {
         };
 
         fetchFolderItems();
-    }, [selectedFolder, isSAHSUser]);
+    }, [selectedFolder, isStaff]);
 
     // Fetch all items from archive directory for in-context search
     const fetchAllItems = async () => {
         if (allItems.length > 0 || !hasResearchAccess) return;
         setLoadingAllItems(true);
         try {
-            const q = query(collection(db, 'archive_items'), ...publicOnly(isSAHSUser));
+            const q = query(collection(db, 'archive_items'), ...publicOnly(isStaff));
             const snap = await getDocs(q);
             const itemsList = snap.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             })) as ArchiveItem[];
             
-            const filtered = isSAHSUser ? itemsList : itemsList.filter(i => !i.is_private);
+            const filtered = isStaff ? itemsList : itemsList.filter(i => !i.is_private);
             setAllItems(filtered);
         } catch (err) {
             console.error("Error fetching all archive items:", err);
@@ -406,7 +406,7 @@ export function MyResearch() {
         if (!user || !user.email) return;
         const email = user.email.toLowerCase();
 
-        if (ownerEmail !== email && !isSAHSUser) {
+        if (ownerEmail !== email && !isStaff) {
             showToast("Only the owner of the folder can delete it.");
             return;
         }

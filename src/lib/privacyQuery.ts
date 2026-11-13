@@ -10,7 +10,7 @@
  * `allow read: if true`.
  *
  * Closing that means the rule becomes
- * `allow read: if resource.data.is_private == false || isSAHSUser()`. Firestore
+ * `allow read: if resource.data.is_private == false || isStaff()`. Firestore
  * evaluates a rule against every document a *list* query would return and rejects
  * the whole query if any fails — so a public query must constrain `is_private`
  * itself, or it is refused outright. This helper is that constraint, in one place
@@ -30,7 +30,7 @@
  *    and an index must be listed and deployed before a query depends on it. Adding
  *    a new filtered query means adding its index there too.
  *
- * Staff read unfiltered: the rule's `|| isSAHSUser()` admits them, so passing
+ * Staff read unfiltered: the rule's `|| isStaff()` admits them, so passing
  * `true` here returns no constraint at all and the query shape is unchanged. That
  * is deliberate — it keeps staff off the composite indexes entirely and means the
  * admin pages need no edits.
@@ -39,13 +39,13 @@
 import { and, where, type QueryCompositeFilterConstraint, type QueryConstraint } from 'firebase/firestore';
 
 /**
- * Spread into a `query(...)` call: `query(col, ...publicOnly(isSAHSUser), limit(20))`.
+ * Spread into a `query(...)` call: `query(col, ...publicOnly(isStaff), limit(20))`.
  *
  * Returns an empty array for staff so the call site reads the same either way and
  * no caller has to branch.
  */
-export function publicOnly(isSAHSUser: boolean): QueryConstraint[] {
-    return isSAHSUser ? [] : [where('is_private', '==', false)];
+export function publicOnly(isStaff: boolean): QueryConstraint[] {
+    return isStaff ? [] : [where('is_private', '==', false)];
 }
 
 /**
@@ -57,8 +57,8 @@ export function publicOnly(isSAHSUser: boolean): QueryConstraint[] {
  * spread as a sibling. Returns the caller's filter untouched for staff.
  */
 export function publicOnlyWith(
-    isSAHSUser: boolean,
+    isStaff: boolean,
     filter: QueryCompositeFilterConstraint
 ): QueryCompositeFilterConstraint {
-    return isSAHSUser ? filter : and(where('is_private', '==', false), filter);
+    return isStaff ? filter : and(where('is_private', '==', false), filter);
 }

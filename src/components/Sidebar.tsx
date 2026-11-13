@@ -105,7 +105,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) {
-    const { isSAHSUser, realIsAdmin, logout, user, isEditingMode, setIsEditingMode, hasResearchAccess } = useAuth();
+    const { isStaff, realIsAdmin, logout, user, isEditingMode, setIsEditingMode, hasResearchAccess } = useAuth();
     const { settings, isAppearanceEditMode, setIsAppearanceEditMode } = useAppearance();
     const navigate = useNavigate();
 
@@ -118,7 +118,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
     const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
-        if (!isSAHSUser || !user?.email) {
+        if (!isStaff || !user?.email) {
             setUnreadCount(0);
             return;
         }
@@ -141,7 +141,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
         });
 
         return () => unsubscribe();
-    }, [isSAHSUser, user?.email]);
+    }, [isStaff, user?.email]);
 
     const location = useLocation();
     const currentParams = new URLSearchParams(location.search);
@@ -382,9 +382,9 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                         </div>
                     )}
 
-                {(isSAHSUser || realIsAdmin) && (
+                {(isStaff || realIsAdmin) && (
                     <div className="flex flex-col gap-0 border-t border-tan-light/30 pt-6 mt-2">
-                        {isSAHSUser && (
+                        {isStaff && (
                             <div className="mb-4">
                                 <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Workspace</h2>
                                 <nav className="flex flex-col gap-1">
@@ -432,7 +432,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                         <div className="mb-4">
                             <h2 className="text-xs font-black text-tan uppercase tracking-[0.2em] mb-3 px-4">Curation</h2>
                             <nav className="flex flex-col gap-1">
-                                {isSAHSUser && (
+                                {isStaff && (
                                     <>
                                         <NavLink to="/add-item" className={navLinkClass} onClick={handleLinkClick}>
                                             <Upload size={20} />
@@ -444,13 +444,13 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                                                 <EditableLabel tabKey="addBook" defaultLabel="Add Library Book" />
                                             </NavLink>
                                         )}
-                                        {isSAHSUser && (
+                                        {isStaff && (
                                             <NavLink to="/audit" className={navLinkClass} onClick={handleLinkClick}>
                                                 <Activity size={20} />
                                                 <EditableLabel tabKey="audit" defaultLabel="Data Quality Audit" />
                                             </NavLink>
                                         )}
-                                        {isSAHSUser && (
+                                        {isStaff && (
                                             <NavLink to="/notifications" className={navLinkClass} onClick={handleLinkClick}>
                                                 <div className="relative flex items-center justify-between w-full min-w-0">
                                                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -482,7 +482,7 @@ export function Sidebar({ isOpen = false, onClose, onScanClick }: SidebarProps) 
                             </nav>
                         </div>
 
-                        {isSAHSUser && (
+                        {isStaff && (
                             <div className="px-4 py-4 bg-tan/5 rounded-xl border border-tan/10">
                                 <div className="flex items-center justify-between gap-3 mb-2">
                                     <span className="text-xs font-bold text-charcoal tracking-wide uppercase">Editing Mode</span>

@@ -3,7 +3,7 @@
  * should actually act on.
  *
  * Extracted from `AuthContext` so it can be tested: this is the one place where a
- * value the visitor controls (`localStorage['sahs_simulated_role']`) meets the
+ * value the visitor controls (`localStorage['archive_simulated_role']`) meets the
  * flags that decide what the app shows.
  *
  * ── The bug this fixes ───────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ export interface EffectiveRoles {
     simulatedRole: SimulatedRole | null;
     isAdmin: boolean;
     isCurator: boolean;
-    isSAHSUser: boolean;
+    isStaff: boolean;
     isMember: boolean;
     hasResearchAccess: boolean;
 }
@@ -72,7 +72,7 @@ export function deriveEffectiveRoles(
     const isCurator =
         (real.isAdmin || real.isCurator) &&
         (!simulatedRole || simulatedRole === 'admin' || simulatedRole === 'curator');
-    const isSAHSUser = isAdmin || isCurator;
+    const isStaff = isAdmin || isCurator;
 
     // While simulating, membership is whatever the simulation says — 'visitor' and
     // the staff roles all mean "not a member". Otherwise it is the real thing.
@@ -82,8 +82,8 @@ export function deriveEffectiveRoles(
         simulatedRole,
         isAdmin,
         isCurator,
-        isSAHSUser,
+        isStaff,
         isMember,
-        hasResearchAccess: isSAHSUser || isMember,
+        hasResearchAccess: isStaff || isMember,
     };
 }
