@@ -274,7 +274,7 @@ export function ManageRoomLocations() {
                                 />
                             )}
                             <div>
-                                <label className="block text-[10px] font-bold text-charcoal/40 uppercase tracking-widest mb-1.5 font-sans">
+                                <label className="block text-[10px] font-bold text-charcoal/60 uppercase tracking-widest mb-1.5 font-sans">
                                     Assign to Wing/Room
                                 </label>
                                 <select 

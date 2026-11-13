@@ -590,7 +590,7 @@ export function TaggingHub() {
                                 </div>
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); chooseLocation(null); }}
-                                    className="text-xs text-charcoal/40 hover:text-red-500 font-bold uppercase tracking-wider bg-black/5 px-4 py-2 rounded-lg"
+                                    className="text-xs text-charcoal/60 hover:text-red-500 font-bold uppercase tracking-wider bg-black/5 px-4 py-2 rounded-lg"
                                 >
                                     Change Location
                                 </button>
@@ -614,7 +614,7 @@ export function TaggingHub() {
                                     onClick={(e) => e.stopPropagation()}
                                     className="w-full text-left cursor-default"
                                 >
-                                    <label htmlFor="tagging-location-search" className="block text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-2 text-center">or type a location</label>
+                                    <label htmlFor="tagging-location-search" className="block text-[10px] font-black text-charcoal/60 uppercase tracking-[0.2em] mb-2 text-center">or type a location</label>
                                     <div className="relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-charcoal/30" size={18} />
                                         <input

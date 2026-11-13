@@ -1588,7 +1588,7 @@ export function AddItem() {
                                                     </button>
                                                 ))
                                             ) : (
-                                                <div className="px-4 py-3 text-xs text-charcoal/40 italic">No figures found.</div>
+                                                <div className="px-4 py-3 text-xs text-charcoal/60 italic">No figures found.</div>
                                             )}
                                         </div>
                                     )}
@@ -1645,7 +1645,7 @@ export function AddItem() {
                                                     </button>
                                                 ))
                                             ) : (
-                                                <div className="px-4 py-3 text-xs text-charcoal/40 italic">No documents found.</div>
+                                                <div className="px-4 py-3 text-xs text-charcoal/60 italic">No documents found.</div>
                                             )}
                                         </div>
                                     )}
@@ -1699,7 +1699,7 @@ export function AddItem() {
                                                 </button>
                                             ))
                                         ) : (
-                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No organizations found.</div>
+                                            <div className="px-4 py-3 text-xs text-charcoal/60 italic">No organizations found.</div>
                                         )}
                                     </div>
                                 )}
@@ -1798,7 +1798,7 @@ export function AddItem() {
                             <div className="p-8 bg-white grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-tan-light/50 animate-in slide-in-from-top-4 duration-300">
                                 {["subject", "publisher", "contributor", "rights", "relation", "format", "language", "dc_type", "identifier", "source"].map(field => (
                                     <div key={field}>
-                                        <label htmlFor={field} className="block text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2">{field.replace('_', ' ')}</label>
+                                        <label htmlFor={field} className="block text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2">{field.replace('_', ' ')}</label>
                                         <input type="text" name={field} id={field} className="w-full bg-cream/10 border border-tan-light/50 px-4 py-3 rounded-xl text-sm transition-all focus:bg-white focus:ring-2 focus:ring-tan/20 outline-none" />
                                     </div>
                                 ))}
@@ -2293,7 +2293,7 @@ export function OralHistoryAddForm({
                                                 </button>
                                             ))
                                         ) : (
-                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic font-sans">No figures found.</div>
+                                            <div className="px-4 py-3 text-xs text-charcoal/60 italic font-sans">No figures found.</div>
                                         )}
                                     </div>
                                 )}
@@ -2352,7 +2352,7 @@ export function OralHistoryAddForm({
                                 />
                                 <Upload className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
                                 <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Cover Photo</p>
-                                <p className="text-[10px] text-charcoal/40 max-w-[180px] font-sans">Portrait image of the narrator or historical figure (.jpg, .png)</p>
+                                <p className="text-[10px] text-charcoal/60 max-w-[180px] font-sans">Portrait image of the narrator or historical figure (.jpg, .png)</p>
                             </div>
                         )}
                     </div>
@@ -2418,7 +2418,7 @@ export function OralHistoryAddForm({
                                 />
                                 <Music className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
                                 <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Audio file</p>
-                                <p className="text-[10px] text-charcoal/40 max-w-[180px] font-sans">Select digital audio interview recording (.mp3, .wav)</p>
+                                <p className="text-[10px] text-charcoal/60 max-w-[180px] font-sans">Select digital audio interview recording (.mp3, .wav)</p>
                             </div>
                         )}
 
@@ -2490,7 +2490,7 @@ export function OralHistoryAddForm({
                             />
                             <Upload className="text-amber-600/50 group-hover:scale-110 transition-transform mb-3" size={28} />
                             <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Add Private Document</p>
-                            <p className="text-[10px] text-charcoal/40 max-w-[180px]">Deed of gift or paperwork (.pdf, .jpg, .png)</p>
+                            <p className="text-[10px] text-charcoal/60 max-w-[180px]">Deed of gift or paperwork (.pdf, .jpg, .png)</p>
                         </div>
                     </div>
                 </div>
@@ -2627,7 +2627,7 @@ export function OralHistoryAddForm({
                 {showImportArea && (
                     <div className="p-8 bg-cream/10 border-b border-tan-light/20 space-y-4 animate-in slide-in-from-top-4 duration-300 font-sans">
                         <label className="block text-xs font-bold text-charcoal/70 uppercase tracking-wider">Paste Text Transcript</label>
-                        <p className="text-[10px] text-charcoal/40 font-sans">Format lines as <strong>[MM:SS] Speaker Name: Dialogue Text</strong> or <strong>Speaker Name: Dialogue Text</strong>. Each dialogue line must be on a new line.</p>
+                        <p className="text-[10px] text-charcoal/60 font-sans">Format lines as <strong>[MM:SS] Speaker Name: Dialogue Text</strong> or <strong>Speaker Name: Dialogue Text</strong>. Each dialogue line must be on a new line.</p>
                         <textarea
                             value={importText}
                             onChange={(e) => setImportText(e.target.value)}

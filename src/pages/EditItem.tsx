@@ -1594,7 +1594,7 @@ export default function EditItem() {
                                             }
                                         })}
                                     </div>
-                                    <p className="text-[10px] text-charcoal/40 italic flex items-center gap-1">
+                                    <p className="text-[10px] text-charcoal/60 italic flex items-center gap-1">
                                         <Sparkles size={10} /> Dash-border items are pending upload and will be saved when you click "Save Changes"
                                     </p>
                                 </div>
@@ -1769,7 +1769,7 @@ export default function EditItem() {
                                             ) : (
                                                 <div className="flex flex-col items-center">
                                                     <Upload size={18} className="text-indigo-300/40 mb-1 group-hover:scale-110 transition-transform" />
-                                                    <span className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest">Add Media</span>
+                                                    <span className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest">Add Media</span>
                                                 </div>
                                             )}
                                         </div>
@@ -2168,7 +2168,7 @@ export default function EditItem() {
                                                 </button>
                                             ))
                                         ) : (
-                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No figures found.</div>
+                                            <div className="px-4 py-3 text-xs text-charcoal/60 italic">No figures found.</div>
                                         )}
                                     </div>
                                 )}
@@ -2225,7 +2225,7 @@ export default function EditItem() {
                                                 </button>
                                             ))
                                         ) : (
-                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No documents found.</div>
+                                            <div className="px-4 py-3 text-xs text-charcoal/60 italic">No documents found.</div>
                                         )}
                                     </div>
                                 )}
@@ -2278,7 +2278,7 @@ export default function EditItem() {
                                             </button>
                                         ))
                                     ) : (
-                                        <div className="px-4 py-3 text-xs text-charcoal/40 italic">No organizations found.</div>
+                                        <div className="px-4 py-3 text-xs text-charcoal/60 italic">No organizations found.</div>
                                     )}
                                 </div>
                             )}
@@ -2344,7 +2344,7 @@ export default function EditItem() {
                     <div className="mt-6 space-y-4">
                         {item.last_tagged_at && (
                             <div>
-                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-widest mb-1">Last Updated</p>
+                                <p className="text-[10px] font-black text-charcoal/60 uppercase tracking-widest mb-1">Last Updated</p>
                                 <p className="text-[11px] font-sans text-charcoal/60 italic">
                                     {new Date(item.last_tagged_at).toLocaleDateString()} by {item.last_tagged_by}
                                 </p>
@@ -2362,12 +2362,12 @@ export default function EditItem() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     <div>
-                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Uploaded By</p>
+                        <p className="text-[10px] font-black text-charcoal/60 uppercase tracking-[0.2em] mb-1 font-sans">Uploaded By</p>
                         <p className="text-sm font-sans font-bold text-charcoal">{item.uploaded_by_name || 'System'}</p>
                         <p className="text-xs font-sans text-charcoal/60">{item.uploaded_by_email || 'legacy-import'}</p>
                     </div>
                     <div>
-                        <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Upload Date</p>
+                        <p className="text-[10px] font-black text-charcoal/60 uppercase tracking-[0.2em] mb-1 font-sans">Upload Date</p>
                         <p className="text-sm font-sans text-charcoal font-medium">
                             {item.created_at ? new Date(item.created_at).toLocaleString() : 'N/A'}
                         </p>
@@ -2375,12 +2375,12 @@ export default function EditItem() {
                     {item.updated_at && (
                         <>
                             <div>
-                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Last Updated By</p>
+                                <p className="text-[10px] font-black text-charcoal/60 uppercase tracking-[0.2em] mb-1 font-sans">Last Updated By</p>
                                 <p className="text-sm font-sans font-bold text-charcoal">{item.updated_by_name || 'System'}</p>
                                 <p className="text-xs font-sans text-charcoal/60">{item.updated_by_email || 'N/A'}</p>
                             </div>
                             <div>
-                                <p className="text-[10px] font-black text-charcoal/40 uppercase tracking-[0.2em] mb-1 font-sans">Last Update Date</p>
+                                <p className="text-[10px] font-black text-charcoal/60 uppercase tracking-[0.2em] mb-1 font-sans">Last Update Date</p>
                                 <p className="text-sm font-sans text-charcoal font-medium">
                                     {new Date(item.updated_at).toLocaleString()}
                                 </p>
@@ -2825,7 +2825,7 @@ export function OralHistoryEditForm({
                                                 </button>
                                             ))
                                         ) : (
-                                            <div className="px-4 py-3 text-xs text-charcoal/40 italic">No figures found.</div>
+                                            <div className="px-4 py-3 text-xs text-charcoal/60 italic">No figures found.</div>
                                         )}
                                     </div>
                                 )}
@@ -2884,7 +2884,7 @@ export function OralHistoryEditForm({
                                 />
                                 <Upload className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
                                 <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Cover Photo</p>
-                                <p className="text-[10px] text-charcoal/40 max-w-[180px]">Portrait image of the narrator or historical figure (.jpg, .png)</p>
+                                <p className="text-[10px] text-charcoal/60 max-w-[180px]">Portrait image of the narrator or historical figure (.jpg, .png)</p>
                             </div>
                         )}
                     </div>
@@ -2950,7 +2950,7 @@ export function OralHistoryEditForm({
                                 />
                                 <Music className="text-tan-light group-hover:scale-110 transition-transform mb-3" size={28} />
                                 <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Upload Audio file</p>
-                                <p className="text-[10px] text-charcoal/40 max-w-[180px]">Select digital audio interview recording (.mp3, .wav)</p>
+                                <p className="text-[10px] text-charcoal/60 max-w-[180px]">Select digital audio interview recording (.mp3, .wav)</p>
                             </div>
                         )}
 
@@ -3045,7 +3045,7 @@ export function OralHistoryEditForm({
                             />
                             <Upload className="text-amber-600/50 group-hover:scale-110 transition-transform mb-3" size={28} />
                             <p className="text-xs font-black text-charcoal/80 uppercase tracking-widest mb-1">Add Private Document</p>
-                            <p className="text-[10px] text-charcoal/40 max-w-[180px]">Deed of gift or paperwork (.pdf, .jpg, .png)</p>
+                            <p className="text-[10px] text-charcoal/60 max-w-[180px]">Deed of gift or paperwork (.pdf, .jpg, .png)</p>
                         </div>
                     </div>
                 </div>

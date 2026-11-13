@@ -374,7 +374,7 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
                             {/* Mapped Section */}
                             {mappedItems.length > 0 && (
                                 <div className="flex flex-col gap-2">
-                                    <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest px-1">
+                                    <h4 className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest px-1">
                                         📁 Folder Archive Items
                                     </h4>
                                     <div className="flex flex-col gap-2.5">
@@ -436,7 +436,7 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
                             {/* Unmapped Section */}
                             {unmappedItems.length > 0 && (
                                 <div className="flex flex-col gap-2">
-                                    <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest px-1">Unmapped Archive Items</h4>
+                                    <h4 className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest px-1">Unmapped Archive Items</h4>
                                     <div className="flex flex-col gap-2 opacity-70">
                                         {unmappedItems.map(item => (
                                             <div 
@@ -445,7 +445,7 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
                                             >
                                                 <div className="min-w-0 pr-4">
                                                     <h4 className="text-xs font-bold text-charcoal font-serif truncate">{item.title}</h4>
-                                                    <p className="text-[9px] text-charcoal/40 font-sans mt-0.5">No geographic location metadata</p>
+                                                    <p className="text-[9px] text-charcoal/60 font-sans mt-0.5">No geographic location metadata</p>
                                                 </div>
                                                 <Link 
                                                     to={isEditingMode ? `/edit-item/${item.id}` : `/items/${item.id}`}
@@ -594,7 +594,7 @@ export function FolderMapView({ items, folderId }: FolderMapViewProps) {
                                                 </p>
                                             )}
                                             {pin.date && (
-                                                <p className="text-[9px] text-charcoal/40 font-mono mt-0.5">
+                                                <p className="text-[9px] text-charcoal/60 font-mono mt-0.5">
                                                     📅 Historical Era: {pin.date}
                                                 </p>
                                             )}

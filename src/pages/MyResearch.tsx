@@ -644,7 +644,7 @@ export function MyResearch() {
                                                 {folder.name}
                                             </h3>
                                             <div className="flex flex-col gap-0.5 mt-0.5">
-                                                <p className="text-[10px] text-charcoal/40 font-mono tracking-wider">
+                                                <p className="text-[10px] text-charcoal/60 font-mono tracking-wider">
                                                     Created {new Date(folder.createdAt).toLocaleDateString()}
                                                 </p>
                                                 {folder.description && (
@@ -781,11 +781,11 @@ export function MyResearch() {
                                         
                                         {/* Collaborative Research Notes Journal */}
                                         <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-tan-light/10">
-                                            <h4 className="text-[10px] font-bold text-charcoal/40 uppercase tracking-widest px-1">Research Journal</h4>
+                                            <h4 className="text-[10px] font-bold text-charcoal/60 uppercase tracking-widest px-1">Research Journal</h4>
                                             
                                             <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto pr-0.5">
                                                 {itemNotes.length === 0 ? (
-                                                    <p className="text-[11px] text-charcoal/40 italic px-1 py-1">No notes recorded yet.</p>
+                                                    <p className="text-[11px] text-charcoal/60 italic px-1 py-1">No notes recorded yet.</p>
                                                 ) : (
                                                     itemNotes.map(note => {
                                                         const isMyNote = (note.ownerEmail || '').toLowerCase() === user?.email?.toLowerCase();
@@ -798,7 +798,7 @@ export function MyResearch() {
                                                                         : 'bg-tan/5 border-tan-light/30 text-charcoal/80'
                                                                 }`}
                                                             >
-                                                                <div className="flex justify-between items-center text-[9px] font-bold text-charcoal/40">
+                                                                <div className="flex justify-between items-center text-[9px] font-bold text-charcoal/60">
                                                                     <span className="flex items-center gap-1 font-sans">
                                                                         {note.isPrivate ? '🔒 Private' : '👥 Shared'}
                                                                         <span>•</span>

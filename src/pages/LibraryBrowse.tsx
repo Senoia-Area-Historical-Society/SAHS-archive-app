@@ -406,7 +406,7 @@ function LibraryCatalog() {
                                                     {book.authors?.join(', ')}
                                                 </p>
                                             </div>
-                                            <div className="text-xs text-charcoal/40 font-mono">
+                                            <div className="text-xs text-charcoal/60 font-mono">
                                                 {book.call_number || "NO CALL #"}
                                             </div>
                                         </div>
@@ -446,7 +446,7 @@ function LibraryCatalog() {
                                                 </span>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-1.5 text-xs text-charcoal/40 italic">
+                                            <div className="flex items-center gap-1.5 text-xs text-charcoal/60 italic">
                                                 <MapPin size={14} className="shrink-0" />
                                                 <span>Unspecified location</span>
                                             </div>
