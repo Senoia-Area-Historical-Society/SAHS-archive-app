@@ -60,12 +60,16 @@ every push to `main`, so **merging a PR is currently a production release** for
 SAHS. That workflow is moving to SAHS's private deploy repo; after that, upstream
 gets a PR-check workflow and versioned releases.
 
-A deployment's identity is three build inputs: `SITE_HEAD_FILE` (its static
-`<head>`), `SITE_URL` and `SITE_OG_IMAGE` (`scripts/site-url.cjs`), baked into the
-app by Vite and into `functions/shared/seo.cjs` by `prepare-functions.cjs`. **A
-build without them is neutral**: canonicals use the serving origin, there is no
+A deployment's identity is four build inputs: `SITE_HEAD_FILE` (its static
+`<head>`, icons included), `SITE_PUBLIC_DIR` (its own static files, such as icons,
+hero photos and logos, served from the site root beside `public/`), and `SITE_URL`
+and `SITE_OG_IMAGE` (`scripts/site-url.cjs`), baked into the app by Vite and into
+`functions/shared/seo.cjs` by `prepare-functions.cjs`. **A build without them is
+neutral**: no icon, no museum images, canonicals use the serving origin, there is no
 default share image, and the sitemap and list-page scripts refuse to run. Set all
-three for any production build or functions deploy.
+four for any production build or functions deploy. `public/` holds only what every
+install needs (`src/test/museumAssets.test.ts`); a museum's files keep their exact
+names, because a missing one is answered with `index.html` and a 200, not a 404.
 
 **`functions/shared/seo.cjs` and `functions/shell.html` are generated, never
 committed** (they would carry one deployment's address and `<head>`). A functions

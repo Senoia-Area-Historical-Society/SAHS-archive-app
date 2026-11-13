@@ -36,6 +36,7 @@ jobs:
     # See vite.config.ts and scripts/site-url.cjs.
     env:
       SITE_HEAD_FILE: deploy/sahs-head.html
+      SITE_PUBLIC_DIR: deploy/sahs-public
       SITE_URL: https://archives.senoiahistory.com
       SITE_OG_IMAGE: /home-street-view.jpg
     

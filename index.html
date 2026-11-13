@@ -14,17 +14,17 @@
     <link rel="preconnect" href="https://storage.googleapis.com" crossorigin />
     <link rel="dns-prefetch" href="https://images.weserv.nl" />
 
-    <!-- logo2.png is 2000x2000 and 105 KB; these are sized for their actual use. -->
-    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#3a2d1d" />
-
     <!-- site-head:start -->
     <!--
       Defaults only. Public routes override title/description/canonical at runtime
       (see src/lib/seo.ts). A deployment can replace everything between the
       site-head markers with its own copy: see siteHead in vite.config.ts.
     -->
+    <!--
+      No icon by default: a museum's icon is its own logo, so it comes with its head
+      file (and its files, SITE_PUBLIC_DIR in vite.config.ts).
+    -->
+    <meta name="theme-color" content="#3a2d1d" />
     <title>Digital Archive</title>
     <meta
       name="description"
