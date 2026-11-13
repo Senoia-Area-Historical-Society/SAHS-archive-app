@@ -20,11 +20,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore, Storage, and Auth
-// The emulator gets the same named database as production, not the default one.
-// The Cloud Functions' Firestore triggers are bound to 'sahs-archives', so with
-// the default database they never fired locally — no role claims, so no uploads.
+// The archive's database comes from functions/.env.<project id>, the same file the
+// Cloud Functions' Firestore triggers are bound by, so the app and the triggers
+// always use one database — in the emulator too. With any other database the
+// triggers never fire: no role claims, so no uploads, and no privacy syncing.
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
-export const db = getFirestore(app, 'sahs-archives');
+export const db = getFirestore(app, __ARCHIVE_DATABASE__);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);

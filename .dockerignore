@@ -30,3 +30,7 @@
 **/*.local
 **/.secret*
 src/test/
+
+# The demo project's archive database name (functions/database.js). Not a secret,
+# and the emulator and the image's build both need it.
+!functions/.env.demo-archive

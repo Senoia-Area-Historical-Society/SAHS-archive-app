@@ -1,9 +1,23 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const { siteBuildDefines } = createRequire(import.meta.url)('./scripts/site-url.cjs')
+const require = createRequire(import.meta.url)
+const { siteBuildDefines } = require('./scripts/site-url.cjs')
+const { archiveDatabaseFor } = require('./scripts/lib/archiveDatabase.cjs')
+
+/**
+ * The Firestore database the app reads and writes, from the same
+ * functions/.env.<project id> file the Cloud Functions' triggers are bound by, so
+ * the two cannot disagree. A build for a project with no such file fails here.
+ * Unit tests import no Firebase code, so they get an empty value instead.
+ */
+function archiveDatabaseDefine(mode: string): string {
+  if (process.env.VITEST) return ''
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  return archiveDatabaseFor(env.VITE_FIREBASE_PROJECT_ID)
+}
 
 // \r?\n: a Windows checkout (core.autocrlf) has CRLF line endings.
 const SITE_HEAD_BLOCK = /[ \t]*<!-- site-head:start -->[\s\S]*?<!-- site-head:end -->\r?\n/
@@ -35,10 +49,13 @@ function siteHead(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), siteHead()],
-  // The deployment's own address for canonical, og and JSON-LD URLs (src/lib/seo.ts).
-  define: siteBuildDefines(),
+  define: {
+    // The deployment's own address for canonical, og and JSON-LD URLs (src/lib/seo.ts).
+    ...siteBuildDefines(),
+    __ARCHIVE_DATABASE__: JSON.stringify(archiveDatabaseDefine(mode)),
+  },
   server: {
     host: true, // Listen on all network interfaces
   },
@@ -64,4 +81,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

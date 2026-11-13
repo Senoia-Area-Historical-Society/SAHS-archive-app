@@ -1,39 +1,64 @@
 #!/usr/bin/env node
-// Guards against firebase.json listing a Firestore database this app doesn't own.
+// Guards against firebase.json deploying rules and indexes to a Firestore database
+// other than the archive's own.
 //
 // Incident: this file's firestore config listed "(default)" (the sahs-website app's
-// database) alongside this app's own "sahs-archives" named database. Every deploy
-// from this repo silently pushed archive-app's rules/indexes to the website's
-// database too, wiping out the website's public-read rules for posts/galleries/
-// bookings/etc.
+// database) alongside this app's own named database. Every deploy from this repo
+// silently pushed archive-app's rules/indexes to the website's database too,
+// wiping out the website's public-read rules for posts/galleries/bookings/etc.
 //
-// This repo (archive-app) only ever owns the sahs-archives named database.
-const ALLOWED_DATABASES = ['sahs-archives'];
+// The archive's database is named in functions/.env.<project id> (see
+// scripts/lib/archiveDatabase.cjs), which is also what the Cloud Functions'
+// triggers and the web build use. Each firebase.json must target that database and
+// nothing else, so rules, triggers and app can never point at different databases.
+//
+//   firebase.json         → the .firebaserc default project (production)
+//   docker/firebase.json  → the Docker demo's project, demo-archive
 
 const fs = require('fs');
 const path = require('path');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 
-const firebaseJsonPath = path.join(__dirname, '..', 'firebase.json');
-const firebaseJson = JSON.parse(fs.readFileSync(firebaseJsonPath, 'utf8'));
+const root = path.join(__dirname, '..');
+const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
 
-const firestoreConfig = firebaseJson.firestore;
-const entries = Array.isArray(firestoreConfig)
-  ? firestoreConfig
-  : firestoreConfig
-  ? [firestoreConfig]
-  : [];
-
-const targeted = entries.map((entry) => entry.database || '(default)');
-const violations = targeted.filter((database) => !ALLOWED_DATABASES.includes(database));
-
-if (violations.length > 0) {
-  console.error(
-    `firebase.json lists Firestore database(s) this app does not own: ${violations.join(', ')}\n` +
-      `Allowed for this repo: ${ALLOWED_DATABASES.join(', ')}\n` +
-      `A stray database entry here will silently deploy this app's rules/indexes to another ` +
-      `app's database on every CI deploy. Remove it before merging.`
-  );
-  process.exit(1);
+function targetedDatabases(firebaseJsonFile) {
+  const firestoreConfig = readJson(firebaseJsonFile).firestore;
+  const entries = Array.isArray(firestoreConfig)
+    ? firestoreConfig
+    : firestoreConfig
+    ? [firestoreConfig]
+    : [];
+  return entries.map((entry) => entry.database || '(default)');
 }
 
-console.log(`OK — firebase.json only targets allowed database(s): ${targeted.join(', ') || '(none)'}`);
+const checks = [
+  { file: 'firebase.json', project: readJson('.firebaserc').projects.default },
+  { file: 'docker/firebase.json', project: 'demo-archive' },
+];
+
+let failed = false;
+for (const { file, project } of checks) {
+  let expected;
+  try {
+    expected = archiveDatabaseFor(project);
+  } catch (error) {
+    console.error(`${file}: ${error.message}`);
+    failed = true;
+    continue;
+  }
+  const targeted = targetedDatabases(file);
+  if (targeted.length !== 1 || targeted[0] !== expected) {
+    console.error(
+      `${file} targets Firestore database(s) [${targeted.join(', ') || 'none'}], but project ` +
+        `${project}'s archive database is "${expected}" (functions/.env.${project}).\n` +
+        `It must list exactly that one. A stray entry deploys this app's rules and indexes to ` +
+        `another app's database; a mismatch leaves the triggers and the rules on different databases.`
+    );
+    failed = true;
+    continue;
+  }
+  console.log(`OK — ${file} targets only "${expected}", project ${project}'s archive database.`);
+}
+
+process.exit(failed ? 1 : 0);

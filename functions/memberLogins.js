@@ -9,21 +9,20 @@
 
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { logger } = require("firebase-functions");
-const { getFirestore } = require("firebase-admin/firestore");
 const { memberLoginChanges } = require("./memberLoginRules");
 
-const DATABASE = "sahs-archives";
+const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 
 exports.syncMemberLogins = onDocumentWritten({
     document: "members/{memberId}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 10
 }, async (event) => {
     const memberId = event.params.memberId;
     const before = event.data.before.exists ? event.data.before.data() : null;
     const after = event.data.after.exists ? event.data.after.data() : null;
     const { remove, set } = memberLoginChanges(before, after);
-    const logins = getFirestore(DATABASE).collection("member_logins");
+    const logins = archiveDb().collection("member_logins");
 
     if (remove) {
         const ref = logins.doc(remove);

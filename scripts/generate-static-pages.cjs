@@ -47,13 +47,16 @@
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 
 const { buildPageSeo, DEFAULT_SITE_NAME, SITE_URL } = require('../functions/shared/seo.cjs');
 const { requireSiteUrl } = require('./site-url.cjs');
 
 requireSiteUrl(SITE_URL, 'The list pages\' canonical URLs');
 
-const DATABASE_ID = 'sahs-archives';
+const PROJECT_ID = 'sahs-archives';
+// From functions/.env.<project id>, where the Cloud Functions read it too.
+const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
 const DIST = path.join(__dirname, '..', 'dist');
 const SHELL = path.join(DIST, 'index.html');
 
@@ -142,7 +145,7 @@ function renderShell(shell, seo) {
 async function readSettings() {
     const fallback = { settings: {}, itemCount: 0, live: false };
     try {
-        admin.initializeApp({ projectId: 'sahs-archives' });
+        admin.initializeApp({ projectId: PROJECT_ID });
         const db = admin.firestore();
         db.settings({ databaseId: DATABASE_ID });
 

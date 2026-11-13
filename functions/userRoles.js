@@ -3,7 +3,7 @@
  * somewhere Storage Rules can actually see it.
  *
  * Storage Rules cannot query a *named* Firestore database — only the default
- * one — and this project's Firestore lives at "sahs-archives", not default.
+ * one — and the archive lives in a named database (functions/database.js).
  * Custom claims sidestep the problem entirely, because they ride along on the
  * ID token itself.
  *
@@ -25,14 +25,13 @@ const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
-const { getFirestore } = require("firebase-admin/firestore");
 const { supportEmailsOf, resolveRole, changedSupportEmails } = require("./roleResolution");
 
-const DATABASE = "sahs-archives";
+const { ARCHIVE_DATABASE, archiveDb } = require("./database");
 
 /** The role `email` should hold right now, read fresh from both sources. */
 async function currentRoleFor(email) {
-    const db = getFirestore(DATABASE);
+    const db = archiveDb();
     const [supportDoc, roleDoc] = await Promise.all([
         db.collection("deployment_config").doc("support").get(),
         db.collection("user_roles").doc(email).get(),
@@ -80,7 +79,7 @@ async function applyRoleClaim(email, role) {
 
 exports.syncUserRoleClaims = onDocumentWritten({
     document: "user_roles/{email}",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 10
 }, async (event) => {
     const email = event.params.email.toLowerCase();
@@ -94,7 +93,7 @@ exports.syncUserRoleClaims = onDocumentWritten({
 
 exports.syncSupportAdminClaims = onDocumentWritten({
     document: "deployment_config/support",
-    database: DATABASE,
+    database: ARCHIVE_DATABASE,
     maxInstances: 1
 }, async (event) => {
     const before = event.data.before.exists ? event.data.before.data() : null;

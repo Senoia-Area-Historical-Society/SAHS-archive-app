@@ -44,9 +44,12 @@
  */
 
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 
 const BUCKET = 'sahs-archives.firebasestorage.app';
-const DATABASE_ID = 'sahs-archives';
+const PROJECT_ID = 'sahs-archives';
+// From functions/.env.<project id>, where the Cloud Functions read it too.
+const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
 const RESIZED_DIR = 'thumbs'; // must match RESIZED_IMAGES_PATH / imageThumbs.ts
 const THUMB_SIZES = [400, 1000]; // must match IMG_SIZES / THUMB_SIZES
 
@@ -278,7 +281,7 @@ async function runPool(items, concurrency, worker) {
 }
 
 async function main() {
-    admin.initializeApp({ projectId: 'sahs-archives', storageBucket: BUCKET });
+    admin.initializeApp({ projectId: PROJECT_ID, storageBucket: BUCKET });
     const bucket = admin.storage().bucket();
 
     console.log(DRY_RUN ? 'DRY RUN — nothing will be changed\n' : 'Reconciling media visibility\n');

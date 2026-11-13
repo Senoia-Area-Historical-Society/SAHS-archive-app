@@ -69,8 +69,11 @@
  */
 
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
 
-const DATABASE_ID = 'sahs-archives';
+const PROJECT_ID = 'sahs-archives';
+// From functions/.env.<project id>, where the Cloud Functions read it too.
+const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
 const BATCH_LIMIT = 400; // under Firestore's 500-write cap, with headroom
 
 const args = process.argv.slice(2);
@@ -85,7 +88,7 @@ if (DELETE_LEGACY && !PROD) {
     console.log('--delete-legacy is shown as a dry run below; add --prod to apply it.\n');
 }
 
-admin.initializeApp({ projectId: 'sahs-archives' });
+admin.initializeApp({ projectId: PROJECT_ID });
 const db = admin.firestore();
 db.settings({ databaseId: DATABASE_ID });
 

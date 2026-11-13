@@ -9,16 +9,17 @@
  *   --prod                 write to the real project
  *   --emulator             write to the local Firestore emulator
  *   --project <id>         default sahs-archives
- *   --database <id>        default sahs-archives
+ *   --database <id>        default: ARCHIVE_DATABASE in functions/.env.<project>
  *
  * With neither --prod nor --emulator it is a dry run: it reads and reports the
  * current list and writes nothing.
  *
  * `--emulator` targets the Firestore emulator at 127.0.0.1:8080, and the same
- * `sahs-archives` database the app uses there — see src/lib/firebase.ts.
+ * database the app uses there — see scripts/lib/archiveDatabase.cjs.
  */
 
 const admin = require('firebase-admin');
+const { archiveDatabaseFor } = require('./archiveDatabase.cjs');
 
 /**
  * @param {object} opts
@@ -38,7 +39,7 @@ function runEmailListScript({ docId, label, usage, allowNone = false }) {
         return i === -1 ? undefined : args[i + 1];
     };
     const projectId = flagValue('--project') || 'sahs-archives';
-    const databaseId = flagValue('--database') || 'sahs-archives';
+    const databaseId = flagValue('--database') || archiveDatabaseFor(projectId);
 
     const flagValues = new Set([flagValue('--project'), flagValue('--database')]);
     const emails = args
