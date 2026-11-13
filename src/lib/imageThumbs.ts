@@ -24,7 +24,18 @@
  * any thumbnail exists.
  */
 
-const BUCKET = 'sahs-archives.firebasestorage.app';
+/**
+ * The install's own Storage bucket, the same value src/lib/firebase.ts gives the
+ * SDK. Only URLs in this bucket get a derived thumbnail or public URL; anything
+ * else (another bucket, an external link, an emulator URL) returns null and is
+ * loaded as stored. With no bucket configured nothing matches, so images fall
+ * back to their originals rather than pointing at another museum's bucket.
+ *
+ * Read on each call rather than captured at load, so tests can stub it.
+ */
+function ownBucket(): string {
+    return import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '';
+}
 
 /** Must match IMG_SIZES in extensions/storage-resize-images.env. */
 export const THUMB_SIZES = [400, 1000] as const;
@@ -39,14 +50,15 @@ const RESIZED_DIR = 'thumbs';
  */
 export function storageObjectPath(url: string): string | null {
     if (!url) return null;
+    const bucket = ownBucket();
 
     const gcs = url.match(/^https:\/\/storage\.googleapis\.com\/([^/]+)\/([^?]+)/);
-    if (gcs && gcs[1] === BUCKET) {
+    if (gcs && bucket && gcs[1] === bucket) {
         return safeDecode(gcs[2]);
     }
 
     const firebase = url.match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/);
-    if (firebase && firebase[1] === BUCKET) {
+    if (firebase && bucket && firebase[1] === bucket) {
         return safeDecode(firebase[2]);
     }
 
@@ -111,7 +123,7 @@ function encodePath(objectPath: string): string {
 export function publicMediaUrl(url: string): string | null {
     const objectPath = storageObjectPath(url);
     if (!objectPath) return null;
-    return `https://storage.googleapis.com/${BUCKET}/${encodePath(objectPath)}`;
+    return `https://storage.googleapis.com/${ownBucket()}/${encodePath(objectPath)}`;
 }
 
 /** Public URL for a resized variant, or null if this isn't a Storage URL we own. */
@@ -124,5 +136,5 @@ export function thumbnailUrl(originalUrl: string, targetWidth: number): string |
 
     const path = thumbObjectPath(objectPath, targetWidth);
     // Public variants are public by ACL, so no signature or token is required.
-    return `https://storage.googleapis.com/${BUCKET}/${encodePath(path)}`;
+    return `https://storage.googleapis.com/${ownBucket()}/${encodePath(path)}`;
 }
