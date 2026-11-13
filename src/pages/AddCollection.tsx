@@ -269,7 +269,7 @@ export function AddCollection() {
                                         );
                                     })}
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] text-charcoal/40 italic">
+                                <div className="flex justify-between items-center text-[10px] text-charcoal/60 italic">
                                     <span className="flex items-center gap-1"><CheckCircle size={10} className="text-tan" /> Click checkmark to set primary collection thumbnail</span>
                                     <button type="button" onClick={() => setSelectedFiles([])} className="text-red-500 hover:text-red-700 font-black uppercase tracking-widest transition-colors">Clear Gallery</button>
                                 </div>

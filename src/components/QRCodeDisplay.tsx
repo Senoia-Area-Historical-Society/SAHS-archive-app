@@ -108,7 +108,7 @@ export function QRCodeDisplay({ value, label, subLabel, size = 160 }: QRCodeDisp
                 
                 <div className="text-center w-full overflow-hidden">
                     <h3 className="font-serif font-bold text-sm text-charcoal truncate">{label}</h3>
-                    {subLabel && <p className="text-[10px] text-charcoal/40 truncate mt-0.5 uppercase tracking-widest">{subLabel}</p>}
+                    {subLabel && <p className="text-[10px] text-charcoal/60 truncate mt-0.5 uppercase tracking-widest">{subLabel}</p>}
                 </div>
 
                 <div className="absolute top-2 right-2 p-1.5 bg-white/80 rounded-full text-tan opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm border border-tan-light/30 shadow-sm">

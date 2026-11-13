@@ -183,11 +183,11 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
             </div>
             <div className="flex items-center gap-6 mt-2 pt-4 border-t border-charcoal/5">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-black uppercase text-charcoal/40 tracking-widest">Aspect Ratio:</span>
+                    <span className="text-[10px] font-black uppercase text-charcoal/60 tracking-widest">Aspect Ratio:</span>
                     {mediaSize.width > 0 && (
                         <button 
                             onClick={() => setIsOriginalAspect(true)} 
-                            className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${isOriginalAspect ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/40 hover:text-charcoal'}`}
+                            className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${isOriginalAspect ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/60 hover:text-charcoal'}`}
                         >
                             Original Aspect
                         </button>
@@ -197,7 +197,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
                             setIsOriginalAspect(false);
                             setCurrentAspect(1);
                         }} 
-                        className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${!isOriginalAspect && currentAspect === 1 ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/40 hover:text-charcoal'}`}
+                        className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${!isOriginalAspect && currentAspect === 1 ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/60 hover:text-charcoal'}`}
                     >
                         Square (1:1)
                     </button>
@@ -206,7 +206,7 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
                             setIsOriginalAspect(false);
                             setCurrentAspect(undefined);
                         }} 
-                        className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${!isOriginalAspect && currentAspect === undefined ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/40 hover:text-charcoal'}`}
+                        className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${!isOriginalAspect && currentAspect === undefined ? 'bg-tan text-white shadow-sm' : 'bg-cream text-charcoal/60 hover:text-charcoal'}`}
                     >
                         Free Form
                     </button>

@@ -528,7 +528,7 @@ export function SetupWizard() {
                                                     ))}
                                                 </div>
                                             ) : (
-                                                <div className="text-center py-6 border border-dashed border-tan-light/40 rounded-lg text-xs text-charcoal/40 font-medium">
+                                                <div className="text-center py-6 border border-dashed border-tan-light/40 rounded-lg text-xs text-charcoal/60 font-medium">
                                                     No slider images uploaded. (A solid brand color will show instead).
                                                 </div>
                                             )}

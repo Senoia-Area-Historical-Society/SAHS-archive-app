@@ -451,7 +451,7 @@ export function AuditDashboard() {
                         </div>
                     </div>
                     <div>
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal/40 mb-2">Diagnostic Result</h4>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-charcoal/60 mb-2">Diagnostic Result</h4>
                         <p className={`text-xl font-serif font-bold mb-1 ${stats.averageScore > 80 ? 'text-green-600' : 'text-tan'}`}>
                             {stats.averageScore > 80 ? 'Archival Grade A' : stats.averageScore > 60 ? 'Preservation Grade B' : 'Action Required'}
                         </p>
@@ -483,7 +483,7 @@ export function AuditDashboard() {
                         </div>
                         
                         <div className="relative z-10">
-                            <h4 className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-1">{stat.label}</h4>
+                            <h4 className="text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-1">{stat.label}</h4>
                             <div className="flex items-center justify-between">
                                 <p className="text-4xl font-serif font-black text-charcoal">{stat.count}</p>
                                 <ChevronRight size={20} className={`transition-all ${activeIssue === stat.id ? 'translate-x-0 opacity-100 text-tan' : '-translate-x-4 opacity-0 text-charcoal/20'}`} />
@@ -542,14 +542,14 @@ export function AuditDashboard() {
                             <div className="flex items-center bg-cream/40 p-1.5 rounded-2xl border border-tan-light shadow-inner">
                                 <button 
                                     onClick={() => setSortBy(sortBy === 'health-asc' ? 'health-desc' : 'health-asc')}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${sortBy.startsWith('health') ? 'bg-white text-tan shadow-sm' : 'text-charcoal/40 hover:text-charcoal'}`}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${sortBy.startsWith('health') ? 'bg-white text-tan shadow-sm' : 'text-charcoal/60 hover:text-charcoal'}`}
                                 >
                                     <Activity size={16} /> 
                                     {sortBy === 'health-asc' ? 'Needs Attention' : 'Highest Health'}
                                 </button>
                                 <button 
                                     onClick={() => setSortBy('newest')}
-                                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${sortBy === 'newest' ? 'bg-white text-tan shadow-sm' : 'text-charcoal/40 hover:text-charcoal'}`}
+                                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${sortBy === 'newest' ? 'bg-white text-tan shadow-sm' : 'text-charcoal/60 hover:text-charcoal'}`}
                                 >
                                     <ChevronRight size={16} /> Newest First
                                 </button>

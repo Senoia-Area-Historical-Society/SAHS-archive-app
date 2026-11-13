@@ -438,7 +438,7 @@ export function Home() {
                                         textKey="qrSubtitle"
                                         defaultText="Scan to Visit Archive"
                                         containerType="p"
-                                        className="text-xs font-bold text-charcoal/40 uppercase tracking-widest mb-2"
+                                        className="text-xs font-bold text-charcoal/60 uppercase tracking-widest mb-2"
                                     />
                                     <div className="mt-1 mb-6">
                                         <EditableText

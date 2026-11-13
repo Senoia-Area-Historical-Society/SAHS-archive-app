@@ -1184,7 +1184,7 @@ export function LocationDetail() {
                         {locationData.description || "A dedicated archive space within the museum wings."}
                     </p>
                     <div className="flex items-center gap-8">
-                        <div className="flex items-center gap-3 text-xs font-black text-charcoal/40 uppercase tracking-[0.2em]">
+                        <div className="flex items-center gap-3 text-xs font-black text-charcoal/60 uppercase tracking-[0.2em]">
                             <Box size={20} className="text-tan" /> 
                             <span>{items.length} Artifacts Filed</span>
                         </div>
@@ -1392,7 +1392,7 @@ export function LocationDetail() {
                                                 </div>
                                                 <div>
                                                     <h4 className={`font-bold transition-colors ${isAlreadyLinked ? 'text-amber-800' : 'text-charcoal group-hover:text-tan'}`}>{result.title}</h4>
-                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/40 uppercase flex-wrap">
+                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/60 uppercase flex-wrap">
                                                         <span className="bg-tan/10 text-tan px-1.5 py-0.5 rounded">ID: {result.artifact_id || 'NO-ID'}</span>
                                                         <span>&bull;</span>
                                                         <span>{result.item_type}</span>
@@ -1479,7 +1479,7 @@ export function LocationDetail() {
                             {selectedItems.length > 0 && (
                                 <button 
                                     onClick={() => setSelectedItems([])}
-                                    className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/40 hover:text-red-500 transition-colors mx-auto"
+                                    className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/60 hover:text-red-500 transition-colors mx-auto"
                                 >
                                     Clear All
                                 </button>
@@ -1542,7 +1542,7 @@ export function LocationDetail() {
                                                 </div>
                                                 <div>
                                                     <h4 className={`font-bold transition-colors ${isAlreadyLinked ? 'text-amber-800' : 'text-charcoal group-hover:text-tan'}`}>{result.title}</h4>
-                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/40 uppercase flex-wrap">
+                                                    <div className="flex items-center gap-2 text-[11px] font-mono font-bold text-charcoal/60 uppercase flex-wrap">
                                                         {result.call_number && <span className="bg-tan/10 text-tan px-1.5 py-0.5 rounded">Call #: {result.call_number}</span>}
                                                         <span>&bull;</span>
                                                         <span>{result.authors?.join(', ')}</span>
@@ -1619,7 +1619,7 @@ export function LocationDetail() {
                             {selectedBooks.length > 0 && (
                                 <button 
                                     onClick={() => setSelectedBooks([])}
-                                    className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/40 hover:text-red-500 transition-colors mx-auto font-sans"
+                                    className="mt-3 text-[10px] font-black uppercase tracking-widest text-charcoal/60 hover:text-red-500 transition-colors mx-auto font-sans"
                                 >
                                     Clear All
                                 </button>
@@ -1641,7 +1641,7 @@ export function LocationDetail() {
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Box Name</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Box Name</label>
                                 <input 
                                     type="text" 
                                     placeholder="e.g. Box 14"
@@ -1651,7 +1651,7 @@ export function LocationDetail() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
                                 <input 
                                     type="text" 
                                     placeholder="e.g. box-14"
@@ -1684,7 +1684,7 @@ export function LocationDetail() {
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Destination Shelf</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Destination Shelf</label>
                                 <select 
                                     value={newParentShelfId} 
                                     onChange={e => setNewParentShelfId(e.target.value)}
@@ -1720,7 +1720,7 @@ export function LocationDetail() {
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">{parentLocation ? 'Box Name' : 'Location Name'}</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">{parentLocation ? 'Box Name' : 'Location Name'}</label>
                                 <input 
                                     type="text" 
                                     placeholder={parentLocation ? "e.g. Box 14" : "e.g. Case 4"}
@@ -1730,7 +1730,7 @@ export function LocationDetail() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Unique ID (Slug)</label>
                                 <input 
                                     type="text" 
                                     placeholder={parentLocation ? "e.g. box-14" : "e.g. case-4"}
@@ -1754,7 +1754,7 @@ export function LocationDetail() {
 
                             {!parentLocation && (
                                 <div>
-                                    <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Assign to Wing/Room</label>
+                                    <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Assign to Wing/Room</label>
                                     <select
                                         value={editBoxRoomId}
                                         onChange={e => setEditBoxRoomId(e.target.value)}
@@ -1769,7 +1769,7 @@ export function LocationDetail() {
                             )}
 
                             <div>
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest mb-2">Description</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest mb-2">Description</label>
                                 <textarea 
                                     placeholder={parentLocation ? "Add detail about what is housed in this box..." : "Add detail about this location..."}
                                     value={editBoxDesc}
@@ -1930,7 +1930,7 @@ export function LocationDetail() {
                                                     <p className="text-[10px] font-sans font-semibold text-charcoal/50 uppercase truncate">
                                                         {book.authors?.join(', ')}
                                                     </p>
-                                                    <div className="text-[10px] text-charcoal/40 font-mono">
+                                                    <div className="text-[10px] text-charcoal/60 font-mono">
                                                         {book.call_number || "NO CALL #"}
                                                     </div>
                                                 </div>
@@ -2003,7 +2003,7 @@ export function LocationDetail() {
                         {/* Scope Selector */}
                         {childBoxes.length > 0 && (
                             <div className="space-y-3">
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Print Scope / Selection</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest">Print Scope / Selection</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <button
                                         type="button"
@@ -2054,7 +2054,7 @@ export function LocationDetail() {
                         {/* Filter Selector - Only show if not printing Box Tags */}
                         {printScope !== 'nested-boxes' && (
                             <div className="space-y-3">
-                                <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Item Filtering</label>
+                                <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest">Item Filtering</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <button
                                         type="button"
@@ -2086,7 +2086,7 @@ export function LocationDetail() {
 
                         {/* Size Selector */}
                         <div className="space-y-3">
-                            <label className="block text-xs font-black text-charcoal/40 uppercase tracking-widest">Label Print Size</label>
+                            <label className="block text-xs font-black text-charcoal/60 uppercase tracking-widest">Label Print Size</label>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <button
                                     type="button"
@@ -2158,7 +2158,7 @@ export function LocationDetail() {
                             </div>
                             <div className="text-right">
                                 <span className="text-3xl font-serif font-black text-tan">{labelsToPrint.length}</span>
-                                <span className="block text-[10px] uppercase font-bold text-charcoal/40 tracking-wider">Labels</span>
+                                <span className="block text-[10px] uppercase font-bold text-charcoal/60 tracking-wider">Labels</span>
                             </div>
                         </div>
 
@@ -2299,7 +2299,7 @@ export function LocationDetail() {
                                                 </div>
                                                 <div>
                                                     <h4 className="font-bold text-charcoal text-sm group-hover:text-tan transition-colors">{loc.name}</h4>
-                                                    <p className="text-[11px] text-charcoal/40 font-sans leading-none mt-1">
+                                                    <p className="text-[11px] text-charcoal/60 font-sans leading-none mt-1">
                                                         {loc.parent_location_id ? 'Nested Box' : 'Display Shelf'} &bull; Slug: {loc.id}
                                                     </p>
                                                 </div>

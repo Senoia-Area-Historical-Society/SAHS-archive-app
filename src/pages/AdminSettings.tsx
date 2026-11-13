@@ -606,7 +606,7 @@ export function AdminSettings() {
                                                                 ) : (
                                                                     <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">Curator</span>
                                                                 )}
-                                                                <span className="text-charcoal/40 font-mono text-[10px] lowercase">Since {new Date(role.addedAt || Date.now()).toLocaleDateString()}</span>
+                                                                <span className="text-charcoal/60 font-mono text-[10px] lowercase">Since {new Date(role.addedAt || Date.now()).toLocaleDateString()}</span>
                                                             </p>
                                                         </div>
                                                         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -751,7 +751,7 @@ export function AdminSettings() {
                                                     </div>
                                                     <div className="flex items-center gap-3 flex-shrink-0">
                                                         <div className="text-right">
-                                                            <p className="text-[10px] font-bold text-charcoal/40 uppercase tracking-wider font-sans">Expired</p>
+                                                            <p className="text-[10px] font-bold text-charcoal/60 uppercase tracking-wider font-sans">Expired</p>
                                                             <p className="text-xs font-semibold text-red-600 font-sans">{expiredDate}</p>
                                                         </div>
                                                         <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Expired</span>
@@ -1146,7 +1146,7 @@ export function AdminSettings() {
                                                                             <span>Secondary: {m.secondaryEmail} {m.secondaryName ? `(${m.secondaryName})` : ''}</span>
                                                                         </p>
                                                                     )}
-                                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/40 font-medium font-sans">
+                                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-[11px] text-charcoal/60 font-medium font-sans">
                                                                         <span>Joined: {formatMemberDate(m.joinedAt)}</span>
                                                                         <span>•</span>
                                                                         <span className={displayStatus === 'expired' ? 'text-red-500 font-semibold' : ''}>

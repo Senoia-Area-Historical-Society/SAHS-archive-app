@@ -64,7 +64,7 @@ export function EditableText({
                         className="w-full px-3 py-2 text-charcoal bg-white border-2 border-tan rounded-xl outline-none shadow-sm focus:ring-1 focus:ring-tan min-h-[120px] text-sm text-left leading-relaxed font-sans font-medium"
                     />
                     <div className="flex items-center justify-between gap-4">
-                        <span className="text-[10px] text-charcoal/40 font-bold uppercase tracking-wider">
+                        <span className="text-[10px] text-charcoal/60 font-bold uppercase tracking-wider">
                             Press ESC to Cancel
                         </span>
                         <div className="flex items-center gap-2">
