@@ -47,16 +47,15 @@
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
-const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
+const { archiveProject } = require('./lib/archiveProject.cjs');
 
 const { buildPageSeo, DEFAULT_SITE_NAME, SITE_URL } = require('../functions/shared/seo.cjs');
 const { requireSiteUrl } = require('./site-url.cjs');
 
 requireSiteUrl(SITE_URL, 'The list pages\' canonical URLs');
 
-const PROJECT_ID = 'sahs-archives';
-// From functions/.env.<project id>, where the Cloud Functions read it too.
-const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
+// --project <id>, else .firebaserc; database from functions/.env.<project id>.
+const { projectId: PROJECT_ID, databaseId: DATABASE_ID } = archiveProject();
 const DIST = path.join(__dirname, '..', 'dist');
 const SHELL = path.join(DIST, 'index.html');
 

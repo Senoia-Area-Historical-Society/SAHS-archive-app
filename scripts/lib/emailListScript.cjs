@@ -8,7 +8,7 @@
  *   --none                 an empty list (only where allowNone is set)
  *   --prod                 write to the real project
  *   --emulator             write to the local Firestore emulator
- *   --project <id>         default sahs-archives
+ *   --project <id>         default: projects.default in .firebaserc
  *   --database <id>        default: ARCHIVE_DATABASE in functions/.env.<project>
  *
  * With neither --prod nor --emulator it is a dry run: it reads and reports the
@@ -20,6 +20,7 @@
 
 const admin = require('firebase-admin');
 const { archiveDatabaseFor } = require('./archiveDatabase.cjs');
+const { resolveProjectId } = require('./archiveProject.cjs');
 
 /**
  * @param {object} opts
@@ -38,7 +39,13 @@ function runEmailListScript({ docId, label, usage, allowNone = false }) {
         const i = args.indexOf(name);
         return i === -1 ? undefined : args[i + 1];
     };
-    const projectId = flagValue('--project') || 'sahs-archives';
+    let projectId;
+    try {
+        projectId = resolveProjectId(args);
+    } catch (error) {
+        console.error(error.message);
+        process.exit(1);
+    }
     const databaseId = flagValue('--database') || archiveDatabaseFor(projectId);
 
     const flagValues = new Set([flagValue('--project'), flagValue('--database')]);

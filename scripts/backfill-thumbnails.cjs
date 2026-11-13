@@ -32,13 +32,11 @@
  */
 
 const admin = require('firebase-admin');
-const { archiveDatabaseFor } = require('./lib/archiveDatabase.cjs');
+const { archiveProject } = require('./lib/archiveProject.cjs');
 const sharp = require('sharp');
 
-const BUCKET = 'sahs-archives.firebasestorage.app';
-const PROJECT_ID = 'sahs-archives';
-// From functions/.env.<project id>, where the Cloud Functions read it too.
-const DATABASE_ID = archiveDatabaseFor(PROJECT_ID);
+// --project <id>, else .firebaserc; database and bucket from functions/.env.<project id>.
+const { projectId: PROJECT_ID, databaseId: DATABASE_ID, bucket: BUCKET } = archiveProject({ bucket: true });
 const SIZES = [400, 1000]; // must match THUMB_SIZES in src/lib/imageThumbs.ts
 const RESIZED_DIR = 'thumbs'; // must match RESIZED_DIR there
 

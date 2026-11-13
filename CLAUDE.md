@@ -265,6 +265,14 @@ idempotent. Under bare user ADC the Auth API needs `GOOGLE_CLOUD_QUOTA_PROJECT=<
 set **per command** — never via `gcloud auth application-default
 set-quota-project`, which changes it for every tool on the machine.
 
+**Scripts take the project from `--project <id>`, else `.firebaserc`'s
+`projects.default`** (`scripts/lib/archiveProject.cjs`), and that project's
+database and bucket from its `functions/.env.<project id>` (`ARCHIVE_DATABASE`,
+`ARCHIVE_STORAGE_BUCKET`). There is no project in code. Each run prints
+`Project: … Database: …` first, and refuses if `GOOGLE_CLOUD_PROJECT` or
+`GCLOUD_PROJECT` names a different project. `src/test/archiveProject.test.ts`
+fails on a project or bucket name written into `scripts/`.
+
 **A museum's wording lives in its settings, not in the defaults.** Defaults in
 `AppearanceContext`, `Home.tsx`, `src/lib/seo.ts` and `index.html` are what any new
 museum sees, so they stay neutral (`src/test/noSenoiaDefaults.test.ts`). A

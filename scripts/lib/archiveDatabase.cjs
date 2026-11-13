@@ -32,13 +32,19 @@ function envFileFor(projectId) {
     return path.join(FUNCTIONS_DIR, `.env.${projectId}`);
 }
 
-/** The ARCHIVE_DATABASE line of a dotenv file's text, or undefined. */
-function parseArchiveDatabase(text) {
+/** The value of `key` in a dotenv file's text, or undefined. */
+function parseEnvValue(text, key) {
+    const pattern = new RegExp(`^\\s*${key}\\s*=\\s*(.*?)\\s*$`);
     for (const line of text.split(/\r?\n/)) {
-        const match = /^\s*ARCHIVE_DATABASE\s*=\s*(.*?)\s*$/.exec(line);
+        const match = pattern.exec(line);
         if (match) return match[1].replace(/^(['"])(.*)\1$/, '$2');
     }
     return undefined;
+}
+
+/** The ARCHIVE_DATABASE line of a dotenv file's text, or undefined. */
+function parseArchiveDatabase(text) {
+    return parseEnvValue(text, 'ARCHIVE_DATABASE');
 }
 
 /**
@@ -69,4 +75,4 @@ function archiveDatabaseFor(projectId) {
     return database;
 }
 
-module.exports = { archiveDatabaseFor, parseArchiveDatabase, envFileFor };
+module.exports = { archiveDatabaseFor, parseArchiveDatabase, parseEnvValue, envFileFor };
