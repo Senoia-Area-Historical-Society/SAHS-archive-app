@@ -72,6 +72,22 @@ const SIMULATED_ROLES: readonly SimulatedRole[] = ['admin', 'curator', 'member',
  * correctness rather than a hole being closed. Unrecognised values now fall back
  * to no simulation instead of propagating.
  */
+/**
+ * Whether the `?simulate=true` auth bypass is active: a fake signed-in admin
+ * with no Firebase session, for poking at screens locally.
+ *
+ * Dev builds only. It used to be honoured in production too, where any visitor
+ * could append `?simulate=true` and be shown the admin screens. The rules still
+ * refused every read and write (there is no real token), but no visitor should
+ * see the admin UI, and in a production build Vite folds this to `false` and
+ * drops the bypass entirely.
+ */
+function isAuthSimulation(): boolean {
+    return import.meta.env.DEV &&
+        typeof window !== 'undefined' &&
+        new URLSearchParams(window.location.search).get('simulate') === 'true';
+}
+
 function storedSimulatedRole(): SimulatedRole | null {
     const stored = localStorage.getItem('archive_simulated_role');
     return SIMULATED_ROLES.find((role) => role === stored) ?? null;
@@ -142,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+        if (isAuthSimulation()) {
             setIsSetupComplete(true);
             return;
         }
@@ -174,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+        if (isAuthSimulation()) {
             console.log("🛠️ Auth simulation bypass activated!");
             // A stand-in for a Firebase User carrying only the three fields the
             // app reads. `as unknown as User` rather than `as any` because it is
@@ -194,7 +210,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.search.includes('simulate=true')) {
+        if (isAuthSimulation()) {
             return;
         }
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
