@@ -960,3 +960,22 @@ describe('members — a secondary email is a member through the record that list
         await assertFails(setDoc(doc(staff().firestore(), 'member_logins', 'x@example.com'), { memberId: 'primary@example.com' }));
     });
 });
+
+describe('mail — the browser cannot queue email', () => {
+    const message = {
+        to: ['victim@example.com'],
+        message: { subject: 'Your account', html: '<a href="https://phish.example">Sign in</a>' },
+    };
+
+    it('refuses a signed-in stranger queueing an email', async () => {
+        await assertFails(setDoc(doc(stranger().firestore(), 'mail', 'm1'), message));
+    });
+
+    it('refuses an active member queueing an email', async () => {
+        await assertFails(setDoc(doc(member().firestore(), 'mail', 'm2'), message));
+    });
+
+    it('refuses staff too — email goes through sendShareInvitation, not this queue', async () => {
+        await assertFails(setDoc(doc(staff().firestore(), 'mail', 'm3'), message));
+    });
+});

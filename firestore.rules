@@ -517,10 +517,12 @@ service cloud.firestore {
       allow read, update: if isStaff();
     }
 
-    // mail collection for Trigger Email extension: Authenticated users can write emails to trigger notifications
-    match /mail/{mailId} {
-      allow create: if request.auth != null;
-    }
+    // There is deliberately no rule for `mail`. It was the Trigger Email
+    // extension's queue, and `allow create: if request.auth != null` let any
+    // signed-in Google account queue an arbitrary email — any recipient, any
+    // body — sent from the museum's own address. Nothing in the app writes it any
+    // more: invitations go through Resend from sendShareInvitation (#80). The
+    // default deny below now covers it.
 
     // Root-level personal_pins: Only the owner can read/write their personal pins
     match /personal_pins/{pinId} {
